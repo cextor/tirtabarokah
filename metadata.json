@@ -1,0 +1,6 @@
+{
+  "name": "Private Renang Tirta Barokah",
+  "description": "Aplikasi pendaftaran member, pemilihan pelatih & paket, pembayaran, serta dashboard admin dan pelatih untuk Tirta Barokah Palembang.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
