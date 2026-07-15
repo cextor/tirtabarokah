@@ -1,6 +1,6 @@
 -- Database initialization for Tirta Barokah
-CREATE DATABASE IF NOT EXISTS tirtabarokah;
-USE tirtabarokah;
+CREATE DATABASE IF NOT EXISTS db_tirtabarokah;
+USE db_tirtabarokah;
 
 -- 1. Table: coaches
 CREATE TABLE IF NOT EXISTS coaches (
