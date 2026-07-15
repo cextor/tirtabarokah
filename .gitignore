@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# CodeIgniter 4 backend ignores
+backend/vendor/
+backend/writable/*
+!backend/writable/.gitkeep

@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Coach, Member, EventItem } from './types';
-import { INITIAL_COACHES, INITIAL_MEMBERS, INITIAL_EVENTS } from './data';
+import { api } from './api';
 import MainPortal from './components/MainPortal';
 import AdminDashboard from './components/AdminDashboard';
 import CoachDashboard from './components/CoachDashboard';
@@ -22,166 +22,213 @@ export default function App() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [activeRole, setActiveRole] = useState<'member' | 'admin' | 'coach' | 'parent'>('member');
 
-  // Load from LocalStorage or seed defaults
+  // Load from database on mount
+  const loadAllData = async () => {
+    try {
+      const [coachesData, membersData, eventsData] = await Promise.all([
+        api.getCoaches(),
+        api.getMembers(),
+        api.getEvents()
+      ]);
+      setCoaches(coachesData);
+      setMembers(membersData);
+      setEvents(eventsData);
+    } catch (e) {
+      console.error("Failed to load data from MariaDB backend", e);
+    }
+  };
+
   useEffect(() => {
-    const cachedCoaches = localStorage.getItem('tirtabarokah_coaches');
-    const cachedMembers = localStorage.getItem('tirtabarokah_members');
-    const cachedEvents = localStorage.getItem('tirtabarokah_events');
-
-    if (cachedCoaches && cachedMembers) {
-      setCoaches(JSON.parse(cachedCoaches));
-      setMembers(JSON.parse(cachedMembers));
-    } else {
-      setCoaches(INITIAL_COACHES);
-      setMembers(INITIAL_MEMBERS);
-    }
-
-    if (cachedEvents) {
-      setEvents(JSON.parse(cachedEvents));
-    } else {
-      setEvents(INITIAL_EVENTS);
-    }
+    loadAllData();
   }, []);
 
-  // Sync to LocalStorage on updates
-  const updateCoachesState = (newCoaches: Coach[]) => {
+  // Sync to database on updates (Coaches)
+  const updateCoachesState = async (newCoaches: Coach[]) => {
     setCoaches(newCoaches);
-    localStorage.setItem('tirtabarokah_coaches', JSON.stringify(newCoaches));
-  };
-
-  const updateMembersState = (newMembers: Member[]) => {
-    setMembers(newMembers);
-    localStorage.setItem('tirtabarokah_members', JSON.stringify(newMembers));
-  };
-
-  const updateEventsState = (newEvents: EventItem[]) => {
-    setEvents(newEvents);
-    localStorage.setItem('tirtabarokah_events', JSON.stringify(newEvents));
-  };
-
-  // Reset demo environment
-  const handleResetApp = () => {
-    const reset = confirm('Kembalikan seluruh data simulasi ke setelan default awal?');
-    if (reset) {
-      setCoaches(INITIAL_COACHES);
-      setMembers(INITIAL_MEMBERS);
-      setEvents(INITIAL_EVENTS);
-      localStorage.setItem('tirtabarokah_coaches', JSON.stringify(INITIAL_COACHES));
-      localStorage.setItem('tirtabarokah_members', JSON.stringify(INITIAL_MEMBERS));
-      localStorage.setItem('tirtabarokah_events', JSON.stringify(INITIAL_EVENTS));
-      setActiveRole('member');
-      alert('Data simulasi Tirta Barokah berhasil di-reset!');
-    }
-  };
-
-  // Helper to append a newly registered member
-  const handleRegisterMember = (newMemberData: Omit<Member, 'id' | 'registeredAt'>) => {
-    const newId = `member-${Date.now().toString().slice(-6)}`;
-    const newMember: Member = {
-      ...newMemberData,
-      id: newId,
-      registeredAt: new Date().toISOString(),
-      rescheduleRequests: [],
-      referralCount: 0,
-      referralBonus: 0
-    };
-
-    let updatedMembers = [...members];
-    let updatedCoaches = [...coaches];
-
-    // Handle Referral logic
-    if (newMember.referralCodeUsed) {
-      const code = newMember.referralCodeUsed.trim().toUpperCase();
-      
-      // 1. Is it a Coach referral code?
-      const foundCoachIndex = coaches.findIndex(c => c.referralCode.toUpperCase() === code);
-      if (foundCoachIndex !== -1) {
-        updatedCoaches = coaches.map((c, idx) => {
-          if (idx === foundCoachIndex) {
-            return {
-              ...c,
-              referralBonus: (c.referralBonus || 0) + 50000 // Coach gets Rp 50.000 reward!
-            };
-          }
-          return c;
-        });
+    try {
+      if (newCoaches.length > coaches.length) {
+        const added = newCoaches.find(nc => !coaches.some(c => c.id === nc.id));
+        if (added) {
+          const price4 = added.packages.find(p => p.sessions === 4)?.price || 250000;
+          const price8 = added.packages.find(p => p.sessions === 8)?.price || 450000;
+          const price12 = added.packages.find(p => p.sessions === 12)?.price || 600000;
+          await api.addCoach({
+            name: added.name,
+            experience: added.experience,
+            photo: added.photo,
+            maxQuota: added.maxQuota,
+            price4,
+            price8,
+            price12
+          });
+        }
+      } else if (newCoaches.length < coaches.length) {
+        const deleted = coaches.find(c => !newCoaches.some(nc => nc.id === c.id));
+        if (deleted) {
+          await api.deleteCoach(deleted.id);
+        }
       } else {
-        // 2. Is it a Member referral code / ID?
-        const foundMemberIndex = members.findIndex(m => m.id.toUpperCase() === code || `MEMBER-${m.id.split('-')[1]}`.toUpperCase() === code || m.id.toUpperCase() === `MEMBER-${code}`);
-        if (foundMemberIndex !== -1) {
-          updatedMembers = members.map((m, idx) => {
-            if (idx === foundMemberIndex) {
-              return {
-                ...m,
-                referralCount: (m.referralCount || 0) + 1,
-                referralBonus: (m.referralBonus || 0) + 25000 // Member gets Rp 25.000 discount/bonus!
-              };
-            }
-            return m;
+        const updated = newCoaches.find(nc => {
+          const old = coaches.find(c => c.id === nc.id);
+          return old && JSON.stringify(old) !== JSON.stringify(nc);
+        });
+        if (updated) {
+          const price4 = updated.packages.find(p => p.sessions === 4)?.price || 250000;
+          const price8 = updated.packages.find(p => p.sessions === 8)?.price || 450000;
+          const price12 = updated.packages.find(p => p.sessions === 12)?.price || 600000;
+          await api.updateCoach({
+            id: updated.id,
+            name: updated.name,
+            experience: updated.experience,
+            photo: updated.photo,
+            maxQuota: updated.maxQuota,
+            price4,
+            price8,
+            price12
           });
         }
       }
+    } catch (e) {
+      console.error("Failed to update coach:", e);
     }
+    loadAllData();
+  };
 
-    // Append the new member
-    updatedMembers = [...updatedMembers, newMember];
-
-    // Now update quota for schedules
-    updatedCoaches = updatedCoaches.map(c => {
-      if (c.id === newMember.coachId) {
-        // Find corresponding day and time slot to increase slot count
-        const updatedSchedule = c.schedule.map(d => {
-          let updatedSlots = d.timeSlots;
-          
-          if (d.day === newMember.scheduleDay) {
-            updatedSlots = updatedSlots.map(ts => {
-              if (ts.time === newMember.scheduleTime) {
-                return {
-                  ...ts,
-                  currentSlots: ts.currentSlots + 1,
-                  students: [...ts.students, newId]
-                };
-              }
-              return ts;
-            });
-          }
-          
-          // Also handle schedule 2 if 2x seminggu
-          if (newMember.scheduleFrequency === '2x Seminggu' && newMember.scheduleDay2 && d.day === newMember.scheduleDay2) {
-            updatedSlots = updatedSlots.map(ts => {
-              if (ts.time === newMember.scheduleTime2) {
-                return {
-                  ...ts,
-                  currentSlots: ts.currentSlots + 1,
-                  students: [...ts.students, newId]
-                };
-              }
-              return ts;
-            });
-          }
-
-          return {
-            ...d,
-            timeSlots: updatedSlots
-          };
+  // Sync to database on updates (Members)
+  const updateMembersState = async (newMembers: Member[]) => {
+    setMembers(newMembers);
+    try {
+      if (newMembers.length > members.length) {
+        const added = newMembers.find(nm => !members.some(m => m.id === nm.id));
+        if (added) {
+          await api.registerMember({
+            parent: added.parent,
+            student: added.student,
+            coachId: added.coachId,
+            packageId: added.packageId,
+            scheduleFrequency: added.scheduleFrequency,
+            scheduleDay: added.scheduleDay,
+            scheduleTime: added.scheduleTime,
+            scheduleDay2: added.scheduleDay2,
+            scheduleTime2: added.scheduleTime2,
+            coachType: added.coachType,
+            sessionsLeft: added.sessionsLeft,
+            sessionsTotal: added.sessionsTotal,
+            payment: {
+              amount: added.payment.amount,
+              method: added.payment.method,
+              proofUrl: added.payment.proofUrl,
+              status: added.payment.status,
+            },
+            referralCodeUsed: added.referralCodeUsed
+          });
+        }
+      } else if (newMembers.length < members.length) {
+        const deleted = members.find(m => !newMembers.some(nm => nm.id === m.id));
+        if (deleted) {
+          await api.deleteMember(deleted.id);
+        }
+      } else {
+        const updated = newMembers.find(nm => {
+          const old = members.find(m => m.id === nm.id);
+          return old && JSON.stringify(old) !== JSON.stringify(nm);
         });
-
-        const activeSiswaCount = updatedSchedule.reduce(
-          (sum, d) => sum + d.timeSlots.reduce((sSum, ts) => sSum + ts.students.length, 0), 0
-        );
-
-        return {
-          ...c,
-          schedule: updatedSchedule,
-          currentQuota: activeSiswaCount,
-          status: activeSiswaCount >= c.maxQuota ? 'Penuh' as const : 'Tersedia' as const
-        };
+        if (updated) {
+          const old = members.find(m => m.id === updated.id)!;
+          
+          if (updated.progress.length > old.progress.length) {
+            const newProgress = updated.progress[0];
+            await api.addProgress({
+              memberId: updated.id,
+              attendance: newProgress.attendance,
+              note: newProgress.note,
+              date: newProgress.date
+            });
+          } else if (updated.scheduleDay !== old.scheduleDay || updated.scheduleTime !== old.scheduleTime) {
+            const lastReq = updated.rescheduleRequests?.[updated.rescheduleRequests.length - 1];
+            await api.requestReschedule({
+              memberId: updated.id,
+              requestedDay: updated.scheduleDay,
+              requestedTime: updated.scheduleTime,
+              reason: lastReq ? lastReq.reason : 'Reschedule kelas'
+            });
+          } else if (updated.payment.status === 'Pembayaran Berhasil' && old.payment.status !== 'Pembayaran Berhasil') {
+            await api.verifyPayment(updated.id);
+          } else {
+            await api.updateMember(updated);
+          }
+        }
       }
-      return c;
-    });
+    } catch (e) {
+      console.error("Failed to update member:", e);
+    }
+    loadAllData();
+  };
 
-    updateMembersState(updatedMembers);
-    updateCoachesState(updatedCoaches);
+  // Sync to database on updates (Events)
+  const updateEventsState = async (newEvents: EventItem[]) => {
+    setEvents(newEvents);
+    try {
+      if (newEvents.length > events.length) {
+        const added = newEvents.find(ne => !events.some(e => e.id === ne.id));
+        if (added) {
+          await api.addEvent(added);
+        }
+      } else if (newEvents.length < events.length) {
+        const deleted = events.find(e => !newEvents.some(ne => ne.id === e.id));
+        if (deleted) {
+          await api.deleteEvent(deleted.id);
+        }
+      } else {
+        const updated = newEvents.find(ne => {
+          const old = events.find(e => e.id === ne.id);
+          return old && JSON.stringify(old) !== JSON.stringify(ne);
+        });
+        if (updated) {
+          await api.updateEvent(updated);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to update event:", e);
+    }
+    loadAllData();
+  };
+
+  // Reset database info/notice
+  const handleResetApp = () => {
+    alert('Karena aplikasi sudah menggunakan basis data MariaDB nyata, proses reset data massal hanya dapat dilakukan dengan me-reimport berkas "backend/db_schema.sql" di phpMyAdmin Anda untuk mencegah kehilangan data secara tidak disengaja.');
+  };
+
+  // Registration callback
+  const handleRegisterMember = async (newMemberData: Omit<Member, 'id' | 'registeredAt'>) => {
+    try {
+      await api.registerMember({
+        parent: newMemberData.parent,
+        student: newMemberData.student,
+        coachId: newMemberData.coachId,
+        packageId: newMemberData.packageId,
+        scheduleFrequency: newMemberData.scheduleFrequency,
+        scheduleDay: newMemberData.scheduleDay,
+        scheduleTime: newMemberData.scheduleTime,
+        scheduleDay2: newMemberData.scheduleDay2,
+        scheduleTime2: newMemberData.scheduleTime2,
+        coachType: newMemberData.coachType,
+        sessionsLeft: newMemberData.sessionsLeft,
+        sessionsTotal: newMemberData.sessionsTotal,
+        payment: {
+          amount: newMemberData.payment.amount,
+          method: newMemberData.payment.method,
+          proofUrl: newMemberData.payment.proofUrl,
+          status: newMemberData.payment.status,
+        },
+        referralCodeUsed: newMemberData.referralCodeUsed
+      });
+      alert('Pendaftaran berhasil diajukan! Silakan hubungi admin untuk verifikasi pembayaran.');
+    } catch (e) {
+      console.error("Failed to register member via API", e);
+      alert('Terjadi kesalahan saat mendaftar. Silakan coba lagi.');
+    }
+    loadAllData();
   };
 
   return (
