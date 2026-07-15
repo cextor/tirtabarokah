@@ -619,21 +619,6 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
                             </button>
                           </div>
                         </div>
-
-                        {/* Rreferral Code Input */}
-                        <div className="space-y-1 md:col-span-2 bg-slate-50 p-4.5 rounded-xl border border-slate-200/80 mt-2">
-                          <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                            <Gift className="w-4 h-4 text-cyan-600" /> Masukkan Kode Referral (Opsional)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Contoh: COACH-RIAN atau ID member pemberi rekomendasi"
-                            value={referralCodeUsed}
-                            onChange={(e) => setReferralCodeUsed(e.target.value)}
-                            className="w-full bg-white border border-slate-200 px-4 py-3 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition text-sm text-slate-800 uppercase font-mono"
-                          />
-                          <p className="text-[10px] text-slate-500 mt-1">Masukkan kode pelatih (cth: <strong>COACH-RIAN</strong>) atau ID member teman Anda untuk mengaktifkan bonus rewards bagi kedua pihak.</p>
-                        </div>
                       </div>
                     </div>
 
@@ -642,9 +627,9 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
                         type="button"
                         disabled={!parentData.fatherMotherName || !parentData.whatsapp || !studentData.fullName || !studentData.dob}
                         onClick={() => setStep(2)}
-                        className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-xl transition flex items-center gap-2 shadow-md shadow-cyan-600/10"
+                        className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-4 py-2.5 text-xs md:px-6 md:py-3 md:text-sm rounded-xl transition flex items-center gap-2 shadow-md shadow-cyan-600/10 cursor-pointer"
                       >
-                        Selanjutnya: Pilih Pelatih <ArrowRight className="w-4 h-4" />
+                        Selanjutnya: Pilih Pelatih <ArrowRight className="w-3.5 h-3.5 md:w-4 md:h-4" />
                       </button>
                     </div>
                   </motion.div>
@@ -771,17 +756,17 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
                       <button
                         type="button"
                         onClick={() => setStep(1)}
-                        className="border border-slate-300 text-slate-600 font-bold px-6 py-3 rounded-xl transition flex items-center gap-2 hover:bg-slate-50"
+                        className="border border-slate-300 text-slate-600 font-bold px-4 py-2.5 text-xs md:px-6 md:py-3 md:text-sm rounded-xl transition flex items-center gap-2 hover:bg-slate-50 cursor-pointer"
                       >
-                        <ArrowLeft className="w-4 h-4" /> Kembali
+                        <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4" /> Kembali
                       </button>
                       <button
                         type="button"
                         disabled={!selectedCoachId}
                         onClick={() => setStep(3)}
-                        className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-xl transition flex items-center gap-2 shadow-md shadow-cyan-600/10"
+                        className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-4 py-2.5 text-xs md:px-6 md:py-3 md:text-sm rounded-xl transition flex items-center gap-2 shadow-md shadow-cyan-600/10 cursor-pointer"
                       >
-                        Selanjutnya: Pilih Paket <ArrowRight className="w-4 h-4" />
+                        Selanjutnya: Pilih Paket <ArrowRight className="w-3.5 h-3.5 md:w-4 md:h-4" />
                       </button>
                     </div>
                   </motion.div>
@@ -841,17 +826,17 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
                       <button
                         type="button"
                         onClick={() => setStep(2)}
-                        className="border border-slate-300 text-slate-600 font-bold px-6 py-3 rounded-xl transition flex items-center gap-2 hover:bg-slate-50"
+                        className="border border-slate-300 text-slate-600 font-bold px-4 py-2.5 text-xs md:px-6 md:py-3 md:text-sm rounded-xl transition flex items-center gap-2 hover:bg-slate-50 cursor-pointer"
                       >
-                        <ArrowLeft className="w-4 h-4" /> Kembali
+                        <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4" /> Kembali
                       </button>
                       <button
                         type="button"
                         disabled={!selectedPackageId}
                         onClick={() => setStep(4)}
-                        className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-xl transition flex items-center gap-2 shadow-md shadow-cyan-600/10"
+                        className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-4 py-2.5 text-xs md:px-6 md:py-3 md:text-sm rounded-xl transition flex items-center gap-2 shadow-md shadow-cyan-600/10 cursor-pointer"
                       >
-                        Selanjutnya: Pilih Jadwal <ArrowRight className="w-4 h-4" />
+                        Selanjutnya: Pilih Jadwal <ArrowRight className="w-3.5 h-3.5 md:w-4 md:h-4" />
                       </button>
                     </div>
                   </motion.div>
@@ -1007,9 +992,9 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
                       <button
                         type="button"
                         onClick={() => setStep(3)}
-                        className="border border-slate-300 text-slate-600 font-bold px-6 py-3 rounded-xl transition flex items-center gap-2 hover:bg-slate-50"
+                        className="border border-slate-300 text-slate-600 font-bold px-4 py-2.5 text-xs md:px-6 md:py-3 md:text-sm rounded-xl transition flex items-center gap-2 hover:bg-slate-50 cursor-pointer"
                       >
-                        <ArrowLeft className="w-4 h-4" /> Kembali
+                        <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4" /> Kembali
                       </button>
                       <button
                         type="button"
@@ -1018,9 +1003,9 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
                           (scheduleFrequency === '2x Seminggu' && (!selectedScheduleDay2 || !selectedScheduleTime2))
                         }
                         onClick={() => setStep(5)}
-                        className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-xl transition flex items-center gap-2 shadow-md shadow-cyan-600/10"
+                        className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-4 py-2.5 text-xs md:px-6 md:py-3 md:text-sm rounded-xl transition flex items-center gap-2 shadow-md shadow-cyan-600/10 cursor-pointer"
                       >
-                        Selanjutnya: Pembayaran <ArrowRight className="w-4 h-4" />
+                        Selanjutnya: Pembayaran <ArrowRight className="w-3.5 h-3.5 md:w-4 md:h-4" />
                       </button>
                     </div>
                   </motion.div>
@@ -1074,10 +1059,6 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
                               <span className="font-bold text-slate-800">{selectedScheduleDay2} @ Pukul {selectedScheduleTime2} WIB</span>
                             </div>
                           )}
-                          <div className="flex justify-between border-b border-slate-200 pb-2">
-                            <span className="text-slate-500">Kode Referral Digunakan:</span>
-                            <span className="font-bold text-cyan-600 font-mono">{referralCodeUsed || '-'}</span>
-                          </div>
                           <div className="flex justify-between text-sm pt-2">
                             <span className="font-bold text-slate-800">Total Tagihan:</span>
                             <span className="font-extrabold text-cyan-700">Rp {finalPrice.toLocaleString('id-ID')}</span>
@@ -1147,16 +1128,16 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
                       <button
                         type="button"
                         onClick={() => setStep(4)}
-                        className="border border-slate-300 text-slate-600 font-bold px-6 py-3 rounded-xl transition flex items-center gap-2 hover:bg-slate-50"
+                        className="border border-slate-300 text-slate-600 font-bold px-4 py-2.5 text-xs md:px-6 md:py-3 md:text-sm rounded-xl transition flex items-center gap-2 hover:bg-slate-50 cursor-pointer"
                       >
-                        <ArrowLeft className="w-4 h-4" /> Kembali
+                        <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4" /> Kembali
                       </button>
                       <button
                         type="button"
                         onClick={handleSubmit}
-                        className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-8 py-3.5 rounded-xl transition flex items-center gap-2 shadow-lg shadow-cyan-600/20"
+                        className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-2.5 text-xs md:px-8 md:py-3.5 md:text-sm rounded-xl transition flex items-center gap-2 shadow-lg shadow-cyan-600/20 cursor-pointer"
                       >
-                        <CheckCircle className="w-5 h-5" /> Selesaikan Pendaftaran
+                        <CheckCircle className="w-3.5 h-3.5 md:w-5 md:h-5" /> Selesaikan Pendaftaran
                       </button>
                     </div>
                   </motion.div>
@@ -1180,16 +1161,16 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
                       </p>
                     </div>
 
-                    {/* Member ID / Referral Code Display Box */}
+                    {/* Member ID Display Box */}
                     <div className="bg-gradient-to-r from-cyan-600 to-indigo-600 p-6 rounded-2xl text-white space-y-2.5 shadow-md">
                       <span className="text-[10px] bg-white/20 text-white font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-full">
-                        KODE ID MEMBER / REFERRAL
+                        KODE ID MEMBER BARU
                       </span>
                       <h4 className="text-3xl font-black font-mono tracking-widest bg-slate-950/25 py-2.5 rounded-xl">
                         {createdMemberId}
                       </h4>
                       <p className="text-[11px] text-cyan-100 max-w-xs mx-auto leading-normal">
-                        Simpan Kode ID di atas! Gunakan kode ini sebagai <strong>Kode Referral</strong> untuk teman Anda agar mendapatkan bonus diskon saldo rewards latihan berikutnya.
+                        Simpan Kode ID di atas sebagai bukti pendaftaran resmi Anda di Tirta Barokah Palembang.
                       </p>
                     </div>
 

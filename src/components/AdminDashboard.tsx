@@ -33,6 +33,7 @@ export default function AdminDashboard({
   onUpdateEvents
 }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<'verifikasi' | 'peserta' | 'pelatih' | 'reminder' | 'events' | 'laporan'>('verifikasi');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   // STATE FOR ADDING NEW COACH
   const [showAddCoachModal, setShowAddCoachModal] = useState<boolean>(false);
@@ -48,10 +49,14 @@ export default function AdminDashboard({
 
   // Selected coach for editing pricing/schedule
   const [selectedEditCoachId, setSelectedEditCoachId] = useState<string>('');
+  const [editCoachName, setEditCoachName] = useState<string>('');
+  const [editCoachExperience, setEditCoachExperience] = useState<string>('');
+  const [editCoachPhoto, setEditCoachPhoto] = useState<string>('');
   const [editQuotaValue, setEditQuotaValue] = useState<number>(6);
   const [editPrice4, setEditPrice4] = useState<number>(250000);
   const [editPrice8, setEditPrice8] = useState<number>(450000);
   const [editPrice12, setEditPrice12] = useState<number>(600000);
+  const [editCoachPackages, setEditCoachPackages] = useState<Package[]>([]);
 
   // FILTERS FOR PARTICIPANTS
   const [pesertaFilter, setPesertaFilter] = useState<'semua' | 'aktif' | 'hampir-habis' | 'menunggu-verifikasi'>('semua');
@@ -487,13 +492,11 @@ export default function AdminDashboard({
       if (c.id === coachId) {
         return {
           ...c,
+          name: editCoachName,
+          experience: editCoachExperience,
+          photo: editCoachPhoto,
           maxQuota: editQuotaValue,
-          packages: c.packages.map(p => {
-            if (p.sessions === 4) return { ...p, price: editPrice4 };
-            if (p.sessions === 8) return { ...p, price: editPrice8 };
-            if (p.sessions === 12) return { ...p, price: editPrice12 };
-            return p;
-          })
+          packages: editCoachPackages
         };
       }
       return c;
@@ -509,24 +512,48 @@ export default function AdminDashboard({
     if (!coach) return;
     
     setSelectedEditCoachId(coachId);
+    setEditCoachName(coach.name);
+    setEditCoachExperience(coach.experience);
+    setEditCoachPhoto(coach.photo);
     setEditQuotaValue(coach.maxQuota);
+    setEditCoachPackages(coach.packages || []);
     setEditPrice4(coach.packages.find(p => p.sessions === 4)?.price || 250000);
     setEditPrice8(coach.packages.find(p => p.sessions === 8)?.price || 450000);
     setEditPrice12(coach.packages.find(p => p.sessions === 12)?.price || 600000);
+  };
+
+  const handleAddEditPackage = () => {
+    const newId = `pkg-${Date.now()}`;
+    setEditCoachPackages(prev => [...prev, { id: newId, name: 'Paket Baru', sessions: 4, price: 250000 }]);
+  };
+
+  const handleDeleteEditPackage = (id: string) => {
+    setEditCoachPackages(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleUpdateEditPackageField = (id: string, field: keyof Package, value: any) => {
+    setEditCoachPackages(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
 
   // ACTION: ADD TIME SLOT TO SCHEDULE
   const handleAddScheduleSlot = (coachId: string, dayName: string, timeStr: string) => {
     const updated = coaches.map(c => {
       if (c.id === coachId) {
+        const dayExists = c.schedule.some(d => d.day === dayName);
+        let baseSchedule = [...c.schedule];
+        if (!dayExists) {
+          baseSchedule.push({ day: dayName, timeSlots: [] });
+        }
+
         return {
           ...c,
-          schedule: c.schedule.map(d => {
+          schedule: baseSchedule.map(d => {
             if (d.day === dayName) {
               if (d.timeSlots.find(ts => ts.time === timeStr)) return d;
               return {
                 ...d,
-                timeSlots: [...d.timeSlots, { time: timeStr, maxSlots: c.maxQuota, currentSlots: 0, students: [] }]
+                timeSlots: [...d.timeSlots, { time: timeStr, maxSlots: c.maxQuota || 6, currentSlots: 0, students: [] }]
+                  .sort((a, b) => a.time.localeCompare(b.time))
               };
             }
             return d;
@@ -537,6 +564,33 @@ export default function AdminDashboard({
     });
     onUpdateCoaches(updated);
     alert(`Slot waktu ${timeStr} ditambahkan pada hari ${dayName}.`);
+  };
+
+  // ACTION: UPDATE TIME SLOT MAX SLOTS
+  const handleUpdateScheduleSlotMax = (coachId: string, dayName: string, timeStr: string, newMax: number) => {
+    const updated = coaches.map(c => {
+      if (c.id === coachId) {
+        return {
+          ...c,
+          schedule: c.schedule.map(d => {
+            if (d.day === dayName) {
+              return {
+                ...d,
+                timeSlots: d.timeSlots.map(ts => {
+                  if (ts.time === timeStr) {
+                    return { ...ts, maxSlots: newMax };
+                  }
+                  return ts;
+                })
+              };
+            }
+            return d;
+          })
+        };
+      }
+      return c;
+    });
+    onUpdateCoaches(updated);
   };
 
   // ACTION: REMOVE SLOT
@@ -664,116 +718,162 @@ export default function AdminDashboard({
   ];
 
   return (
-    <div className="space-y-8">
-      {/* Stats Summary Panel */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-cyan-50 rounded-xl text-cyan-600">
-            <DollarSign className="w-6 h-6" />
-          </div>
+    <div className="flex flex-col lg:flex-row gap-6 relative">
+      {/* Mobile Sidebar Toggle Header */}
+      <div className="lg:hidden flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm w-full">
+        <div className="flex items-center gap-2">
+          <span className="p-2 bg-cyan-50 text-cyan-600 rounded-xl">
+            <ShieldCheck className="w-5 h-5" />
+          </span>
           <div>
-            <p className="text-[11px] text-slate-500 font-semibold uppercase">Total Pendapatan</p>
-            <h4 className="text-lg font-black text-slate-800">Rp {totalRevenue.toLocaleString('id-ID')}</h4>
+            <h3 className="font-black text-xs text-slate-800 uppercase tracking-wider">Menu Admin</h3>
+            <p className="text-[9px] text-slate-400 font-semibold font-mono">TIRTA BAROKAH</p>
           </div>
         </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
-            <Users className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-[11px] text-slate-500 font-semibold uppercase">Member Aktif</p>
-            <h4 className="text-lg font-black text-slate-800">{activeMembers.length} Anak</h4>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-amber-50 rounded-xl text-amber-600">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-[11px] text-slate-500 font-semibold uppercase">Butuh Verifikasi</p>
-            <h4 className="text-lg font-black text-slate-800">{pendingPayments.length} Akun</h4>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
-            <AlertTriangle className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-[11px] text-slate-500 font-semibold uppercase">Paket Habis / Kurang</p>
-            <h4 className="text-lg font-black text-slate-800">{expiringMembers.length} Siswa</h4>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-slate-200 gap-1 overflow-x-auto pb-px">
         <button
-          onClick={() => setActiveTab('verifikasi')}
-          className={`px-4 py-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 shrink-0 ${
-            activeTab === 'verifikasi'
-              ? 'border-cyan-600 text-cyan-600 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-200'
-          }`}
+          type="button"
+          onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          className="p-2 text-slate-500 hover:text-cyan-600 hover:bg-slate-50 rounded-xl border border-slate-100 transition cursor-pointer"
         >
-          <ShieldCheck className="w-4 h-4" /> Verifikasi Pembayaran ({pendingPayments.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('peserta')}
-          className={`px-4 py-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 shrink-0 ${
-            activeTab === 'peserta'
-              ? 'border-cyan-600 text-cyan-600 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-200'
-          }`}
-        >
-          <Users className="w-4 h-4" /> Manajemen Siswa ({members.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('reminder')}
-          className={`px-4 py-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 shrink-0 ${
-            activeTab === 'reminder'
-              ? 'border-cyan-600 text-cyan-600 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-200'
-          }`}
-        >
-          <Bell className="w-4 h-4" /> Jadwal & Reminder H-1
-        </button>
-        <button
-          onClick={() => setActiveTab('events')}
-          className={`px-4 py-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 shrink-0 ${
-            activeTab === 'events'
-              ? 'border-cyan-600 text-cyan-600 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-200'
-          }`}
-        >
-          <ImageIcon className="w-4 h-4" /> Kelola Event / Berita
-        </button>
-        <button
-          onClick={() => setActiveTab('pelatih')}
-          className={`px-4 py-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 shrink-0 ${
-            activeTab === 'pelatih'
-              ? 'border-cyan-600 text-cyan-600 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-200'
-          }`}
-        >
-          <Award className="w-4 h-4" /> Kelola Pelatih & Kuota
-        </button>
-        <button
-          onClick={() => setActiveTab('laporan')}
-          className={`px-4 py-3 text-xs font-bold transition flex items-center gap-1.5 border-b-2 shrink-0 ${
-            activeTab === 'laporan'
-              ? 'border-cyan-600 text-cyan-600 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-200'
-          }`}
-        >
-          <BarChart2 className="w-4 h-4" /> Laporan Keuangan
+          {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Settings className="w-5 h-5" />}
         </button>
       </div>
 
-      {/* Tab Content */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+      {/* Backdrop for Mobile Sidebar */}
+      {isMobileSidebarOpen && (
+        <div 
+          onClick={() => setIsMobileSidebarOpen(false)}
+          className="lg:hidden fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-xs"
+        />
+      )}
+
+      {/* Sidebar Navigation */}
+      <aside className={`
+        fixed inset-y-0 left-0 lg:static z-50 lg:z-10
+        w-72 lg:w-64 bg-white p-5 rounded-r-2xl lg:rounded-2xl border-r lg:border border-slate-200/60 lg:border-slate-100 
+        flex flex-col justify-between shadow-xl lg:shadow-sm
+        transition-transform duration-300 ease-in-out h-full lg:h-auto
+        ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        <div className="space-y-6">
+          {/* Sidebar Title */}
+          <div className="hidden lg:flex items-center gap-2 pb-4 border-b border-slate-100">
+            <div className="p-2 bg-cyan-50 text-cyan-600 rounded-xl">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-black text-xs text-slate-800 tracking-wider uppercase">Menu Admin</h3>
+              <p className="text-[10px] text-slate-400 font-semibold font-mono">TIRTA BAROKAH</p>
+            </div>
+          </div>
+
+          {/* Menu Items */}
+          <nav className="space-y-1">
+            {[
+              { id: 'verifikasi', label: 'Verifikasi Pembayaran', icon: ShieldCheck, badge: pendingPayments.length, color: 'text-amber-600 bg-amber-50' },
+              { id: 'peserta', label: 'Manajemen Siswa', icon: Users, badge: members.length, color: 'text-cyan-600 bg-cyan-50' },
+              { id: 'reminder', label: 'Jadwal & Reminder H-1', icon: Bell, color: 'text-indigo-600 bg-indigo-50' },
+              { id: 'events', label: 'Kelola Event / Berita', icon: ImageIcon, badge: events.length, color: 'text-rose-600 bg-rose-50' },
+              { id: 'pelatih', label: 'Kelola Pelatih & Kuota', icon: Award, badge: coaches.length, color: 'text-teal-600 bg-teal-50' },
+              { id: 'laporan', label: 'Laporan Keuangan', icon: BarChart2, color: 'text-emerald-600 bg-emerald-50' },
+            ].map(item => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id as any);
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className={`
+                    w-full px-3.5 py-3 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer
+                    ${isActive 
+                      ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black' 
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }
+                  `}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-white/15 text-white' : item.color}`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <span>{item.label}</span>
+                  </div>
+                  {item.badge !== undefined && (
+                    <span className={`
+                      px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide font-mono
+                      ${isActive 
+                        ? 'bg-white text-cyan-800' 
+                        : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
+                      }
+                    `}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Sidebar Footer info */}
+        <div className="pt-4 border-t border-slate-100 mt-6 space-y-2">
+          <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl text-[10px] text-slate-500 font-semibold">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
+            <span>Mode: Administrator</span>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 space-y-8 min-w-0">
+        {/* Stats Summary Panel */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-cyan-50 rounded-xl text-cyan-600">
+              <DollarSign className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500 font-semibold uppercase">Total Pendapatan</p>
+              <h4 className="text-lg font-black text-slate-800">Rp {totalRevenue.toLocaleString('id-ID')}</h4>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
+              <Users className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500 font-semibold uppercase">Member Aktif</p>
+              <h4 className="text-lg font-black text-slate-800">{activeMembers.length} Anak</h4>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-amber-50 rounded-xl text-amber-600">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500 font-semibold uppercase">Butuh Verifikasi</p>
+              <h4 className="text-lg font-black text-slate-800">{pendingPayments.length} Akun</h4>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500 font-semibold uppercase">Paket Habis / Kurang</p>
+              <h4 className="text-lg font-black text-slate-800">{expiringMembers.length} Siswa</h4>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         
         {/* TAB 1: VERIFIKASI PEMBAYARAN */}
         {activeTab === 'verifikasi' && (
@@ -1597,32 +1697,37 @@ export default function AdminDashboard({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500">Gambar Banner URL</label>
-                  <input
-                    type="text"
-                    value={newEventImageUrl}
-                    onChange={(e) => setNewEventImageUrl(e.target.value)}
-                    className="w-full bg-white border border-slate-200 px-3 py-2 text-xs rounded-lg font-mono focus:outline-hidden"
-                    required
-                  />
-                  {/* Preset Suggestions */}
-                  <div className="pt-1">
-                    <p className="text-[9px] text-slate-400 font-semibold mb-1">Preset gambar rekomendasi:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {presetImages.map(img => (
-                        <button
-                          type="button"
-                          key={img.name}
-                          onClick={() => setNewEventImageUrl(img.url)}
-                          className={`px-1.5 py-0.5 rounded text-[8px] font-semibold border ${
-                            newEventImageUrl === img.url 
-                              ? 'bg-cyan-600 text-white border-cyan-600' 
-                              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          {img.name}
-                        </button>
-                      ))}
+                  <label className="text-[10px] font-bold text-slate-500 block">Gambar Banner Kegiatan (Upload)</label>
+                  <div className="flex items-center gap-3 bg-white border border-slate-200 p-2.5 rounded-lg mt-1">
+                    <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center">
+                      {newEventImageUrl ? (
+                        <img src={newEventImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon className="w-5 h-5 text-slate-300" />
+                      )}
+                    </div>
+                    <div className="space-y-1 flex-1">
+                      <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-1 rounded text-[10px] border border-slate-200 transition inline-block">
+                        📁 Unggah Gambar Banner
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                if (typeof reader.result === 'string') {
+                                  setNewEventImageUrl(reader.result);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                      <p className="text-[8px] text-slate-400">Pilih file foto dari HP atau komputer.</p>
                     </div>
                   </div>
                 </div>
@@ -1722,14 +1827,49 @@ export default function AdminDashboard({
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-slate-500">Foto URL (Kosongkan untuk default)</label>
+                    <label className="text-[10px] font-semibold text-slate-500">Kuota Siswa Aktif Maksimal</label>
                     <input
-                      type="text"
-                      placeholder="https://..."
-                      value={newCoachPhoto}
-                      onChange={(e) => setNewCoachPhoto(e.target.value)}
-                      className="w-full bg-white border border-slate-200 px-3 py-2 text-xs rounded-lg focus:outline-hidden"
+                      type="number"
+                      value={newCoachQuota}
+                      onChange={(e) => setNewCoachQuota(Number(e.target.value))}
+                      className="w-full bg-white border border-slate-200 px-3 py-2 text-xs rounded-lg font-mono focus:outline-hidden"
+                      required
                     />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[10px] font-bold text-slate-500 block">Foto Pelatih</label>
+                    <div className="flex items-center gap-4 bg-white border border-slate-200 p-3 rounded-xl mt-1">
+                      <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center">
+                        {newCoachPhoto ? (
+                          <img src={newCoachPhoto} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-slate-300" />
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-200 transition inline-block">
+                          📁 Pilih & Upload Foto
+                          <input 
+                            type="file" 
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  if (typeof reader.result === 'string') {
+                                    setNewCoachPhoto(reader.result);
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                        <p className="text-[10px] text-slate-400 font-medium">Mendukung format PNG, JPG, GIF. Gambar akan disimpan dalam database lokal.</p>
+                      </div>
+                    </div>
                   </div>
                   <div className="space-y-1 md:col-span-2">
                     <label className="text-[10px] font-semibold text-slate-500">Pengalaman / Biografi Singkat</label>
@@ -1739,16 +1879,6 @@ export default function AdminDashboard({
                       value={newCoachExperience}
                       onChange={(e) => setNewCoachExperience(e.target.value)}
                       className="w-full bg-white border border-slate-200 px-3 py-2 text-xs rounded-lg focus:outline-hidden"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-slate-500">Kuota Siswa Aktif Maksimal</label>
-                    <input
-                      type="number"
-                      value={newCoachQuota}
-                      onChange={(e) => setNewCoachQuota(Number(e.target.value))}
-                      className="w-full bg-white border border-slate-200 px-3 py-2 text-xs rounded-lg font-mono focus:outline-hidden"
                       required
                     />
                   </div>
@@ -1826,7 +1956,7 @@ export default function AdminDashboard({
                             onClick={() => handleEditCoachSettings(coach.id)}
                             className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1 shadow-xs cursor-pointer"
                           >
-                            <Edit className="w-3.5 h-3.5" /> Edit Kuota & Harga
+                            <Edit className="w-3.5 h-3.5" /> Edit Profil, Kuota & Harga
                           </button>
                         )}
                       </div>
@@ -1836,52 +1966,148 @@ export default function AdminDashboard({
                       <motion.div 
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
-                        className="bg-white border border-slate-200/80 rounded-xl p-4 grid md:grid-cols-4 gap-4"
+                        className="bg-white border border-slate-200/80 rounded-xl p-5 space-y-4 shadow-inner"
                       >
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-500">Maks Quota Siswa</label>
-                          <input 
-                            type="number" 
-                            value={editQuotaValue} 
-                            onChange={(e) => setEditQuotaValue(Number(e.target.value))}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono mt-1" 
-                          />
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500">Nama Pelatih</label>
+                            <input 
+                              type="text" 
+                              value={editCoachName} 
+                              onChange={(e) => setEditCoachName(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold mt-1" 
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500">Pengalaman / Biografi Singkat</label>
+                            <input 
+                              type="text" 
+                              value={editCoachExperience} 
+                              onChange={(e) => setEditCoachExperience(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs mt-1" 
+                            />
+                          </div>
                         </div>
+
                         <div>
-                          <label className="text-[10px] font-bold text-slate-500">Harga Paket 4x (Rp)</label>
-                          <input 
-                            type="number" 
-                            value={editPrice4} 
-                            onChange={(e) => setEditPrice4(Number(e.target.value))}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono mt-1" 
-                          />
+                          <label className="text-[10px] font-bold text-slate-500 block">Foto Pelatih</label>
+                          <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-3 rounded-xl mt-1">
+                            <div className="w-12 h-12 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center">
+                              {editCoachPhoto ? (
+                                <img src={editCoachPhoto} alt="Preview" className="w-full h-full object-cover" />
+                              ) : (
+                                <ImageIcon className="w-6 h-6 text-slate-300" />
+                              )}
+                            </div>
+                            <div className="space-y-1">
+                              <label className="cursor-pointer bg-white hover:bg-slate-100 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-200 transition inline-block">
+                                📁 Ganti & Upload Foto Baru
+                                <input 
+                                  type="file" 
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        if (typeof reader.result === 'string') {
+                                          setEditCoachPhoto(reader.result);
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                />
+                              </label>
+                              <p className="text-[10px] text-slate-400 font-medium">Unggah file foto untuk mengganti foto lama pelatih ini.</p>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-500">Harga Paket 8x (Rp)</label>
-                          <input 
-                            type="number" 
-                            value={editPrice8} 
-                            onChange={(e) => setEditPrice8(Number(e.target.value))}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono mt-1" 
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-500">Harga Paket 12x (Rp)</label>
-                          <input 
-                            type="number" 
-                            value={editPrice12} 
-                            onChange={(e) => setEditPrice12(Number(e.target.value))}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono mt-1" 
-                          />
+
+                        <div className="pt-3 border-t border-slate-100 space-y-3">
+                          <div className="flex justify-between items-center">
+                            <h5 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Kelola Paket Belajar (CRUD)</h5>
+                            <button
+                              type="button"
+                              onClick={handleAddEditPackage}
+                              className="text-[10px] bg-cyan-50 hover:bg-cyan-100 text-cyan-700 font-extrabold px-2.5 py-1 rounded-lg border border-cyan-200/50 transition flex items-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" /> Tambah Paket Baru
+                            </button>
+                          </div>
+
+                          <div className="space-y-2">
+                            {editCoachPackages.length === 0 ? (
+                              <p className="text-[10px] text-slate-400 italic">Belum ada paket belajar untuk pelatih ini.</p>
+                            ) : (
+                              editCoachPackages.map((pkg, idx) => (
+                                <div key={pkg.id || idx} className="grid grid-cols-12 gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-200/40">
+                                  <div className="col-span-4">
+                                    <label className="text-[8px] font-bold text-slate-400">Nama Paket</label>
+                                    <input 
+                                      type="text"
+                                      value={pkg.name}
+                                      onChange={(e) => handleUpdateEditPackageField(pkg.id, 'name', e.target.value)}
+                                      className="w-full bg-white border border-slate-200 rounded-md px-2 py-1 text-[11px] font-bold text-slate-800"
+                                      placeholder="Nama Paket"
+                                    />
+                                  </div>
+                                  <div className="col-span-3">
+                                    <label className="text-[8px] font-bold text-slate-400">Sesi Latihan</label>
+                                    <input 
+                                      type="number"
+                                      value={pkg.sessions}
+                                      onChange={(e) => handleUpdateEditPackageField(pkg.id, 'sessions', Number(e.target.value))}
+                                      className="w-full bg-white border border-slate-200 rounded-md px-2 py-1 text-[11px] font-mono text-slate-800"
+                                      placeholder="Sesi"
+                                    />
+                                  </div>
+                                  <div className="col-span-4">
+                                    <label className="text-[8px] font-bold text-slate-400">Harga (Rp)</label>
+                                    <input 
+                                      type="number"
+                                      value={pkg.price}
+                                      onChange={(e) => handleUpdateEditPackageField(pkg.id, 'price', Number(e.target.value))}
+                                      className="w-full bg-white border border-slate-200 rounded-md px-2 py-1 text-[11px] font-mono text-slate-800"
+                                      placeholder="Harga"
+                                    />
+                                  </div>
+                                  <div className="col-span-1 text-center pt-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteEditPackage(pkg.id)}
+                                      className="text-slate-400 hover:text-rose-600 transition p-1"
+                                      title="Hapus Paket"
+                                    >
+                                      <Trash className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          <div className="grid md:grid-cols-4 gap-4 pt-2 border-t border-slate-100">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500">Maks Quota Siswa (Umum)</label>
+                              <input 
+                                type="number" 
+                                value={editQuotaValue} 
+                                onChange={(e) => setEditQuotaValue(Number(e.target.value))}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono mt-1 text-slate-800" 
+                              />
+                            </div>
+                          </div>
                         </div>
                       </motion.div>
                     )}
 
                     {/* Schedule manager inside coach card */}
                     <div className="border-t border-slate-200 pt-3">
-                      <p className="text-[11px] font-bold text-slate-700">Waktu Jadwal & Pengisian Slot:</p>
-                      <div className="grid md:grid-cols-3 gap-4 mt-2">
-                        {['Senin', 'Rabu', 'Jumat'].map((dayName) => {
+                      <p className="text-[11px] font-bold text-slate-700">Waktu Jadwal & Pengisian Slot (7 Hari):</p>
+                      <div className="grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mt-2">
+                        {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((dayName) => {
                           const dayObj = coach.schedule.find(d => d.day === dayName) || { day: dayName, timeSlots: [] };
                           return (
                             <div key={dayName} className="bg-white rounded-xl border border-slate-200/60 p-3 space-y-2">
@@ -1911,23 +2137,35 @@ export default function AdminDashboard({
                                       m.status !== 'Selesai'
                                     );
                                     const usageCount = slotStudents.length;
-                                    const isFull = usageCount >= coach.maxQuota;
+                                    const isFull = usageCount >= slot.maxSlots;
 
                                     return (
-                                      <div key={slot.time} className="flex justify-between items-center bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200/50">
-                                        <div>
-                                          <p className="font-mono text-xs font-bold text-slate-800">{slot.time} WIB</p>
-                                          <p className={`text-[9px] font-semibold ${isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'}`}>
-                                            Slot: {usageCount} / {coach.maxQuota} {isFull ? '(PENUH)' : ''}
-                                          </p>
+                                      <div key={slot.time} className="flex flex-col gap-1 bg-slate-50 p-2 rounded-lg border border-slate-200/50">
+                                        <div className="flex justify-between items-center">
+                                          <div>
+                                            <p className="font-mono text-xs font-bold text-slate-800">{slot.time} WIB</p>
+                                            <p className={`text-[9px] font-semibold ${isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'}`}>
+                                              Slot: {usageCount} / {slot.maxSlots} {isFull ? '(PENUH)' : ''}
+                                            </p>
+                                          </div>
+                                          <button
+                                            onClick={() => handleRemoveScheduleSlot(coach.id, dayName, slot.time)}
+                                            className="text-slate-300 hover:text-rose-600 transition"
+                                            title="Hapus Slot Jam"
+                                          >
+                                            <X className="w-3.5 h-3.5" />
+                                          </button>
                                         </div>
-                                        <button
-                                          onClick={() => handleRemoveScheduleSlot(coach.id, dayName, slot.time)}
-                                          className="text-slate-300 hover:text-rose-600 transition"
-                                          title="Hapus Slot Jam"
-                                        >
-                                          <X className="w-3.5 h-3.5" />
-                                        </button>
+                                        <div className="flex items-center justify-between gap-1.5 border-t border-slate-200/60 pt-1 mt-1">
+                                          <span className="text-[8px] font-bold text-slate-400">Kuota Slot:</span>
+                                          <input 
+                                            type="number"
+                                            value={slot.maxSlots}
+                                            onChange={(e) => handleUpdateScheduleSlotMax(coach.id, dayName, slot.time, Number(e.target.value))}
+                                            className="w-10 bg-white border border-slate-200 rounded px-1 py-0.5 text-[9px] font-mono text-center font-bold text-slate-800"
+                                            title="Ubah kuota slot spesifik ini"
+                                          />
+                                        </div>
                                       </div>
                                     );
                                   })
@@ -2009,5 +2247,6 @@ export default function AdminDashboard({
 
       </div>
     </div>
+  </div>
   );
 }
