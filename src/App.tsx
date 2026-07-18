@@ -10,8 +10,8 @@ import MainPortal from './components/MainPortal';
 import AdminDashboard from './components/AdminDashboard';
 import CoachDashboard from './components/CoachDashboard';
 import ParentDashboard from './components/ParentDashboard';
-import { 
-  Users, Shield, Award, UserCheck, RefreshCw, 
+import {
+  Users, Shield, Award, UserCheck, RefreshCw,
   MapPin, Clock, Compass, BookOpen, Volume2, ShieldAlert
 } from 'lucide-react';
 
@@ -77,7 +77,7 @@ export default function App() {
         localStorage.setItem('user_role', 'admin');
         localStorage.setItem('user_name', res.user.name);
         localStorage.setItem('logged_user_id', res.user.id);
-        
+
         setIsAdminLoggedIn(true);
         setAdminLoginError(null);
         loadAllData();
@@ -96,7 +96,7 @@ export default function App() {
       setCoachLoginError('Silakan masukkan username Pelatih!');
       return;
     }
-    
+
     try {
       setCoachLoginError(null);
       const res = await api.login({
@@ -109,7 +109,7 @@ export default function App() {
         localStorage.setItem('user_role', 'coach');
         localStorage.setItem('user_name', res.user.name);
         localStorage.setItem('logged_user_id', res.user.id);
-        
+
         setIsCoachLoggedIn(true);
         setLoggedCoachId(res.user.id);
         setCoachLoginError(null);
@@ -175,11 +175,11 @@ export default function App() {
       }
     } catch (e: any) {
       console.error("Failed to load data from MariaDB backend", e);
-      
+
       const errMsg = e.message || String(e);
       if (
-        errMsg.includes('Token tidak valid') || 
-        errMsg.includes('Token otentikasi diperlukan') || 
+        errMsg.includes('Token tidak valid') ||
+        errMsg.includes('Token otentikasi diperlukan') ||
         errMsg.includes('Token telah kedaluwarsa')
       ) {
         localStorage.removeItem('auth_token');
@@ -192,7 +192,7 @@ export default function App() {
         loadAllData();
         return;
       }
-      
+
       setError(errMsg);
     }
   };
@@ -332,7 +332,7 @@ export default function App() {
         });
         if (updated) {
           const old = members.find(m => m.id === updated.id)!;
-          
+
           if (updated.progress.length > old.progress.length) {
             const newProgress = updated.progress[0];
             await api.addProgress({
@@ -433,7 +433,7 @@ export default function App() {
       {/* Simulation Header with Role Switchers */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-xs px-4 py-3 md:px-8">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          
+
           {/* Logo Brand */}
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
@@ -467,13 +467,13 @@ export default function App() {
               </div>
               <h3 className="font-extrabold text-slate-800 text-lg">Gagal Terhubung ke Backend</h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Aplikasi React tidak dapat mengambil data dari backend CodeIgniter 4 di <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-rose-600">http://127.0.0.1:8081</code>.
+                Aplikasi React tidak dapat mengambil data dari backend CodeIgniter 4 di <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-rose-600">http://127.0.0.1:8080</code>.
               </p>
               <div className="bg-slate-900 text-rose-300 p-4 rounded-xl text-left text-xs font-mono overflow-auto max-h-40 border border-slate-800">
                 Error: {error}
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Pastikan server backend PHP Spark sudah berjalan di terminal Anda dan port <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">8081</code> terbuka serta tidak terhalang kebijakan CORS.
+                Pastikan server backend PHP Spark sudah berjalan di terminal Anda dan port <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">8080</code> terbuka serta tidak terhalang kebijakan CORS.
               </p>
               <button
                 onClick={loadAllData}
@@ -484,13 +484,13 @@ export default function App() {
             </div>
           ) : coaches.length > 0 ? (
             activeRole === 'member' ? (
-              <MainPortal 
-                coaches={coaches} 
-                members={members} 
+              <MainPortal
+                coaches={coaches}
+                members={members}
                 events={events}
                 settings={settings}
                 levels={levels}
-                onRegister={handleRegisterMember} 
+                onRegister={handleRegisterMember}
                 onUpdateEvents={updateEventsState}
               />
             ) : activeRole === 'admin' ? (
@@ -540,14 +540,14 @@ export default function App() {
                       Masuk Administrator
                     </button>
                   </form>
-                  
+
                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[10px] text-slate-500 text-center">
                     Demo Login: <strong className="text-slate-700">admin</strong> / <strong className="text-slate-700">admin123</strong>
                   </div>
                 </div>
               ) : (
-                <AdminDashboard 
-                  coaches={coaches} 
+                <AdminDashboard
+                  coaches={coaches}
                   members={members}
                   events={events}
                   settings={settings}
@@ -612,18 +612,18 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <CoachDashboard 
-                  coaches={coaches} 
-                  members={members} 
-                  onUpdateMembers={updateMembersState} 
+                <CoachDashboard
+                  coaches={coaches}
+                  members={members}
+                  onUpdateMembers={updateMembersState}
                   loggedCoachId={loggedCoachId}
                 />
               )
             ) : (
-              <ParentDashboard 
-                coaches={coaches} 
-                members={members} 
-                onUpdateMembers={updateMembersState} 
+              <ParentDashboard
+                coaches={coaches}
+                members={members}
+                onUpdateMembers={updateMembersState}
               />
             )
           ) : (

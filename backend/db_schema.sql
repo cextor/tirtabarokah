@@ -5,6 +5,8 @@ USE db_tirtabarokah;
 -- 1. Table: coaches
 CREATE TABLE IF NOT EXISTS coaches (
     id VARCHAR(50) PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
     name VARCHAR(100) NOT NULL,
     photo LONGTEXT NOT NULL,
     experience TEXT NOT NULL,
@@ -59,6 +61,7 @@ CREATE TABLE IF NOT EXISTS members (
     referral_code_used VARCHAR(50) DEFAULT NULL,
     referral_count INT DEFAULT 0,
     referral_bonus INT DEFAULT 0,
+    is_active TINYINT(1) DEFAULT 1,
     FOREIGN KEY (coach_id) REFERENCES coaches(id),
     FOREIGN KEY (package_id) REFERENCES packages(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -111,10 +114,10 @@ CREATE TABLE IF NOT EXISTS events (
 -- ==================== SEEDING INITIAL DATA ====================
 
 -- Seeding coaches
-INSERT INTO coaches (id, name, photo, experience, referral_code, referral_bonus, max_quota) VALUES
-('coach-rian', 'Coach Rian', '/images/coach_rian.png', 'Mantan Atlet Renang Daerah, 5 Tahun Pengalaman Melatih Anak & Dewasa', 'COACH-RIAN', 150000, 6),
-('coach-nisa', 'Coach Nisa', '/images/coach_nisa.png', 'Sertifikasi Pelatih Renang Internasional, Ahli Renang Gaya Dada & Bebas', 'COACH-NISA', 50000, 6),
-('coach-dika', 'Coach Dika', '/images/coach_dika.png', '6 Tahun Melatih Anak Berkebutuhan Khusus & Terapi Cedera Renang', 'COACH-DIKA', 0, 6);
+INSERT INTO coaches (id, username, password, name, photo, experience, referral_code, referral_bonus, max_quota) VALUES
+('coach-rian', 'rian', 'coach123', 'Coach Rian', '/images/coach_rian.png', 'Mantan Atlet Renang Daerah, 5 Tahun Pengalaman Melatih Anak & Dewasa', 'COACH-RIAN', 150000, 6),
+('coach-nisa', 'nisa', 'coach123', 'Coach Nisa', '/images/coach_nisa.png', 'Sertifikasi Pelatih Renang Internasional, Ahli Renang Gaya Dada & Bebas', 'COACH-NISA', 50000, 6),
+('coach-dika', 'dika', 'coach123', 'Coach Dika', '/images/coach_dika.png', '6 Tahun Melatih Anak Berkebutuhan Khusus & Terapi Cedera Renang', 'COACH-DIKA', 0, 6);
 
 -- Seeding packages
 INSERT INTO packages (id, coach_id, name, price, sessions) VALUES
@@ -211,3 +214,76 @@ INSERT INTO training_progress (id, member_id, date, attendance, note) VALUES
 INSERT INTO events (id, title, category, date, description, image_url) VALUES
 ('event-1', 'Fun Swimming Anak-Anak Tirta Barokah', 'Fun Swimming', '2026-07-20', 'Kegiatan berenang ceria untuk melatih keberanian anak di air dangkal dengan berbagai permainan seru, perebutan koin, dan balapan pelampung. Semua peserta mendapatkan bingkisan menarik!', '/images/event_fun.png'),
 ('event-2', 'Kejuaraan Renang Pemula Se-Palembang', 'Lomba', '2026-08-05', 'Ajang kompetisi gaya bebas dan gaya dada 25 meter untuk kategori umur 6-12 tahun. Dapatkan piala, piagam penghargaan, dan tabungan pendidikan untuk juara 1, 2, dan 3!', '/images/event_lomba.png');
+
+-- 9. Table: site_settings
+CREATE TABLE IF NOT EXISTS site_settings (
+    key_name VARCHAR(100) PRIMARY KEY,
+    value_text TEXT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Seeding site_settings
+INSERT INTO site_settings (key_name, value_text) VALUES
+('profile_heading', 'Profil Private Renang Tirta Barokah Palembang'),
+('profile_text_1', 'Private Renang Tirta Barokah Palembang adalah tempat latihan renang yang telah dipercaya masyarakat Palembang sejak tahun 2012.'),
+('profile_text_2', 'Metode latihan dirancang secara bertahap, sistematis, dan disesuaikan dengan usia, kemampuan, serta tujuan belajar masing-masing peserta.'),
+('profile_text_3', 'Didukung oleh tim pelatih berlisensi kepelatihan, memberikan pendampingan personal agar mendapat perhatian optimal.'),
+('why_choose_heading', 'Mengapa Memilih Private Renang Tirta Barokah Palembang?'),
+('why_choose_1_title', 'Berpengalaman Sejak 2012'),
+('why_choose_1_desc', 'Lebih dari satu dekade melayani renang private.'),
+('why_choose_2_title', 'Pelatih Profesional'),
+('why_choose_2_desc', 'Berlisensi resmi, berpengalaman, dan komunikatif.'),
+('why_choose_3_title', 'Pendekatan Personal'),
+('why_choose_3_desc', 'Setiap peserta memperoleh perhatian lebih intensif.'),
+('why_choose_4_title', 'Aman & Menyenangkan'),
+('why_choose_4_desc', 'Membangun rasa percaya diri dengan pendekatan sabar.'),
+('package_notes', 'Catatan: Biaya belum termasuk tiket masuk kolam renang (opsional tergantung lokasi latihan).')
+ON DUPLICATE KEY UPDATE value_text=VALUES(value_text);
+
+-- 10. Table: program_levels
+CREATE TABLE IF NOT EXISTS program_levels (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    level_number INT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    target_learning TEXT NOT NULL,
+    materials TEXT NOT NULL,
+    graduation_target TEXT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Seeding program_levels
+INSERT INTO program_levels (id, level_number, name, target_learning, materials, graduation_target) VALUES
+(1, 1, 'Pemula (Basic)', 'Penyesuaian air, meluncur mandiri 5-10 meter, kontrol napas dasar.', 'Bubble, meluncur, kayuhan kaki gaya bebas di tempat & dengan pelampung.', 'Meluncur sejauh 5 meter secara mandiri dan berani memasukkan kepala ke dalam air tanpa kacamata.'),
+(2, 2, 'Menengah (Stroke Development)', 'Menguasai gaya bebas 25 meter dan gaya dada 25 meter secara konstan.', 'Kayuhan tangan gaya bebas, koordinasi napas samping, gerakan kaki & tangan gaya dada.', 'Mampu berenang gaya bebas dan gaya dada sepanjang 25 meter secara bolak-balik tanpa berhenti di tengah.'),
+(3, 3, 'Mahir (Advanced)', 'Ketahanan renang 50-100 meter, pengenalan gaya punggung dan gaya kupu-kupu.', 'Gerakan kaki & tangan gaya punggung/kupu-kupu, pembalikan (flip turn), latihan ketahanan.', 'Mampu berenang 4 gaya renang utama dan bertahan berenang sejauh 100 meter tanpa jeda.')
+ON DUPLICATE KEY UPDATE 
+    level_number=VALUES(level_number),
+    name=VALUES(name),
+    target_learning=VALUES(target_learning),
+    materials=VALUES(materials),
+    graduation_target=VALUES(graduation_target);
+
+-- 11. Table: admins
+CREATE TABLE IF NOT EXISTS admins (
+    id VARCHAR(50) PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    name VARCHAR(100) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Seeding admins
+INSERT INTO admins (id, username, password, name) VALUES
+('admin-1', 'admin', 'admin123', 'Super Admin')
+ON DUPLICATE KEY UPDATE 
+    username=VALUES(username),
+    password=VALUES(password),
+    name=VALUES(name);
+
+-- 12. Table: user_tokens
+CREATE TABLE IF NOT EXISTS user_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
