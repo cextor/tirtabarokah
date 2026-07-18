@@ -81,8 +81,9 @@ try {
     $pdo = new PDO("mysql:host=localhost", "root", "");
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
-    // Create database
-    $pdo->exec("CREATE DATABASE IF NOT EXISTS db_tirtabarokah CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
+    // Create database (recreate for clean setup)
+    $pdo->exec("DROP DATABASE IF EXISTS db_tirtabarokah;");
+    $pdo->exec("CREATE DATABASE db_tirtabarokah CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
     $pdo->exec("USE db_tirtabarokah;");
     
     // Read and run sql script
