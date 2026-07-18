@@ -96,14 +96,12 @@ try {
         // Split by semicolon (approximate, works for simple schemas)
         $queries = explode(';', $sql);
         
-        $pdo->beginTransaction();
         foreach ($queries as $query) {
             $query = trim($query);
             if (!empty($query)) {
                 $pdo->exec($query);
             }
         }
-        $pdo->commit();
         $response['db_status'] = 'success';
     } else {
         $response['db_status'] = 'failed';
