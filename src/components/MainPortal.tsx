@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleTimeSlot, EventItem } from '../types';
+import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleTimeSlot, EventItem, SiteSettings, ProgramLevel } from '../types';
 import { 
   Award, Shield, Calendar, Users, CheckCircle, ArrowRight, ArrowLeft, 
   CreditCard, Clock, Phone, User, Compass, AlertCircle,
@@ -16,11 +16,13 @@ interface MainPortalProps {
   coaches: Coach[];
   members: Member[];
   events: EventItem[];
+  settings: SiteSettings;
+  levels: ProgramLevel[];
   onRegister: (newMember: Omit<Member, 'id' | 'registeredAt'>) => void;
   onUpdateEvents: (events: EventItem[]) => void;
 }
 
-export default function MainPortal({ coaches, members, events, onRegister, onUpdateEvents }: MainPortalProps) {
+export default function MainPortal({ coaches, members, events, settings = {}, levels = [], onRegister, onUpdateEvents }: MainPortalProps) {
   // Navigation / Scroll helper
   const scrollToRegister = () => {
     const registerSection = document.getElementById('registration-section');
@@ -81,11 +83,47 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
   // Adjust price for Privat coach type
   const getPackagePrice = (pkg: Package | undefined) => {
     if (!pkg) return 0;
+    // If explicit private package, do not add the 100k premium
+    const isExplicitPrivatePkg = pkg.name.toLowerCase().includes('privat') || pkg.name.toLowerCase().includes('private');
+    if (isExplicitPrivatePkg) {
+      return pkg.price;
+    }
     // Private premium: extra Rp 100.000 for exclusive 1-on-1 lane
     return coachType === 'Privat' ? pkg.price + 100000 : pkg.price;
   };
 
   const finalPrice = getPackagePrice(basePackage);
+
+  const getDisplayPackages = () => {
+    if (!selectedCoach) return [];
+    const pkgs = selectedCoach.packages || [];
+    const hasPrivatePkgs = pkgs.some(p => p.name.toLowerCase().includes('privat') || p.name.toLowerCase().includes('private'));
+    
+    if (coachType === 'Privat') {
+      if (hasPrivatePkgs) {
+        return pkgs.filter(p => p.name.toLowerCase().includes('privat') || p.name.toLowerCase().includes('private'));
+      }
+      return pkgs;
+    } else {
+      if (hasPrivatePkgs) {
+        return pkgs.filter(p => !p.name.toLowerCase().includes('privat') && !p.name.toLowerCase().includes('private'));
+      }
+      return pkgs;
+    }
+  };
+
+  // Auto-select package when display packages change
+  useEffect(() => {
+    const displayPkgs = getDisplayPackages();
+    if (displayPkgs.length > 0) {
+      const alreadySelected = displayPkgs.some(p => p.id === selectedPackageId);
+      if (!alreadySelected) {
+        setSelectedPackageId(displayPkgs[0].id);
+      }
+    } else {
+      setSelectedPackageId('');
+    }
+  }, [coachType, selectedCoachId, coaches]);
 
   // Submit registration
   const handleSubmit = (e: React.FormEvent) => {
@@ -176,7 +214,9 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
 
   // Helper: check coach overall status
   const getCoachOverallQuota = (coach: Coach) => {
-    const activeStudents = members.filter(m => m.coachId === coach.id && m.status !== 'Selesai').length;
+    const activeStudents = members.length > 0 
+      ? members.filter(m => m.coachId === coach.id && m.status !== 'Selesai').length 
+      : (coach.currentQuota || 0);
     const maxQuota = coach.maxQuota || 6;
     const isFull = activeStudents >= maxQuota;
     return {
@@ -209,16 +249,16 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
     return encodeURIComponent(text);
   };
 
-  // Filter events
-  const filteredEvents = events.filter(e => 
-    eventCategoryFilter === 'Semua' ? true : e.category === eventCategoryFilter
-  );
+  // Filter events (Sorted by newest date first)
+  const filteredEvents = events
+    .filter(e => eventCategoryFilter === 'Semua' ? true : e.category === eventCategoryFilter)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
     <div className="space-y-12">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-cyan-900 via-blue-950 to-indigo-950 rounded-3xl overflow-hidden shadow-2xl p-8 md:p-16 text-white">
-            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1519751138087-5bf79df62d5b?w=1600&fit=crop&q=60')] opacity-10 bg-cover bg-center pointer-events-none" />
+            <div className="absolute inset-0 bg-[url('/images/hero_pool.png')] opacity-10 bg-cover bg-center pointer-events-none" />
             <div className="relative z-10 max-w-3xl space-y-6">
               <div className="inline-flex items-center gap-2 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-3.5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider">
                 🏊‍♂️ Premium Private Swimming Academy
@@ -246,34 +286,91 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
             </div>
           </section>
 
-          {/* Program & Keunggulan Section */}
-          <section id="program-info" className="grid md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
-              <div className="w-12 h-12 bg-cyan-50 rounded-xl flex items-center justify-center">
-                <Shield className="w-6 h-6 text-cyan-600" />
+          {/* Profil Section */}
+          <section className="bg-white rounded-3xl border border-slate-100 p-8 md:p-12 shadow-sm space-y-6">
+            <div className="max-w-3xl space-y-4">
+              <div className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                ✨ Profil Lembaga
               </div>
-              <h3 className="text-lg font-bold text-slate-800">1-on-1 Eksklusif</h3>
-              <p className="text-slate-600 text-sm leading-relaxed">
-                Satu pelatih hanya fokus mendampingi peserta. Metode disesuaikan dengan kenyamanan, usia, dan riwayat kesehatan siswa.
+              <h2 className="text-2xl md:text-3xl font-black text-slate-800">
+                {settings.profile_heading || 'Profil Private Renang Tirta Barokah Palembang'}
+              </h2>
+              <p className="text-slate-600 text-sm md:text-base leading-relaxed">
+                {settings.profile_text_1 || 'Private Renang Tirta Barokah Palembang adalah tempat latihan renang yang telah dipercaya masyarakat Palembang sejak tahun 2012.'}
+              </p>
+              <p className="text-slate-600 text-sm md:text-base leading-relaxed">
+                {settings.profile_text_2 || 'Metode latihan dirancang secara bertahap, sistematis, dan disesuaikan dengan usia, kemampuan, serta tujuan belajar masing-masing peserta.'}
+              </p>
+              <p className="text-slate-600 text-sm md:text-base leading-relaxed">
+                {settings.profile_text_3 || 'Didukung oleh tim pelatih berlisensi kepelatihan, memberikan pendampingan personal agar mendapat perhatian optimal.'}
               </p>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
-              <div className="w-12 h-12 bg-cyan-50 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6 text-cyan-600" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-800">Pelatih Berpengalaman</h3>
-              <p className="text-slate-600 text-sm leading-relaxed">
-                Daftar pelatih pria & wanita profesional dengan latar belakang atlet daerah dan sertifikasi resmi renang yang ramah anak.
-              </p>
+          </section>
+
+          {/* Mengapa Memilih Section */}
+          <section className="space-y-6">
+            <div className="text-center max-w-xl mx-auto space-y-2">
+              <h2 className="text-2xl md:text-3xl font-black text-slate-800">
+                {settings.why_choose_heading || 'Mengapa Memilih Private Renang Tirta Barokah Palembang?'}
+              </h2>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
-              <div className="w-12 h-12 bg-cyan-50 rounded-xl flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-cyan-600" />
+            <div className="grid md:grid-cols-4 gap-6">
+              {[
+                { title: settings.why_choose_1_title || 'Berpengalaman Sejak 2012', desc: settings.why_choose_1_desc || 'Lebih dari satu dekade melayani renang private.' },
+                { title: settings.why_choose_2_title || 'Pelatih Profesional', desc: settings.why_choose_2_desc || 'Berlisensi resmi, berpengalaman, dan komunikatif.' },
+                { title: settings.why_choose_3_title || 'Pendekatan Personal', desc: settings.why_choose_3_desc || 'Setiap peserta memperoleh perhatian lebih intensif.' },
+                { title: settings.why_choose_4_title || 'Aman & Menyenangkan', desc: settings.why_choose_4_desc || 'Membangun rasa percaya diri dengan pendekatan sabar.' }
+              ].map((item, idx) => (
+                <div key={idx} className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-3 hover:border-cyan-200 transition">
+                  <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center text-cyan-600 font-extrabold text-sm">
+                    {idx + 1}
+                  </div>
+                  <h4 className="font-bold text-sm text-slate-800">{item.title}</h4>
+                  <p className="text-slate-500 text-[11px] leading-relaxed">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Kurikulum / Tingkatan Level Program Section */}
+          <section id="program-info" className="space-y-8">
+            <div className="text-center max-w-xl mx-auto space-y-2">
+              <div className="inline-flex items-center gap-1.5 bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                🎓 Jenjang Latihan
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Garansi & Fleksibilitas</h3>
-              <p className="text-slate-600 text-sm leading-relaxed">
-                Pilihan paket variatif 4x, 8x, hingga 12x pertemuan. Ajukan reschedule latihan secara praktis melalui portal dashboard.
-              </p>
+              <h2 className="text-2xl md:text-3xl font-black text-slate-800">Kurikulum & Informasi Program</h2>
+              <p className="text-slate-500 text-xs md:text-sm">Bimbingan belajar bertahap dari kemampuan nol (Level 1) hingga mandiri & pengembangan keterampilan (Level 9).</p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {levels.map((lvl) => (
+                <div key={lvl.id || lvl.level_number} className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-4 hover:border-cyan-200 hover:shadow-md transition flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded">
+                        LEVEL {lvl.level_number}
+                      </span>
+                    </div>
+                    <h4 className="font-black text-slate-800 text-sm">{lvl.name}</h4>
+                    
+                    <div className="space-y-2 text-[11px] text-slate-600">
+                      <div>
+                        <strong className="text-slate-700 block">🎯 Target Pembelajaran:</strong>
+                        <span>{lvl.target_learning}</span>
+                      </div>
+                      <div>
+                        <strong className="text-slate-700 block">📚 Materi:</strong>
+                        <span className="italic">{lvl.materials}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100">
+                    <strong className="text-[10px] text-emerald-700 uppercase tracking-wider block font-bold">🏁 Target Kelulusan:</strong>
+                    <p className="text-xs text-slate-700 font-medium mt-0.5">{lvl.graduation_target}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
 
@@ -287,7 +384,7 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
-              {coaches.map((coach) => {
+              {coaches.filter(c => c.isActive !== false).map((coach) => {
                 const quota = getCoachOverallQuota(coach);
                 return (
                   <div 
@@ -425,7 +522,7 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
             </p>
 
             <div className="grid md:grid-cols-3 gap-6">
-              {coaches.map((coach) => (
+              {coaches.filter(c => c.isActive !== false).map((coach) => (
                 <div key={coach.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-3">
                   <h3 className="font-semibold text-sm text-cyan-800">{coach.name}</h3>
                   <div className="space-y-2.5">
@@ -688,7 +785,7 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
                     <div className="space-y-3">
                       <label className="text-xs font-semibold text-slate-600 block">Pilih Pelatih / Coach Pembimbing</label>
                       <div className="grid md:grid-cols-3 gap-4">
-                        {coaches.map((coach) => {
+                        {coaches.filter(c => c.isActive !== false).map((coach) => {
                           const status = getCoachOverallQuota(coach);
                           const isSelected = selectedCoachId === coach.id;
                           return (
@@ -787,7 +884,7 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
 
                     {selectedCoach && (
                       <div className="grid md:grid-cols-3 gap-4">
-                        {selectedCoach.packages.map((pkg) => {
+                        {getDisplayPackages().map((pkg) => {
                           const isSelected = selectedPackageId === pkg.id;
                           const calculatedPrice = getPackagePrice(pkg);
                           return (
@@ -819,6 +916,13 @@ export default function MainPortal({ coaches, members, events, onRegister, onUpd
                             </button>
                           );
                         })}
+                      </div>
+                    )}
+
+                    {settings.package_notes && (
+                      <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-xs flex items-start gap-2.5 mt-4">
+                        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                        <p className="font-semibold leading-normal">{settings.package_notes}</p>
                       </div>
                     )}
 

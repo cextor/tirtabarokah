@@ -13,20 +13,27 @@ interface CoachDashboardProps {
   coaches: Coach[];
   members: Member[];
   onUpdateMembers: (members: Member[]) => void;
+  loggedCoachId?: string;
 }
 
-export default function CoachDashboard({ coaches, members, onUpdateMembers }: CoachDashboardProps) {
+export default function CoachDashboard({ coaches, members, onUpdateMembers, loggedCoachId }: CoachDashboardProps) {
   // Simulate Coach Login
-  const [selectedCoachId, setSelectedCoachId] = useState<string>('coach-rian');
+  const [selectedCoachId, setSelectedCoachId] = useState<string>(loggedCoachId || 'coach-rian');
   const [selectedStudentForNote, setSelectedStudentForNote] = useState<string>('');
   const [newProgressNote, setNewProgressNote] = useState<string>('');
   const [newProgressAttendance, setNewProgressAttendance] = useState<'Hadir' | 'Absen' | 'Izin'>('Hadir');
 
+  React.useEffect(() => {
+    if (loggedCoachId) {
+      setSelectedCoachId(loggedCoachId);
+    }
+  }, [loggedCoachId]);
+
   const currentCoach = coaches.find(c => c.id === selectedCoachId);
   
-  // Coach only sees their own assigned students
+  // Coach only sees their own assigned active students
   const coachStudents = members.filter(
-    m => m.coachId === selectedCoachId && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis')
+    m => m.coachId === selectedCoachId && m.isActive !== false && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis')
   );
 
   // 1. ACTION: RECORD ATTENDANCE AND SUBMIT DEVELOPING NOTE
@@ -120,30 +127,32 @@ export default function CoachDashboard({ coaches, members, onUpdateMembers }: Co
   return (
     <div className="space-y-8">
       {/* Simulation Selector Bar */}
-      <div className="bg-cyan-50 border border-cyan-100 rounded-2xl p-5 flex flex-col md:flex-row justify-between md:items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-cyan-600 rounded-xl text-white">
-            <Award className="w-5 h-5" />
+      {!loggedCoachId && (
+        <div className="bg-cyan-50 border border-cyan-100 rounded-2xl p-5 flex flex-col md:flex-row justify-between md:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-cyan-600 rounded-xl text-white">
+              <Award className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-cyan-950">Portal Login Pelatih</h3>
+              <p className="text-xs text-cyan-800">Simulasikan masuk sebagai pelatih yang berbeda untuk melihat siswa binaan masing-masing.</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-bold text-sm text-cyan-950">Portal Login Pelatih</h3>
-            <p className="text-xs text-cyan-800">Simulasikan masuk sebagai pelatih yang berbeda untuk melihat siswa binaan masing-masing.</p>
-          </div>
+          
+          <select
+            value={selectedCoachId}
+            onChange={(e) => {
+              setSelectedCoachId(e.target.value);
+              setSelectedStudentForNote('');
+            }}
+            className="bg-white border border-cyan-200 text-xs font-bold rounded-xl px-4 py-3 text-cyan-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+          >
+            {coaches.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
         </div>
-        
-        <select
-          value={selectedCoachId}
-          onChange={(e) => {
-            setSelectedCoachId(e.target.value);
-            setSelectedStudentForNote('');
-          }}
-          className="bg-white border border-cyan-200 text-xs font-bold rounded-xl px-4 py-3 text-cyan-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-        >
-          {coaches.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-      </div>
+      )}
 
       {currentCoach && (
         <div className="grid lg:grid-cols-3 gap-8">

@@ -8,6 +8,11 @@ use CodeIgniter\Router\RouteCollection;
 $routes->get('/', 'Home::index');
 
 $routes->group('api', function($routes) {
+    // Auth API
+    $routes->post('auth/login', 'ApiController::login');
+    $routes->post('auth/logout', 'ApiController::logout');
+    $routes->post('auth/parent-login', 'ApiController::parentLogin');
+
     // Coaches API
     $routes->get('coaches', 'ApiController::getCoaches');
     $routes->post('coaches/add', 'ApiController::addCoach');
@@ -33,4 +38,14 @@ $routes->group('api', function($routes) {
 
     // Reschedule API
     $routes->post('reschedule/request', 'ApiController::requestReschedule');
+
+    // Settings API
+    $routes->get('settings', 'ApiController::getSettings');
+    $routes->post('settings', 'ApiController::updateSettings');
+
+    // Program Levels API
+    $routes->get('levels', 'ApiController::getLevels');
+    $routes->post('levels/add', 'ApiController::addLevel');
+    $routes->post('levels/update', 'ApiController::updateLevel');
+    $routes->delete('levels/delete/(:segment)', 'ApiController::deleteLevel/$1');
 });

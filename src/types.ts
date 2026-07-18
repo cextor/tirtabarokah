@@ -62,6 +62,7 @@ export interface Member {
     status: 'Menunggu' | 'Disetujui' | 'Ditolak';
     reason: string;
   }[];
+  isActive?: boolean;
 }
 
 export interface Package {
@@ -95,6 +96,7 @@ export interface Coach {
   currentQuota: number;
   packages: Package[];
   schedule: ScheduleDay[];
+  isActive?: boolean;
 }
 
 export interface EventItem {
@@ -104,5 +106,31 @@ export interface EventItem {
   date: string;
   description: string;
   imageUrl: string;
+}
+
+export interface ProgramLevel {
+  id?: number | string;
+  level_number: number;
+  name: string;
+  target_learning: string;
+  materials: string;
+  graduation_target: string;
+}
+
+export interface SiteSettings {
+  profile_heading?: string;
+  profile_text_1?: string;
+  profile_text_2?: string;
+  profile_text_3?: string;
+  why_choose_heading?: string;
+  why_choose_1_title?: string;
+  why_choose_1_desc?: string;
+  why_choose_2_title?: string;
+  why_choose_2_desc?: string;
+  why_choose_3_title?: string;
+  why_choose_3_desc?: string;
+  why_choose_4_title?: string;
+  why_choose_4_desc?: string;
+  package_notes?: string;
 }
 

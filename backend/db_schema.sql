@@ -6,7 +6,7 @@ USE db_tirtabarokah;
 CREATE TABLE IF NOT EXISTS coaches (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    photo VARCHAR(255) NOT NULL,
+    photo LONGTEXT NOT NULL,
     experience TEXT NOT NULL,
     referral_code VARCHAR(50) UNIQUE NOT NULL,
     referral_bonus INT DEFAULT 0,
@@ -105,16 +105,16 @@ CREATE TABLE IF NOT EXISTS events (
     category ENUM('Fun Swimming', 'Lomba', 'Latihan Bersama', 'Pengumuman') NOT NULL,
     date DATE NOT NULL,
     description TEXT NOT NULL,
-    image_url VARCHAR(255) NOT NULL
+    image_url LONGTEXT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ==================== SEEDING INITIAL DATA ====================
 
 -- Seeding coaches
 INSERT INTO coaches (id, name, photo, experience, referral_code, referral_bonus, max_quota) VALUES
-('coach-rian', 'Coach Rian', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop&q=80', 'Mantan Atlet Renang Daerah, 5 Tahun Pengalaman Melatih Anak & Dewasa', 'COACH-RIAN', 150000, 6),
-('coach-nisa', 'Coach Nisa', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=400&fit=crop&q=80', 'Sertifikasi Pelatih Renang Internasional, Ahli Renang Gaya Dada & Bebas', 'COACH-NISA', 50000, 6),
-('coach-dika', 'Coach Dika', 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&h=400&fit=crop&q=80', '6 Tahun Melatih Anak Berkebutuhan Khusus & Terapi Cedera Renang', 'COACH-DIKA', 0, 6);
+('coach-rian', 'Coach Rian', '/images/coach_rian.png', 'Mantan Atlet Renang Daerah, 5 Tahun Pengalaman Melatih Anak & Dewasa', 'COACH-RIAN', 150000, 6),
+('coach-nisa', 'Coach Nisa', '/images/coach_nisa.png', 'Sertifikasi Pelatih Renang Internasional, Ahli Renang Gaya Dada & Bebas', 'COACH-NISA', 50000, 6),
+('coach-dika', 'Coach Dika', '/images/coach_dika.png', '6 Tahun Melatih Anak Berkebutuhan Khusus & Terapi Cedera Renang', 'COACH-DIKA', 0, 6);
 
 -- Seeding packages
 INSERT INTO packages (id, coach_id, name, price, sessions) VALUES
@@ -209,5 +209,5 @@ INSERT INTO training_progress (id, member_id, date, attendance, note) VALUES
 
 -- Seeding events
 INSERT INTO events (id, title, category, date, description, image_url) VALUES
-('event-1', 'Fun Swimming Anak-Anak Tirta Barokah', 'Fun Swimming', '2026-07-20', 'Kegiatan berenang ceria untuk melatih keberanian anak di air dangkal dengan berbagai permainan seru, perebutan koin, dan balapan pelampung. Semua peserta mendapatkan bingkisan menarik!', 'https://images.unsplash.com/photo-1519074002996-a69e7ac46a42?w=600&h=400&fit=crop&q=80'),
-('event-2', 'Kejuaraan Renang Pemula Se-Palembang', 'Lomba', '2026-08-05', 'Ajang kompetisi gaya bebas dan gaya dada 25 meter untuk kategori umur 6-12 tahun. Dapatkan piala, piagam penghargaan, dan tabungan pendidikan untuk juara 1, 2, dan 3!', 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=600&h=400&fit=crop&q=80');
+('event-1', 'Fun Swimming Anak-Anak Tirta Barokah', 'Fun Swimming', '2026-07-20', 'Kegiatan berenang ceria untuk melatih keberanian anak di air dangkal dengan berbagai permainan seru, perebutan koin, dan balapan pelampung. Semua peserta mendapatkan bingkisan menarik!', '/images/event_fun.png'),
+('event-2', 'Kejuaraan Renang Pemula Se-Palembang', 'Lomba', '2026-08-05', 'Ajang kompetisi gaya bebas dan gaya dada 25 meter untuk kategori umur 6-12 tahun. Dapatkan piala, piagam penghargaan, dan tabungan pendidikan untuk juara 1, 2, dan 3!', '/images/event_lomba.png');

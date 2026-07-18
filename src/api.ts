@@ -2,13 +2,18 @@
  * API Service for communicating with CodeIgniter 4 Backend
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = '';
 
 async function request(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
+  const token = localStorage.getItem('auth_token');
+  const clientKey = 'TirtaBarokahClientSecret2026';
+
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
+    'X-Client-Key': clientKey,
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
@@ -33,6 +38,11 @@ async function request(endpoint: string, options: RequestInit = {}) {
 }
 
 export const api = {
+  // Auth
+  login: (data: any) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  logout: () => request('/api/auth/logout', { method: 'POST' }),
+  parentLogin: (whatsapp: string) => request('/api/auth/parent-login', { method: 'POST', body: JSON.stringify({ whatsapp }) }),
+
   // Coaches
   getCoaches: () => request('/api/coaches'),
   addCoach: (data: any) => request('/api/coaches/add', { method: 'POST', body: JSON.stringify(data) }),
@@ -61,4 +71,14 @@ export const api = {
   // Reschedule
   requestReschedule: (data: { memberId: string; requestedDay: string; requestedTime: string; reason: string }) => 
     request('/api/reschedule/request', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Settings
+  getSettings: () => request('/api/settings'),
+  updateSettings: (data: any) => request('/api/settings', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Program Levels
+  getLevels: () => request('/api/levels'),
+  addLevel: (data: any) => request('/api/levels/add', { method: 'POST', body: JSON.stringify(data) }),
+  updateLevel: (data: any) => request('/api/levels/update', { method: 'POST', body: JSON.stringify(data) }),
+  deleteLevel: (id: string | number) => request(`/api/levels/delete/${id}`, { method: 'DELETE' }),
 };

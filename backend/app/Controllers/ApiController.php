@@ -22,6 +22,8 @@ class ApiController extends BaseController
         $coaches = $this->db->table('coaches')->get()->getResultArray();
         
         foreach ($coaches as &$coach) {
+            unset($coach['username']);
+            unset($coach['password']);
             // Get Packages
             $coach['packages'] = $this->db->table('packages')
                 ->where('coach_id', $coach['id'])
@@ -85,6 +87,7 @@ class ApiController extends BaseController
             $coach['status'] = ($activeStudentsTotal >= $coach['max_quota']) ? 'Penuh' : 'Tersedia';
             $coach['referralBonus'] = (int)$coach['referral_bonus'];
             $coach['maxQuota'] = (int)$coach['max_quota'];
+            $coach['isActive'] = isset($coach['is_active']) ? (bool)$coach['is_active'] : true;
         }
 
         return $this->respond($coaches);
@@ -103,7 +106,7 @@ class ApiController extends BaseController
         $coachData = [
             'id' => $id,
             'name' => $json->name,
-            'photo' => $json->photo ?? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop&q=80',
+            'photo' => $json->photo ?? '/images/coach_rian.png',
             'experience' => $json->experience ?? 'Pelatih Renang Profesional',
             'referral_code' => $referralCode,
             'referral_bonus' => 0,
@@ -113,46 +116,75 @@ class ApiController extends BaseController
         $this->db->transStart();
         $this->db->table('coaches')->insert($coachData);
 
-        // Add default packages (4x, 8x, 12x)
-        $prices = [
-            'p4' => $json->price4 ?? 250000,
-            'p8' => $json->price8 ?? 450000,
-            'p12' => $json->price12 ?? 600000
-        ];
-        
-        $this->db->table('packages')->insert([
-            'id' => $id . '-p4',
-            'coach_id' => $id,
-            'name' => 'Paket 4x latihan',
-            'price' => $prices['p4'],
-            'sessions' => 4
-        ]);
-        $this->db->table('packages')->insert([
-            'id' => $id . '-p8',
-            'coach_id' => $id,
-            'name' => 'Paket 8x latihan',
-            'price' => $prices['p8'],
-            'sessions' => 8
-        ]);
-        $this->db->table('packages')->insert([
-            'id' => $id . '-p12',
-            'coach_id' => $id,
-            'name' => 'Paket 12x latihan',
-            'price' => $prices['p12'],
-            'sessions' => 12
-        ]);
-
-        // Add default schedule templates (Senin-Selasa for new coach)
-        $days = ['Senin', 'Selasa'];
-        $times = ['08.00', '09.00', '16.00', '17.00'];
-        foreach ($days as $day) {
-            foreach ($times as $time) {
-                $this->db->table('coach_schedules')->insert([
+        // Add packages
+        if (!empty($json->packages) && is_array($json->packages)) {
+            foreach ($json->packages as $pkg) {
+                $pkgId = isset($pkg->id) && !str_starts_with($pkg->id, 'pkg-') ? $pkg->id : $id . '-pkg-' . rand(100, 999);
+                $this->db->table('packages')->insert([
+                    'id' => $pkgId,
                     'coach_id' => $id,
-                    'day' => $day,
-                    'time' => $time,
-                    'max_slots' => 6
+                    'name' => $pkg->name,
+                    'price' => (int)$pkg->price,
+                    'sessions' => (int)$pkg->sessions
                 ]);
+            }
+        } else {
+            // Default packages if empty
+            $prices = [
+                'p4' => $json->price4 ?? 250000,
+                'p8' => $json->price8 ?? 450000,
+                'p12' => $json->price12 ?? 600000
+            ];
+            $this->db->table('packages')->insert([
+                'id' => $id . '-p4',
+                'coach_id' => $id,
+                'name' => 'Paket 4x latihan',
+                'price' => $prices['p4'],
+                'sessions' => 4
+            ]);
+            $this->db->table('packages')->insert([
+                'id' => $id . '-p8',
+                'coach_id' => $id,
+                'name' => 'Paket 8x latihan',
+                'price' => $prices['p8'],
+                'sessions' => 8
+            ]);
+            $this->db->table('packages')->insert([
+                'id' => $id . '-p12',
+                'coach_id' => $id,
+                'name' => 'Paket 12x latihan',
+                'price' => $prices['p12'],
+                'sessions' => 12
+            ]);
+        }
+
+        // Add schedules (Dynamic or default templates)
+        if (isset($json->schedule) && is_array($json->schedule)) {
+            foreach ($json->schedule as $dayGroup) {
+                $dayName = $dayGroup->day;
+                if (isset($dayGroup->timeSlots) && is_array($dayGroup->timeSlots)) {
+                    foreach ($dayGroup->timeSlots as $slot) {
+                        $this->db->table('coach_schedules')->insert([
+                            'coach_id' => $id,
+                            'day' => $dayName,
+                            'time' => $slot->time,
+                            'max_slots' => isset($slot->maxSlots) ? (int)$slot->maxSlots : 6
+                        ]);
+                    }
+                }
+            }
+        } else {
+            $days = ['Senin', 'Selasa'];
+            $times = ['08.00', '09.00', '16.00', '17.00'];
+            foreach ($days as $day) {
+                foreach ($times as $time) {
+                    $this->db->table('coach_schedules')->insert([
+                        'coach_id' => $id,
+                        'day' => $day,
+                        'time' => $time,
+                        'max_slots' => 6
+                    ]);
+                }
             }
         }
 
@@ -177,30 +209,96 @@ class ApiController extends BaseController
             'name' => $json->name,
             'experience' => $json->experience,
             'photo' => $json->photo,
-            'max_quota' => (int)$json->maxQuota
+            'max_quota' => (int)$json->maxQuota,
+            'is_active' => isset($json->isActive) ? ($json->isActive ? 1 : 0) : 1
         ];
 
         $this->db->transStart();
         $this->db->table('coaches')->where('id', $id)->update($coachData);
 
-        // Update package prices
-        if (isset($json->price4)) {
-            $this->db->table('packages')
-                ->where('coach_id', $id)
-                ->where('sessions', 4)
-                ->update(['price' => $json->price4]);
+        // Update packages (Upsert strategy to avoid foreign key failures)
+        if (isset($json->packages) && is_array($json->packages)) {
+            $existingPackages = $this->db->table('packages')->where('coach_id', $id)->get()->getResultArray();
+            $existingIds = array_column($existingPackages, 'id');
+            $keepIds = [];
+
+            foreach ($json->packages as $pkg) {
+                $isNew = true;
+                $pkgId = '';
+
+                if (isset($pkg->id) && !empty($pkg->id) && !str_starts_with($pkg->id, 'pkg-')) {
+                    if (in_array($pkg->id, $existingIds)) {
+                        $isNew = false;
+                        $pkgId = $pkg->id;
+                    }
+                }
+
+                if ($isNew) {
+                    $pkgId = $id . '-pkg-' . rand(1000, 9999);
+                    $this->db->table('packages')->insert([
+                        'id' => $pkgId,
+                        'coach_id' => $id,
+                        'name' => $pkg->name,
+                        'price' => (int)$pkg->price,
+                        'sessions' => (int)$pkg->sessions
+                    ]);
+                } else {
+                    $this->db->table('packages')->where('id', $pkgId)->update([
+                        'name' => $pkg->name,
+                        'price' => (int)$pkg->price,
+                        'sessions' => (int)$pkg->sessions
+                    ]);
+                    $keepIds[] = $pkgId;
+                }
+            }
+
+            // Delete packages that are no longer in the payload
+            $idsToDelete = array_diff($existingIds, $keepIds);
+            foreach ($idsToDelete as $deleteId) {
+                try {
+                    $this->db->table('packages')->where('id', $deleteId)->delete();
+                } catch (\Exception $e) {
+                    // Ignore if in use by members
+                }
+            }
+        } else {
+            // Fallback to legacy structure if array is not provided
+            if (isset($json->price4)) {
+                $this->db->table('packages')
+                    ->where('coach_id', $id)
+                    ->where('sessions', 4)
+                    ->update(['price' => $json->price4]);
+            }
+            if (isset($json->price8)) {
+                $this->db->table('packages')
+                    ->where('coach_id', $id)
+                    ->where('sessions', 8)
+                    ->update(['price' => $json->price8]);
+            }
+            if (isset($json->price12)) {
+                $this->db->table('packages')
+                    ->where('coach_id', $id)
+                    ->where('sessions', 12)
+                    ->update(['price' => $json->price12]);
+            }
         }
-        if (isset($json->price8)) {
-            $this->db->table('packages')
-                ->where('coach_id', $id)
-                ->where('sessions', 8)
-                ->update(['price' => $json->price8]);
-        }
-        if (isset($json->price12)) {
-            $this->db->table('packages')
-                ->where('coach_id', $id)
-                ->where('sessions', 12)
-                ->update(['price' => $json->price12]);
+
+        // Sync schedules
+        if (isset($json->schedule) && is_array($json->schedule)) {
+            $this->db->table('coach_schedules')->where('coach_id', $id)->delete();
+            foreach ($json->schedule as $dayGroup) {
+                $dayName = $dayGroup->day;
+                if (isset($dayGroup->timeSlots) && is_array($dayGroup->timeSlots)) {
+                    foreach ($dayGroup->timeSlots as $slot) {
+                        $this->db->table('coach_schedules')->insert([
+                            'coach_id' => $id,
+                            'day' => $dayName,
+                            'time' => $slot->time,
+                            'max_slots' => isset($slot->maxSlots) ? (int)$slot->maxSlots : 6
+                        ]);
+                    }
+                }
+            }
         }
 
         $this->db->transComplete();
@@ -302,6 +400,7 @@ class ApiController extends BaseController
                 'referralCodeUsed' => $m['referral_code_used'],
                 'referralCount' => (int)$m['referral_count'],
                 'referralBonus' => (int)$m['referral_bonus'],
+                'isActive' => isset($m['is_active']) ? (bool)$m['is_active'] : true,
                 'rescheduleRequests' => $formattedReschedules
             ];
         }
@@ -454,7 +553,8 @@ class ApiController extends BaseController
             'coach_type' => $json->coachType,
             'status' => $json->status,
             'sessions_left' => (int)$json->sessionsLeft,
-            'sessions_total' => (int)$json->sessionsTotal
+            'sessions_total' => (int)$json->sessionsTotal,
+            'is_active' => isset($json->isActive) ? ($json->isActive ? 1 : 0) : 1
         ];
 
         $this->db->table('members')->where('id', $id)->update($memberData);
@@ -501,7 +601,10 @@ class ApiController extends BaseController
 
     public function getEvents()
     {
-        $events = $this->db->table('events')->orderBy('date', 'ASC')->get()->getResultArray();
+        $events = $this->db->table('events')->orderBy('date', 'DESC')->get()->getResultArray();
+        foreach ($events as &$event) {
+            $event['imageUrl'] = $event['image_url'];
+        }
         return $this->respond($events);
     }
 
@@ -519,7 +622,7 @@ class ApiController extends BaseController
             'category' => $json->category,
             'date' => $json->date,
             'description' => $json->description ?? '',
-            'image_url' => $json->imageUrl ?? 'https://images.unsplash.com/photo-1519074002996-a69e7ac46a42?w=600&h=400&fit=crop&q=80'
+            'image_url' => $json->imageUrl ?? '/images/event_fun.png'
         ];
 
         $this->db->table('events')->insert($eventData);
@@ -702,6 +805,271 @@ class ApiController extends BaseController
             return $this->fail('Gagal memproses reschedule.');
         }
 
+        return $this->respond(['status' => 'success']);
+    }
+
+    // ==================== AUTH API ====================
+
+    public function login()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->username) || empty($json->password) || empty($json->role)) {
+            return $this->fail('Username, password, dan peran harus diisi.');
+        }
+
+        $username = trim($json->username);
+        $password = trim($json->password);
+        $role = trim($json->role);
+
+        if ($role === 'admin') {
+            $user = $this->db->table('admins')
+                ->where('username', $username)
+                ->get()
+                ->getRowArray();
+        } else if ($role === 'coach') {
+            $user = $this->db->table('coaches')
+                ->where('username', $username)
+                ->get()
+                ->getRowArray();
+        } else {
+            return $this->fail('Peran pengguna tidak valid.');
+        }
+
+        if (!$user) {
+            return $this->failUnauthorized('Username atau Password salah.');
+        }
+
+        $isPasswordValid = false;
+        if (str_starts_with($user['password'], '$2y$') || str_starts_with($user['password'], '$2a$')) {
+            $isPasswordValid = password_verify($password, $user['password']);
+        } else {
+            $isPasswordValid = ($password === $user['password']);
+        }
+
+        if (!$isPasswordValid) {
+            return $this->failUnauthorized('Username atau Password salah.');
+        }
+
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+2 hours'));
+
+        $this->db->table('user_tokens')->insert([
+            'user_id' => $user['id'] ?? $user['username'],
+            'role' => $role,
+            'token' => $token,
+            'expires_at' => $expiresAt
+        ]);
+
+        return $this->respond([
+            'status' => 'success',
+            'token' => $token,
+            'user' => [
+                'id' => $user['id'] ?? $user['username'],
+                'username' => $user['username'],
+                'name' => $user['name'],
+                'role' => $role
+            ]
+        ]);
+    }
+
+    public function logout()
+    {
+        $authHeader = $this->request->getHeaderLine('Authorization');
+        if ($authHeader && str_starts_with($authHeader, 'Bearer ')) {
+            $token = substr($authHeader, 7);
+            $this->db->table('user_tokens')->where('token', $token)->delete();
+        }
+
+        return $this->respond([
+            'status' => 'success',
+            'message' => 'Berhasil keluar.'
+        ]);
+    }
+
+    public function parentLogin()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->whatsapp)) {
+            return $this->fail('Nomor WhatsApp harus diisi.');
+        }
+
+        $whatsapp = trim($json->whatsapp);
+
+        $members = $this->db->table('members')
+            ->where('parent_whatsapp', $whatsapp)
+            ->get()
+            ->getResultArray();
+
+        if (empty($members)) {
+            return $this->failNotFound('Nomor HP tidak terdaftar sebagai orang tua member.');
+        }
+
+        $formattedMembers = [];
+        foreach ($members as $m) {
+            $payment = $this->db->table('payments')
+                ->where('member_id', $m['id'])
+                ->get()
+                ->getRowArray();
+
+            $formattedPayment = $payment ? [
+                'amount' => (int)$payment['amount'],
+                'method' => $payment['method'],
+                'proofUrl' => $payment['proof_url'],
+                'status' => $payment['status'],
+                'date' => $payment['date']
+            ] : null;
+
+            $progress = $this->db->table('training_progress')
+                ->where('member_id', $m['id'])
+                ->orderBy('date', 'DESC')
+                ->get()
+                ->getResultArray();
+
+            $reschedules = $this->db->table('reschedule_requests')
+                ->where('member_id', $m['id'])
+                ->get()
+                ->getResultArray();
+
+            $formattedReschedules = [];
+            foreach ($reschedules as $r) {
+                $formattedReschedules[] = [
+                    'id' => $r['id'],
+                    'originalDay' => $r['original_day'],
+                    'originalTime' => $r['original_time'],
+                    'requestedDay' => $r['requested_day'],
+                    'requestedTime' => $r['requested_time'],
+                    'status' => $r['status'],
+                    'reason' => $r['reason']
+                ];
+            }
+
+            $formattedMembers[] = [
+                'id' => $m['id'],
+                'parent' => [
+                    'fatherMotherName' => $m['parent_name'],
+                    'whatsapp' => $m['parent_whatsapp']
+                ],
+                'student' => [
+                    'fullName' => $m['student_name'],
+                    'gender' => $m['student_gender'],
+                    'dob' => $m['student_dob'],
+                    'age' => (int)$m['student_age'],
+                    'illnessHistory' => $m['student_illness'],
+                    'hasSwumBefore' => (bool)$m['student_has_swum']
+                ],
+                'coachId' => $m['coach_id'],
+                'packageId' => $m['package_id'],
+                'scheduleFrequency' => $m['schedule_frequency'],
+                'scheduleDay' => $m['schedule_day'],
+                'scheduleTime' => $m['schedule_time'],
+                'scheduleDay2' => $m['schedule_day2'],
+                'scheduleTime2' => $m['schedule_time2'],
+                'coachType' => $m['coach_type'],
+                'status' => $m['status'],
+                'sessionsLeft' => (int)$m['sessions_left'],
+                'sessionsTotal' => (int)$m['sessions_total'],
+                'payment' => $formattedPayment,
+                'progress' => $progress,
+                'registeredAt' => $m['registered_at'],
+                'referralCodeUsed' => $m['referral_code_used'],
+                'referralCount' => (int)$m['referral_count'],
+                'referralBonus' => (int)$m['referral_bonus'],
+                'isActive' => isset($m['is_active']) ? (bool)$m['is_active'] : true,
+                'rescheduleRequests' => $formattedReschedules
+            ];
+        }
+
+        return $this->respond([
+            'status' => 'success',
+            'members' => $formattedMembers
+        ]);
+    }
+
+    public function getSettings()
+    {
+        $settings = $this->db->table('site_settings')->get()->getResultArray();
+        $formatted = [];
+        foreach ($settings as $s) {
+            $formatted[$s['key_name']] = $s['value_text'];
+        }
+        return $this->respond([
+            'status' => 'success',
+            'settings' => $formatted
+        ]);
+    }
+
+    public function updateSettings()
+    {
+        $json = $this->request->getJSON();
+        if (!$json) {
+            return $this->fail('Data tidak valid.');
+        }
+
+        $this->db->transStart();
+        foreach ($json as $key => $value) {
+            $exists = $this->db->table('site_settings')->where('key_name', $key)->countAllResults();
+            if ($exists > 0) {
+                $this->db->table('site_settings')->where('key_name', $key)->update(['value_text' => $value]);
+            } else {
+                $this->db->table('site_settings')->insert(['key_name' => $key, 'value_text' => $value]);
+            }
+        }
+        $this->db->transComplete();
+
+        if ($this->db->transStatus() === false) {
+            return $this->fail('Gagal menyimpan pengaturan.');
+        }
+
+        return $this->respond(['status' => 'success']);
+    }
+
+    public function getLevels()
+    {
+        $levels = $this->db->table('program_levels')->orderBy('level_number', 'ASC')->get()->getResultArray();
+        return $this->respond($levels);
+    }
+
+    public function addLevel()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->name) || !isset($json->level_number)) {
+            return $this->fail('Data level tidak lengkap.');
+        }
+
+        $data = [
+            'level_number' => (int)$json->level_number,
+            'name' => $json->name,
+            'target_learning' => $json->target_learning ?? '',
+            'materials' => $json->materials ?? '',
+            'graduation_target' => $json->graduation_target ?? ''
+        ];
+
+        $this->db->table('program_levels')->insert($data);
+        return $this->respondCreated(['status' => 'success']);
+    }
+
+    public function updateLevel()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->id)) {
+            return $this->fail('ID Level tidak ditemukan.');
+        }
+
+        $data = [
+            'level_number' => (int)$json->level_number,
+            'name' => $json->name,
+            'target_learning' => $json->target_learning ?? '',
+            'materials' => $json->materials ?? '',
+            'graduation_target' => $json->graduation_target ?? ''
+        ];
+
+        $this->db->table('program_levels')->where('id', $json->id)->update($data);
+        return $this->respond(['status' => 'success']);
+    }
+
+    public function deleteLevel($id)
+    {
+        $this->db->table('program_levels')->where('id', $id)->delete();
         return $this->respond(['status' => 'success']);
     }
 }

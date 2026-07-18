@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Coach, Member, EventItem } from './types';
+import { Coach, Member, EventItem, SiteSettings, ProgramLevel } from './types';
 import { api } from './api';
 import MainPortal from './components/MainPortal';
 import AdminDashboard from './components/AdminDashboard';
@@ -20,27 +20,230 @@ export default function App() {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
-  const [activeRole, setActiveRole] = useState<'member' | 'admin' | 'coach' | 'parent'>('member');
+  const [settings, setSettings] = useState<SiteSettings>({});
+  const [levels, setLevels] = useState<ProgramLevel[]>([]);
+  const [activeRole, setActiveRole] = useState<'member' | 'admin' | 'coach' | 'parent'>(() => {
+    const path = window.location.pathname;
+    if (path === '/belakang') return 'admin';
+    if (path === '/coachs') return 'coach';
+    if (path === '/ortu') return 'parent';
+    return 'member';
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  // Auth States for Admin and Coach
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem('user_role') === 'admin' && !!localStorage.getItem('auth_token');
+  });
+  const [adminUsername, setAdminUsername] = useState<string>('');
+  const [adminPassword, setAdminPassword] = useState<string>('');
+  const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
+
+  const [isCoachLoggedIn, setIsCoachLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem('user_role') === 'coach' && !!localStorage.getItem('auth_token');
+  });
+  const [loggedCoachId, setLoggedCoachId] = useState<string>(() => {
+    return localStorage.getItem('logged_user_id') || '';
+  });
+  const [coachUsername, setCoachUsername] = useState<string>('');
+  const [coachPassword, setCoachPassword] = useState<string>('');
+  const [coachLoginError, setCoachLoginError] = useState<string | null>(null);
+
+  // Reset login input fields when switching roles
+  useEffect(() => {
+    if (activeRole !== 'admin') {
+      setAdminUsername('');
+      setAdminPassword('');
+      setAdminLoginError(null);
+    }
+    if (activeRole !== 'coach') {
+      setCoachUsername('');
+      setCoachPassword('');
+      setCoachLoginError(null);
+    }
+  }, [activeRole]);
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setAdminLoginError(null);
+      const res = await api.login({
+        username: adminUsername.trim(),
+        password: adminPassword.trim(),
+        role: 'admin'
+      });
+      if (res.status === 'success' && res.token) {
+        localStorage.setItem('auth_token', res.token);
+        localStorage.setItem('user_role', 'admin');
+        localStorage.setItem('user_name', res.user.name);
+        localStorage.setItem('logged_user_id', res.user.id);
+        
+        setIsAdminLoggedIn(true);
+        setAdminLoginError(null);
+        loadAllData();
+      } else {
+        setAdminLoginError('Username atau password Admin salah!');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setAdminLoginError('Username atau password Admin salah!');
+    }
+  };
+
+  const handleCoachLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!coachUsername) {
+      setCoachLoginError('Silakan masukkan username Pelatih!');
+      return;
+    }
+    
+    try {
+      setCoachLoginError(null);
+      const res = await api.login({
+        username: coachUsername.trim(),
+        password: coachPassword.trim(),
+        role: 'coach'
+      });
+      if (res.status === 'success' && res.token) {
+        localStorage.setItem('auth_token', res.token);
+        localStorage.setItem('user_role', 'coach');
+        localStorage.setItem('user_name', res.user.name);
+        localStorage.setItem('logged_user_id', res.user.id);
+        
+        setIsCoachLoggedIn(true);
+        setLoggedCoachId(res.user.id);
+        setCoachLoginError(null);
+        loadAllData();
+      } else {
+        setCoachLoginError('Username atau password Pelatih salah!');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setCoachLoginError('Username atau password Pelatih salah!');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch (e) {
+      console.error("Logout request failed:", e);
+    }
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('user_name');
+    localStorage.removeItem('logged_user_id');
+
+    setIsAdminLoggedIn(false);
+    setIsCoachLoggedIn(false);
+    setLoggedCoachId('');
+    setActiveRole('member');
+    loadAllData();
+  };
 
   // Load from database on mount
   const loadAllData = async () => {
     try {
-      const [coachesData, membersData, eventsData] = await Promise.all([
+      setError(null);
+      const token = localStorage.getItem('auth_token');
+      const role = localStorage.getItem('user_role');
+
+      const fetchPromises: Promise<any>[] = [
         api.getCoaches(),
-        api.getMembers(),
-        api.getEvents()
-      ]);
-      setCoaches(coachesData);
-      setMembers(membersData);
-      setEvents(eventsData);
-    } catch (e) {
+        api.getEvents(),
+        api.getSettings(),
+        api.getLevels()
+      ];
+
+      const canFetchMembers = token && (role === 'admin' || role === 'coach');
+      if (canFetchMembers) {
+        fetchPromises.push(api.getMembers());
+      }
+
+      const results = await Promise.all(fetchPromises);
+      setCoaches(results[0]);
+      setEvents(results[1]);
+      if (results[2] && results[2].status === 'success') {
+        setSettings(results[2].settings);
+      }
+      setLevels(results[3] || []);
+
+      if (canFetchMembers) {
+        setMembers(results[4]);
+      } else {
+        setMembers([]);
+      }
+    } catch (e: any) {
       console.error("Failed to load data from MariaDB backend", e);
+      
+      const errMsg = e.message || String(e);
+      if (
+        errMsg.includes('Token tidak valid') || 
+        errMsg.includes('Token otentikasi diperlukan') || 
+        errMsg.includes('Token telah kedaluwarsa')
+      ) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('user_name');
+        localStorage.removeItem('logged_user_id');
+        setIsAdminLoggedIn(false);
+        setIsCoachLoggedIn(false);
+        setLoggedCoachId('');
+        loadAllData();
+        return;
+      }
+      
+      setError(errMsg);
     }
+  };
+
+  const handleUpdateSettings = async (newSettings: SiteSettings) => {
+    setSettings(newSettings);
+    try {
+      await api.updateSettings(newSettings);
+    } catch (e) {
+      console.error("Failed to update settings:", e);
+    }
+  };
+
+  const handleUpdateLevels = async (newLevels: ProgramLevel[]) => {
+    setLevels(newLevels);
+    loadAllData();
   };
 
   useEffect(() => {
     loadAllData();
+
+    // Listen to browser forward/back buttons
+    const handlePopState = () => {
+      const currentPath = window.location.pathname;
+      if (currentPath === '/belakang') {
+        setActiveRole('admin');
+      } else if (currentPath === '/coachs') {
+        setActiveRole('coach');
+      } else if (currentPath === '/ortu') {
+        setActiveRole('parent');
+      } else {
+        setActiveRole('member');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Sync browser URL pathname when activeRole changes
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (activeRole === 'admin' && path !== '/belakang') {
+      window.history.pushState(null, '', '/belakang');
+    } else if (activeRole === 'coach' && path !== '/coachs') {
+      window.history.pushState(null, '', '/coachs');
+    } else if (activeRole === 'parent' && path !== '/ortu') {
+      window.history.pushState(null, '', '/ortu');
+    } else if (activeRole === 'member' && path !== '/') {
+      window.history.pushState(null, '', '/');
+    }
+  }, [activeRole]);
 
   // Sync to database on updates (Coaches)
   const updateCoachesState = async (newCoaches: Coach[]) => {
@@ -49,17 +252,13 @@ export default function App() {
       if (newCoaches.length > coaches.length) {
         const added = newCoaches.find(nc => !coaches.some(c => c.id === nc.id));
         if (added) {
-          const price4 = added.packages.find(p => p.sessions === 4)?.price || 250000;
-          const price8 = added.packages.find(p => p.sessions === 8)?.price || 450000;
-          const price12 = added.packages.find(p => p.sessions === 12)?.price || 600000;
           await api.addCoach({
             name: added.name,
             experience: added.experience,
             photo: added.photo,
             maxQuota: added.maxQuota,
-            price4,
-            price8,
-            price12
+            packages: added.packages,
+            schedule: added.schedule
           });
         }
       } else if (newCoaches.length < coaches.length) {
@@ -73,23 +272,21 @@ export default function App() {
           return old && JSON.stringify(old) !== JSON.stringify(nc);
         });
         if (updated) {
-          const price4 = updated.packages.find(p => p.sessions === 4)?.price || 250000;
-          const price8 = updated.packages.find(p => p.sessions === 8)?.price || 450000;
-          const price12 = updated.packages.find(p => p.sessions === 12)?.price || 600000;
           await api.updateCoach({
             id: updated.id,
             name: updated.name,
             experience: updated.experience,
             photo: updated.photo,
             maxQuota: updated.maxQuota,
-            price4,
-            price8,
-            price12
+            isActive: updated.isActive,
+            packages: updated.packages,
+            schedule: updated.schedule
           });
         }
       }
-    } catch (e) {
-      console.error("Failed to update coach:", e);
+    } catch (e: any) {
+      console.error("Failed to sync coach update to backend", e);
+      setError("Gagal mensinkronisasikan perubahan pelatih ke database: " + e.message);
     }
     loadAllData();
   };
@@ -238,7 +435,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           
           {/* Logo Brand */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
               <span className="text-xl">🏊‍♂️</span>
               <div>
@@ -248,6 +445,14 @@ export default function App() {
                 </p>
               </div>
             </div>
+            {activeRole !== 'member' && (
+              <button
+                onClick={handleLogout}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1"
+              >
+                🚪 Keluar Portal
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -255,30 +460,165 @@ export default function App() {
       {/* Main Workspace Frame */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 md:px-8">
         <div className="space-y-6">
-          {coaches.length > 0 && members.length > 0 ? (
+          {error ? (
+            <div className="max-w-xl mx-auto my-12 bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center space-y-4 shadow-xs">
+              <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="font-extrabold text-slate-800 text-lg">Gagal Terhubung ke Backend</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Aplikasi React tidak dapat mengambil data dari backend CodeIgniter 4 di <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-rose-600">http://127.0.0.1:8081</code>.
+              </p>
+              <div className="bg-slate-900 text-rose-300 p-4 rounded-xl text-left text-xs font-mono overflow-auto max-h-40 border border-slate-800">
+                Error: {error}
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Pastikan server backend PHP Spark sudah berjalan di terminal Anda dan port <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">8081</code> terbuka serta tidak terhalang kebijakan CORS.
+              </p>
+              <button
+                onClick={loadAllData}
+                className="bg-rose-600 hover:bg-rose-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer"
+              >
+                Coba Hubungkan Kembali
+              </button>
+            </div>
+          ) : coaches.length > 0 ? (
             activeRole === 'member' ? (
               <MainPortal 
                 coaches={coaches} 
                 members={members} 
                 events={events}
+                settings={settings}
+                levels={levels}
                 onRegister={handleRegisterMember} 
                 onUpdateEvents={updateEventsState}
               />
             ) : activeRole === 'admin' ? (
-              <AdminDashboard 
-                coaches={coaches} 
-                members={members}
-                events={events}
-                onUpdateCoaches={updateCoachesState}
-                onUpdateMembers={updateMembersState}
-                onUpdateEvents={updateEventsState}
-              />
+              !isAdminLoggedIn ? (
+                <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-100 shadow-xl p-8 space-y-6">
+                  <div className="text-center space-y-2">
+                    <div className="w-12 h-12 bg-cyan-50 rounded-2xl flex items-center justify-center mx-auto text-cyan-600">
+                      <Shield className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800">Login Portal Administrator</h3>
+                    <p className="text-xs text-slate-505 leading-normal">Gunakan kredensial admin untuk mengakses sistem manajemen privat renang.</p>
+                  </div>
+
+                  <form onSubmit={handleAdminLogin} className="space-y-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Username</label>
+                      <input
+                        type="text"
+                        placeholder="Username (admin)"
+                        value={adminUsername}
+                        onChange={(e) => setAdminUsername(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Password</label>
+                      <input
+                        type="password"
+                        placeholder="Password (admin123)"
+                        value={adminPassword}
+                        onChange={(e) => setAdminPassword(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
+                        required
+                      />
+                    </div>
+
+                    {adminLoginError && (
+                      <p className="text-xs text-rose-600 font-semibold text-center">{adminLoginError}</p>
+                    )}
+
+                    <button
+                      type="submit"
+                      className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition text-sm flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      Masuk Administrator
+                    </button>
+                  </form>
+                  
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[10px] text-slate-500 text-center">
+                    Demo Login: <strong className="text-slate-700">admin</strong> / <strong className="text-slate-700">admin123</strong>
+                  </div>
+                </div>
+              ) : (
+                <AdminDashboard 
+                  coaches={coaches} 
+                  members={members}
+                  events={events}
+                  settings={settings}
+                  levels={levels}
+                  onUpdateSettings={handleUpdateSettings}
+                  onUpdateLevels={handleUpdateLevels}
+                  onUpdateCoaches={updateCoachesState}
+                  onUpdateMembers={updateMembersState}
+                  onUpdateEvents={updateEventsState}
+                />
+              )
             ) : activeRole === 'coach' ? (
-              <CoachDashboard 
-                coaches={coaches} 
-                members={members} 
-                onUpdateMembers={updateMembersState} 
-              />
+              !isCoachLoggedIn ? (
+                <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-100 shadow-xl p-8 space-y-6">
+                  <div className="text-center space-y-2">
+                    <div className="w-12 h-12 bg-cyan-50 rounded-2xl flex items-center justify-center mx-auto text-cyan-600">
+                      <Award className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800">Login Portal Pelatih</h3>
+                    <p className="text-xs text-slate-505 leading-normal">Silakan pilih identitas pelatih Anda dan masukkan password untuk mengelola murid.</p>
+                  </div>
+
+                  <form onSubmit={handleCoachLogin} className="space-y-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Username Pelatih</label>
+                      <input
+                        type="text"
+                        placeholder="Username (rian, nisa, atau dika)"
+                        value={coachUsername}
+                        onChange={(e) => setCoachUsername(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Password Pelatih</label>
+                      <input
+                        type="password"
+                        placeholder="Password (coach123)"
+                        value={coachPassword}
+                        onChange={(e) => setCoachPassword(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
+                        required
+                      />
+                    </div>
+
+                    {coachLoginError && (
+                      <p className="text-xs text-rose-600 font-semibold text-center">{coachLoginError}</p>
+                    )}
+
+                    <button
+                      type="submit"
+                      className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition text-sm flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      Masuk Portal Pelatih
+                    </button>
+                  </form>
+
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[10px] text-slate-500 text-center">
+                    Demo Login: Username (<strong className="text-slate-700">rian / nisa / dika</strong>) & Password: <strong className="text-slate-700">coach123</strong>
+                  </div>
+                </div>
+              ) : (
+                <CoachDashboard 
+                  coaches={coaches} 
+                  members={members} 
+                  onUpdateMembers={updateMembersState} 
+                  loggedCoachId={loggedCoachId}
+                />
+              )
             ) : (
               <ParentDashboard 
                 coaches={coaches} 
@@ -305,22 +645,7 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Floating Sandbox Portal Selector */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <div className="bg-slate-900/95 backdrop-blur-md border border-slate-800 text-white rounded-2xl p-3 shadow-2xl flex items-center gap-2">
-          <span className="text-[9px] uppercase tracking-wider font-black text-cyan-400 px-1.5 py-1 bg-cyan-950 rounded-lg">Simulasi</span>
-          <select
-            value={activeRole}
-            onChange={(e) => setActiveRole(e.target.value as any)}
-            className="bg-slate-800 border border-slate-700 text-white rounded-xl px-2.5 py-1.5 text-xs font-bold focus:outline-hidden cursor-pointer"
-          >
-            <option value="member">Landing & Daftar</option>
-            <option value="admin">Dashboard Admin</option>
-            <option value="coach">Portal Pelatih</option>
-            <option value="parent">Portal Orang Tua</option>
-          </select>
-        </div>
-      </div>
+
     </div>
   );
 }

@@ -10,7 +10,7 @@ export const INITIAL_COACHES: Coach[] = [
     id: 'coach-rian',
     name: 'Coach Rian',
     status: 'Tersedia',
-    photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop&q=80',
+    photo: '/images/coach_rian.png',
     experience: 'Mantan Atlet Renang Daerah, 5 Tahun Pengalaman Melatih Anak & Dewasa',
     referralCode: 'COACH-RIAN',
     referralBonus: 150000,
@@ -46,7 +46,7 @@ export const INITIAL_COACHES: Coach[] = [
     id: 'coach-nisa',
     name: 'Coach Nisa',
     status: 'Tersedia',
-    photo: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=400&fit=crop&q=80',
+    photo: '/images/coach_nisa.png',
     experience: 'Sertifikasi Pelatih Renang Internasional, Ahli Renang Gaya Dada & Bebas',
     referralCode: 'COACH-NISA',
     referralBonus: 50000,
@@ -82,7 +82,7 @@ export const INITIAL_COACHES: Coach[] = [
     id: 'coach-dika',
     name: 'Coach Dika',
     status: 'Penuh',
-    photo: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&h=400&fit=crop&q=80',
+    photo: '/images/coach_dika.png',
     experience: '6 Tahun Melatih Anak Berkebutuhan Khusus & Terapi Cedera Renang',
     referralCode: 'COACH-DIKA',
     referralBonus: 0,
@@ -513,7 +513,7 @@ export const INITIAL_EVENTS: EventItem[] = [
     category: 'Fun Swimming',
     date: '2026-07-20',
     description: 'Kegiatan berenang ceria untuk melatih keberanian anak di air dangkal dengan berbagai permainan seru, perebutan koin, dan balapan pelampung. Semua peserta mendapatkan bingkisan menarik!',
-    imageUrl: 'https://images.unsplash.com/photo-1519074002996-a69e7ac46a42?w=600&h=400&fit=crop&q=80'
+    imageUrl: '/images/event_fun.png'
   },
   {
     id: 'event-2',
@@ -521,6 +521,6 @@ export const INITIAL_EVENTS: EventItem[] = [
     category: 'Lomba',
     date: '2026-08-05',
     description: 'Ajang kompetisi gaya bebas dan gaya dada 25 meter untuk kategori umur 6-12 tahun. Dapatkan piala, piagam penghargaan, dan tabungan pendidikan untuk juara 1, 2, dan 3!',
-    imageUrl: 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=600&h=400&fit=crop&q=80'
+    imageUrl: '/images/event_lomba.png'
   }
 ];

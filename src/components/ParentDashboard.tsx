@@ -9,6 +9,7 @@ import {
   Phone, User, Calendar, Award, CheckCircle, Clock, BookOpen, DollarSign, 
   Download, RefreshCw, Send, AlertCircle, FileText
 } from 'lucide-react';
+import { api } from '../api';
 
 interface ParentDashboardProps {
   coaches: Coach[];
@@ -20,6 +21,7 @@ export default function ParentDashboard({ coaches, members, onUpdateMembers }: P
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [localMembers, setLocalMembers] = useState<Member[]>([]);
 
   // Reschedule form states
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
@@ -32,23 +34,39 @@ export default function ParentDashboard({ coaches, members, onUpdateMembers }: P
   const [activeReceiptMember, setActiveReceiptMember] = useState<Member | null>(null);
 
   // Demo shortcut login helper
-  const handleDemoLogin = (phone: string) => {
+  const handleDemoLogin = async (phone: string) => {
     setPhoneNumber(phone);
-    setLoginError(null);
-    setIsLoggedIn(true);
+    try {
+      setLoginError(null);
+      const res = await api.parentLogin(phone);
+      if (res.status === 'success' && res.members) {
+        setLocalMembers(res.members);
+        setIsLoggedIn(true);
+        setLoginError(null);
+      } else {
+        setLoginError('Gagal masuk demo.');
+      }
+    } catch (err) {
+      setLoginError('Gagal masuk demo.');
+    }
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPhone = phoneNumber.trim();
     if (!cleanPhone) return;
 
-    // Search members matching this whatsapp number
-    const matched = members.find(m => m.parent.whatsapp === cleanPhone);
-    if (matched) {
-      setIsLoggedIn(true);
+    try {
       setLoginError(null);
-    } else {
+      const res = await api.parentLogin(cleanPhone);
+      if (res.status === 'success' && res.members) {
+        setLocalMembers(res.members);
+        setIsLoggedIn(true);
+        setLoginError(null);
+      } else {
+        setLoginError('Nomor HP tidak terdaftar sebagai orang tua member.');
+      }
+    } catch (err) {
       setLoginError('Nomor HP tidak terdaftar sebagai orang tua member.');
     }
   };
@@ -57,46 +75,39 @@ export default function ParentDashboard({ coaches, members, onUpdateMembers }: P
     setIsLoggedIn(false);
     setPhoneNumber('');
     setSelectedStudentId('');
+    setLocalMembers([]);
     setRescheduleSuccess(null);
   };
 
   // Find all children belonging to logged-in parent
-  const parentStudents = isLoggedIn 
-    ? members.filter(m => m.parent.whatsapp === phoneNumber.trim()) 
-    : [];
+  const parentStudents = isLoggedIn ? localMembers : [];
 
-  const handleRescheduleSubmit = (e: React.FormEvent) => {
+  const handleRescheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudentId || !rescheduleDay || !rescheduleTime) return;
 
-    const child = members.find(m => m.id === selectedStudentId);
+    const child = localMembers.find(m => m.id === selectedStudentId);
     if (!child) return;
 
-    const request = {
-      id: `req-${Date.now()}`,
-      originalDay: child.scheduleDay,
-      originalTime: child.scheduleTime,
-      requestedDay: rescheduleDay,
-      requestedTime: rescheduleTime,
-      status: 'Disetujui' as const, // Auto approved for prototype fluid experience!
-      reason: rescheduleReason
-    };
+    try {
+      await api.requestReschedule({
+        memberId: selectedStudentId,
+        requestedDay: rescheduleDay,
+        requestedTime: rescheduleTime,
+        reason: rescheduleReason
+      });
 
-    // Update child's schedule and append request
-    const updated = members.map(m => {
-      if (m.id === selectedStudentId) {
-        return {
-          ...m,
-          scheduleDay: rescheduleDay,
-          scheduleTime: rescheduleTime,
-          rescheduleRequests: [...(m.rescheduleRequests || []), request]
-        };
+      // Refresh local children data
+      const res = await api.parentLogin(phoneNumber.trim());
+      if (res.status === 'success' && res.members) {
+        setLocalMembers(res.members);
       }
-      return m;
-    });
 
-    onUpdateMembers(updated);
-    setRescheduleSuccess(`Jadwal ${child.student.fullName} berhasil dipindahkan ke hari ${rescheduleDay} pukul ${rescheduleTime} WIB!`);
+      setRescheduleSuccess(`Jadwal ${child.student.fullName} berhasil dipindahkan ke hari ${rescheduleDay} pukul ${rescheduleTime} WIB!`);
+    } catch (err) {
+      console.error(err);
+      setRescheduleSuccess('Gagal mengajukan reschedule. Silakan coba lagi.');
+    }
     
     // reset reschedule form
     setRescheduleDay('');
