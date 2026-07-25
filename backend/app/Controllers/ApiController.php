@@ -19,10 +19,14 @@ class ApiController extends BaseController
 
     public function getCoaches()
     {
-        $coaches = $this->db->table('coaches')->get()->getResultArray();
+        $coaches = $this->db->table('coaches')
+            ->select('coaches.*, users.username')
+            ->join('users', 'users.id = coaches.id')
+            ->orderBy('coaches.name', 'ASC')
+            ->get()
+            ->getResultArray();
         
         foreach ($coaches as &$coach) {
-            unset($coach['username']);
             unset($coach['password']);
             // Get Packages
             $coach['packages'] = $this->db->table('packages')
@@ -48,24 +52,16 @@ class ApiController extends BaseController
                 }
 
                 // Count active students registered in this day & time slot
-                $studentsInSlot = $this->db->table('members')
-                    ->where('coach_id', $coach['id'])
-                    ->where('status !=', 'Selesai')
-                    ->groupStart()
-                        ->groupStart()
-                            ->where('schedule_day', $dayName)
-                            ->where('schedule_time', $sched['time'])
-                        ->groupEnd()
-                        ->orGroupStart()
-                            ->where('schedule_frequency', '2x Seminggu')
-                            ->where('schedule_day2', $dayName)
-                            ->where('schedule_time2', $sched['time'])
-                        ->groupEnd()
-                    ->groupEnd()
+                $studentsInSlot = $this->db->table('member_schedules')
+                    ->join('members', 'members.id = member_schedules.member_id')
+                    ->where('member_schedules.coach_id', $coach['id'])
+                    ->where('member_schedules.day', $dayName)
+                    ->where('member_schedules.time', $sched['time'])
+                    ->where('members.status !=', 'Selesai')
                     ->get()
                     ->getResultArray();
 
-                $studentIds = array_column($studentsInSlot, 'id');
+                $studentIds = array_column($studentsInSlot, 'member_id');
 
                 $groupedSchedule[$dayName]['timeSlots'][] = [
                     'time' => $sched['time'],
@@ -78,15 +74,19 @@ class ApiController extends BaseController
             $coach['schedule'] = array_values($groupedSchedule);
 
             // Compute current overall quota
-            $activeStudentsTotal = $this->db->table('members')
-                ->where('coach_id', $coach['id'])
-                ->where('status !=', 'Selesai')
+            $activeStudentsTotal = $this->db->table('member_schedules')
+                ->join('members', 'members.id = member_schedules.member_id')
+                ->where('member_schedules.coach_id', $coach['id'])
+                ->where('members.status !=', 'Selesai')
+                ->select('member_schedules.member_id')
+                ->distinct()
                 ->countAllResults();
 
             $coach['currentQuota'] = $activeStudentsTotal;
             $coach['status'] = ($activeStudentsTotal >= $coach['max_quota']) ? 'Penuh' : 'Tersedia';
             $coach['referralBonus'] = (int)$coach['referral_bonus'];
             $coach['maxQuota'] = (int)$coach['max_quota'];
+            $coach['referralCode'] = $coach['referral_code'];
             $coach['isActive'] = isset($coach['is_active']) ? (bool)$coach['is_active'] : true;
         }
 
@@ -102,6 +102,16 @@ class ApiController extends BaseController
 
         $id = 'coach-' . strtolower(str_replace(' ', '-', $json->name)) . '-' . rand(100, 999);
         $referralCode = 'COACH-' . strtoupper(str_replace(' ', '-', $json->name));
+        $username = (!empty($json->username)) ? trim($json->username) : strtolower(str_replace(' ', '', $json->name)) . rand(10, 99);
+        $password = (!empty($json->password)) ? trim($json->password) : 'coach123';
+
+        $userData = [
+            'id' => $id,
+            'username' => $username,
+            'password' => password_hash($password, PASSWORD_DEFAULT),
+            'name' => $json->name,
+            'role' => 'coach'
+        ];
 
         $coachData = [
             'id' => $id,
@@ -110,10 +120,14 @@ class ApiController extends BaseController
             'experience' => $json->experience ?? 'Pelatih Renang Profesional',
             'referral_code' => $referralCode,
             'referral_bonus' => 0,
-            'max_quota' => (int)($json->maxQuota ?? 6)
+            'max_quota' => (int)($json->maxQuota ?? 6),
+            'is_active' => 1,
+            'email' => (!empty($json->email)) ? trim($json->email) : null,
+            'phone' => (!empty($json->phone)) ? trim($json->phone) : null
         ];
 
         $this->db->transStart();
+        $this->db->table('users')->insert($userData);
         $this->db->table('coaches')->insert($coachData);
 
         // Add packages
@@ -158,7 +172,7 @@ class ApiController extends BaseController
             ]);
         }
 
-        // Add schedules (Dynamic or default templates)
+        // Add schedules (Dynamic only)
         if (isset($json->schedule) && is_array($json->schedule)) {
             foreach ($json->schedule as $dayGroup) {
                 $dayName = $dayGroup->day;
@@ -171,19 +185,6 @@ class ApiController extends BaseController
                             'max_slots' => isset($slot->maxSlots) ? (int)$slot->maxSlots : 6
                         ]);
                     }
-                }
-            }
-        } else {
-            $days = ['Senin', 'Selasa'];
-            $times = ['08.00', '09.00', '16.00', '17.00'];
-            foreach ($days as $day) {
-                foreach ($times as $time) {
-                    $this->db->table('coach_schedules')->insert([
-                        'coach_id' => $id,
-                        'day' => $day,
-                        'time' => $time,
-                        'max_slots' => 6
-                    ]);
                 }
             }
         }
@@ -205,15 +206,27 @@ class ApiController extends BaseController
         }
 
         $id = $json->id;
+        $userData = [
+            'name' => $json->name,
+            'username' => trim($json->username)
+        ];
+
+        if (!empty($json->password)) {
+            $userData['password'] = password_hash(trim($json->password), PASSWORD_DEFAULT);
+        }
+
         $coachData = [
             'name' => $json->name,
             'experience' => $json->experience,
             'photo' => $json->photo,
             'max_quota' => (int)$json->maxQuota,
-            'is_active' => isset($json->isActive) ? ($json->isActive ? 1 : 0) : 1
+            'is_active' => isset($json->isActive) ? ($json->isActive ? 1 : 0) : 1,
+            'email' => (!empty($json->email)) ? trim($json->email) : null,
+            'phone' => (!empty($json->phone)) ? trim($json->phone) : null
         ];
 
         $this->db->transStart();
+        $this->db->table('users')->where('id', $id)->update($userData);
         $this->db->table('coaches')->where('id', $id)->update($coachData);
 
         // Update packages (Upsert strategy to avoid foreign key failures)
@@ -312,20 +325,93 @@ class ApiController extends BaseController
 
     public function deleteCoach($id)
     {
-        $exists = $this->db->table('coaches')->where('id', $id)->countAllResults();
+        $exists = $this->db->table('users')->where('id', $id)->countAllResults();
         if (!$exists) {
             return $this->failNotFound('Pelatih tidak ditemukan.');
         }
 
+        // Check if there are active schedules for this coach in member_schedules
+        $hasSchedules = $this->db->table('member_schedules')->where('coach_id', $id)->countAllResults();
+        if ($hasSchedules > 0) {
+            return $this->fail('Pelatih tidak bisa dihapus karena masih ada siswa yang terdaftar pada jadwalnya.', 400);
+        }
+
+        // Check if there are packages belonging to this coach that are chosen by members
+        $packages = $this->db->table('packages')->where('coach_id', $id)->get()->getResultArray();
+        $packageIds = array_column($packages, 'id');
+        if (!empty($packageIds)) {
+            $hasMembers = $this->db->table('members')->whereIn('package_id', $packageIds)->countAllResults();
+            if ($hasMembers > 0) {
+                return $this->fail('Pelatih tidak bisa dihapus karena paket latihannya masih digunakan oleh siswa.', 400);
+            }
+        }
+
+        // Clean up dependent tables that reference coaches
+        $this->db->table('packages')->where('coach_id', $id)->delete();
+        $this->db->table('coach_schedules')->where('coach_id', $id)->delete();
         $this->db->table('coaches')->where('id', $id)->delete();
+        $this->db->table('users')->where('id', $id)->delete();
+
         return $this->respondDeleted(['status' => 'success']);
+    }
+
+    private function checkScheduleConflict($studentName, $id, $newSchedules)
+    {
+        $studentName = trim($studentName);
+        if (empty($studentName) || empty($newSchedules) || !is_array($newSchedules)) {
+            return null;
+        }
+
+        // Check if there are any duplicate slots in the new schedule array itself
+        $seenSlots = [];
+        foreach ($newSchedules as $ns) {
+            $key = $ns['day'] . '|' . $ns['time'];
+            if (isset($seenSlots[$key])) {
+                return "Jadwal " . $ns['day'] . " pukul " . $ns['time'] . " tidak boleh ditambahkan lebih dari satu kali.";
+            }
+            $seenSlots[$key] = true;
+        }
+
+        // Find other active members with the same student name
+        $query = $this->db->table('members')
+            ->where('LOWER(TRIM(student_name))', strtolower($studentName))
+            ->where('status !=', 'Selesai');
+
+        if ($id) {
+            $query->where('id !=', $id);
+        }
+
+        $otherMembers = $query->get()->getResultArray();
+
+        foreach ($otherMembers as $other) {
+            // Get schedules for this other member
+            $otherSchedules = $this->db->table('member_schedules')
+                ->where('member_id', $other['id'])
+                ->get()
+                ->getResultArray();
+
+            foreach ($newSchedules as $ns) {
+                foreach ($otherSchedules as $os) {
+                    if ($ns['day'] === $os['day'] && $ns['time'] === $os['time']) {
+                        $coach = $this->db->table('coaches')->where('id', $os['coach_id'])->get()->getRowArray();
+                        $coachName = $coach ? $coach['name'] : 'pelatih lain';
+                        return "Siswa bernama \"$studentName\" sudah terdaftar di jadwal " . $ns['day'] . " pukul " . $ns['time'] . " dengan pelatih $coachName.";
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     // ==================== MEMBERS API ====================
 
     public function getMembers()
     {
-        $members = $this->db->table('members')->get()->getResultArray();
+        $members = $this->db->table('members')
+            ->orderBy('student_name', 'ASC')
+            ->get()
+            ->getResultArray();
         
         $formattedMembers = [];
         foreach ($members as $m) {
@@ -369,6 +455,25 @@ class ApiController extends BaseController
                 ];
             }
 
+            // Get schedules from member_schedules
+            $schedulesList = $this->db->table('member_schedules')
+                ->where('member_id', $m['id'])
+                ->get()
+                ->getResultArray();
+
+            $formattedSchedules = [];
+            foreach ($schedulesList as $sched) {
+                $formattedSchedules[] = [
+                    'coachId' => $sched['coach_id'],
+                    'day' => $sched['day'],
+                    'time' => $sched['time']
+                ];
+            }
+
+            // Legacy compatibility fields
+            $firstSched = $formattedSchedules[0] ?? null;
+            $secondSched = $formattedSchedules[1] ?? null;
+
             $formattedMembers[] = [
                 'id' => $m['id'],
                 'parent' => [
@@ -383,13 +488,14 @@ class ApiController extends BaseController
                     'illnessHistory' => $m['student_illness'],
                     'hasSwumBefore' => (bool)$m['student_has_swum']
                 ],
-                'coachId' => $m['coach_id'],
+                'coachId' => $firstSched ? $firstSched['coachId'] : '',
                 'packageId' => $m['package_id'],
-                'scheduleFrequency' => $m['schedule_frequency'],
-                'scheduleDay' => $m['schedule_day'],
-                'scheduleTime' => $m['schedule_time'],
-                'scheduleDay2' => $m['schedule_day2'],
-                'scheduleTime2' => $m['schedule_time2'],
+                'scheduleFrequency' => count($formattedSchedules) > 1 ? '2x Seminggu' : '1x Seminggu',
+                'scheduleDay' => $firstSched ? $firstSched['day'] : '',
+                'scheduleTime' => $firstSched ? $firstSched['time'] : '',
+                'scheduleDay2' => $secondSched ? $secondSched['day'] : null,
+                'scheduleTime2' => $secondSched ? $secondSched['time'] : null,
+                'schedules' => $formattedSchedules,
                 'coachType' => $m['coach_type'],
                 'status' => $m['status'],
                 'sessionsLeft' => (int)$m['sessions_left'],
@@ -415,6 +521,42 @@ class ApiController extends BaseController
             return $this->fail('Data pendaftaran tidak valid.');
         }
 
+        $schedules = [];
+        if (isset($json->schedules) && is_array($json->schedules)) {
+            foreach ($json->schedules as $s) {
+                $schedules[] = [
+                    'coach_id' => $s->coachId,
+                    'day' => $s->day,
+                    'time' => $s->time
+                ];
+            }
+        } else {
+            // Fallback to legacy fields
+            if (!empty($json->scheduleDay) && !empty($json->scheduleTime) && !empty($json->coachId)) {
+                $schedules[] = [
+                    'coach_id' => $json->coachId,
+                    'day' => $json->scheduleDay,
+                    'time' => $json->scheduleTime
+                ];
+            }
+            if (isset($json->scheduleFrequency) && $json->scheduleFrequency === '2x Seminggu' && !empty($json->scheduleDay2) && !empty($json->scheduleTime2) && !empty($json->coachId)) {
+                $schedules[] = [
+                    'coach_id' => $json->coachId,
+                    'day' => $json->scheduleDay2,
+                    'time' => $json->scheduleTime2
+                ];
+            }
+        }
+
+        $conflictError = $this->checkScheduleConflict(
+            $json->student->fullName ?? '',
+            null,
+            $schedules
+        );
+        if ($conflictError) {
+            return $this->fail($conflictError);
+        }
+
         $id = 'TB-' . rand(100000, 999999);
         $this->db->transStart();
 
@@ -424,7 +566,7 @@ class ApiController extends BaseController
         // Apply referral logic
         if ($referralCode) {
             // Is it a coach code?
-            $coachRef = $this->db->table('coaches')->where('referral_code', $referralCode)->getRowArray();
+            $coachRef = $this->db->table('coaches')->where('referral_code', $referralCode)->get()->getRowArray();
             if ($coachRef) {
                 // Coach gets Rp 50.000 bonus
                 $newBonus = ($coachRef['referral_bonus'] ?? 0) + 50000;
@@ -462,13 +604,7 @@ class ApiController extends BaseController
             'student_age' => (int)$json->student->age,
             'student_illness' => $json->student->illnessHistory ?? '',
             'student_has_swum' => $json->student->hasSwumBefore ? 1 : 0,
-            'coach_id' => $json->coachId,
             'package_id' => $json->packageId,
-            'schedule_frequency' => $json->scheduleFrequency,
-            'schedule_day' => $json->scheduleDay,
-            'schedule_time' => $json->scheduleTime,
-            'schedule_day2' => $json->scheduleDay2 ?? null,
-            'schedule_time2' => $json->scheduleTime2 ?? null,
             'coach_type' => $json->coachType,
             'status' => 'Menunggu Verifikasi',
             'sessions_left' => (int)$json->sessionsLeft,
@@ -478,6 +614,16 @@ class ApiController extends BaseController
         ];
 
         $this->db->table('members')->insert($memberData);
+
+        // Insert schedules to member_schedules table
+        foreach ($schedules as $s) {
+            $this->db->table('member_schedules')->insert([
+                'member_id' => $id,
+                'coach_id' => $s['coach_id'],
+                'day' => $s['day'],
+                'time' => $s['time']
+            ]);
+        }
 
         // Insert Payment
         $paymentData = [
@@ -532,6 +678,43 @@ class ApiController extends BaseController
         }
 
         $id = $json->id;
+
+        $schedules = [];
+        if (isset($json->schedules) && is_array($json->schedules)) {
+            foreach ($json->schedules as $s) {
+                $schedules[] = [
+                    'coach_id' => $s->coachId,
+                    'day' => $s->day,
+                    'time' => $s->time
+                ];
+            }
+        } else {
+            // Fallback to legacy fields
+            if (!empty($json->scheduleDay) && !empty($json->scheduleTime) && !empty($json->coachId)) {
+                $schedules[] = [
+                    'coach_id' => $json->coachId,
+                    'day' => $json->scheduleDay,
+                    'time' => $json->scheduleTime
+                ];
+            }
+            if (isset($json->scheduleFrequency) && $json->scheduleFrequency === '2x Seminggu' && !empty($json->scheduleDay2) && !empty($json->scheduleTime2) && !empty($json->coachId)) {
+                $schedules[] = [
+                    'coach_id' => $json->coachId,
+                    'day' => $json->scheduleDay2,
+                    'time' => $json->scheduleTime2
+                ];
+            }
+        }
+
+        $conflictError = $this->checkScheduleConflict(
+            $json->student->fullName ?? '',
+            $id,
+            $schedules
+        );
+        if ($conflictError) {
+            return $this->fail($conflictError);
+        }
+
         $this->db->transStart();
 
         $memberData = [
@@ -543,13 +726,7 @@ class ApiController extends BaseController
             'student_age' => (int)$json->student->age,
             'student_illness' => $json->student->illnessHistory ?? '',
             'student_has_swum' => $json->student->hasSwumBefore ? 1 : 0,
-            'coach_id' => $json->coachId,
             'package_id' => $json->packageId,
-            'schedule_frequency' => $json->scheduleFrequency,
-            'schedule_day' => $json->scheduleDay,
-            'schedule_time' => $json->scheduleTime,
-            'schedule_day2' => $json->scheduleDay2 ?? null,
-            'schedule_time2' => $json->scheduleTime2 ?? null,
             'coach_type' => $json->coachType,
             'status' => $json->status,
             'sessions_left' => (int)$json->sessionsLeft,
@@ -558,6 +735,17 @@ class ApiController extends BaseController
         ];
 
         $this->db->table('members')->where('id', $id)->update($memberData);
+
+        // Sync schedules to member_schedules table
+        $this->db->table('member_schedules')->where('member_id', $id)->delete();
+        foreach ($schedules as $s) {
+            $this->db->table('member_schedules')->insert([
+                'member_id' => $id,
+                'coach_id' => $s['coach_id'],
+                'day' => $s['day'],
+                'time' => $s['time']
+            ]);
+        }
 
         // Update payment info if exists
         $paymentExists = $this->db->table('payments')->where('member_id', $id)->countAllResults();
@@ -601,7 +789,7 @@ class ApiController extends BaseController
 
     public function getEvents()
     {
-        $events = $this->db->table('events')->orderBy('date', 'DESC')->get()->getResultArray();
+        $events = $this->db->table('events')->orderBy('created_at', 'DESC')->get()->getResultArray();
         foreach ($events as &$event) {
             $event['imageUrl'] = $event['image_url'];
         }
@@ -670,7 +858,7 @@ class ApiController extends BaseController
 
         $this->db->transStart();
 
-        $member = $this->db->table('members')->where('id', $json->memberId)->getRowArray();
+        $member = $this->db->table('members')->where('id', $json->memberId)->get()->getRowArray();
         if (!$member) {
             return $this->failNotFound('Siswa tidak ditemukan.');
         }
@@ -718,7 +906,7 @@ class ApiController extends BaseController
 
         $this->db->transStart();
 
-        $member = $this->db->table('members')->where('id', $json->memberId)->getRowArray();
+        $member = $this->db->table('members')->where('id', $json->memberId)->get()->getRowArray();
         if (!$member) {
             return $this->failNotFound('Siswa tidak ditemukan.');
         }
@@ -774,9 +962,49 @@ class ApiController extends BaseController
         $memberId = $json->memberId;
         $this->db->transStart();
 
-        $member = $this->db->table('members')->where('id', $memberId)->getRowArray();
+        $member = $this->db->table('members')->where('id', $memberId)->get()->getRowArray();
         if (!$member) {
             return $this->failNotFound('Siswa tidak ditemukan.');
+        }
+
+        // Get their current schedules
+        $existingSchedules = $this->db->table('member_schedules')
+            ->where('member_id', $memberId)
+            ->get()
+            ->getResultArray();
+
+        // Target the first schedule for reschedule
+        $firstSched = $existingSchedules[0] ?? null;
+        $originalDay = $firstSched ? $firstSched['day'] : 'Senin';
+        $originalTime = $firstSched ? $firstSched['time'] : '08.00';
+        $schedId = $firstSched ? $firstSched['id'] : null;
+
+        // Build the new schedule set for conflict validation
+        $newSchedules = [];
+        foreach ($existingSchedules as $es) {
+            if ($es['id'] === $schedId) {
+                // This is the one being rescheduled
+                $newSchedules[] = [
+                    'coach_id' => $es['coach_id'],
+                    'day' => $json->requestedDay,
+                    'time' => $json->requestedTime
+                ];
+            } else {
+                $newSchedules[] = [
+                    'coach_id' => $es['coach_id'],
+                    'day' => $es['day'],
+                    'time' => $es['time']
+                ];
+            }
+        }
+
+        $conflictError = $this->checkScheduleConflict(
+            $member['student_name'],
+            $memberId,
+            $newSchedules
+        );
+        if ($conflictError) {
+            return $this->fail($conflictError);
         }
 
         $requestId = 'req-' . rand(100000, 999999);
@@ -785,8 +1013,8 @@ class ApiController extends BaseController
         $this->db->table('reschedule_requests')->insert([
             'id' => $requestId,
             'member_id' => $memberId,
-            'original_day' => $member['schedule_day'],
-            'original_time' => $member['schedule_time'],
+            'original_day' => $originalDay,
+            'original_time' => $originalTime,
             'requested_day' => $json->requestedDay,
             'requested_time' => $json->requestedTime,
             'status' => 'Disetujui',
@@ -794,10 +1022,12 @@ class ApiController extends BaseController
         ]);
 
         // Directly move schedule
-        $this->db->table('members')->where('id', $memberId)->update([
-            'schedule_day' => $json->requestedDay,
-            'schedule_time' => $json->requestedTime
-        ]);
+        if ($schedId) {
+            $this->db->table('member_schedules')->where('id', $schedId)->update([
+                'day' => $json->requestedDay,
+                'time' => $json->requestedTime
+            ]);
+        }
 
         $this->db->transComplete();
 
@@ -821,22 +1051,17 @@ class ApiController extends BaseController
         $password = trim($json->password);
         $role = trim($json->role);
 
-        if ($role === 'admin') {
-            $user = $this->db->table('admins')
-                ->where('username', $username)
-                ->get()
-                ->getRowArray();
-        } else if ($role === 'coach') {
-            $user = $this->db->table('coaches')
-                ->where('username', $username)
-                ->get()
-                ->getRowArray();
-        } else {
-            return $this->fail('Peran pengguna tidak valid.');
-        }
+        $user = $this->db->table('users')
+            ->where('username', $username)
+            ->get()
+            ->getRowArray();
 
         if (!$user) {
             return $this->failUnauthorized('Username atau Password salah.');
+        }
+
+        if ($user['role'] !== $role) {
+            return $this->failUnauthorized('Peran pengguna tidak cocok.');
         }
 
         $isPasswordValid = false;
@@ -850,11 +1075,19 @@ class ApiController extends BaseController
             return $this->failUnauthorized('Username atau Password salah.');
         }
 
+        // Check if coach profile is active
+        if ($user['role'] === 'coach') {
+            $coach = $this->db->table('coaches')->where('id', $user['id'])->get()->getRowArray();
+            if ($coach && (int)$coach['is_active'] === 0) {
+                return $this->failForbidden('Akun pelatih Anda dinonaktifkan.');
+            }
+        }
+
         $token = bin2hex(random_bytes(32));
         $expiresAt = date('Y-m-d H:i:s', strtotime('+2 hours'));
 
         $this->db->table('user_tokens')->insert([
-            'user_id' => $user['id'] ?? $user['username'],
+            'user_id' => $user['id'],
             'role' => $role,
             'token' => $token,
             'expires_at' => $expiresAt
@@ -864,7 +1097,7 @@ class ApiController extends BaseController
             'status' => 'success',
             'token' => $token,
             'user' => [
-                'id' => $user['id'] ?? $user['username'],
+                'id' => $user['id'],
                 'username' => $user['username'],
                 'name' => $user['name'],
                 'role' => $role
@@ -943,6 +1176,25 @@ class ApiController extends BaseController
                 ];
             }
 
+            // Get schedules from member_schedules
+            $schedulesList = $this->db->table('member_schedules')
+                ->where('member_id', $m['id'])
+                ->get()
+                ->getResultArray();
+
+            $formattedSchedules = [];
+            foreach ($schedulesList as $sched) {
+                $formattedSchedules[] = [
+                    'coachId' => $sched['coach_id'],
+                    'day' => $sched['day'],
+                    'time' => $sched['time']
+                ];
+            }
+
+            // Legacy compatibility fields
+            $firstSched = $formattedSchedules[0] ?? null;
+            $secondSched = $formattedSchedules[1] ?? null;
+
             $formattedMembers[] = [
                 'id' => $m['id'],
                 'parent' => [
@@ -957,13 +1209,14 @@ class ApiController extends BaseController
                     'illnessHistory' => $m['student_illness'],
                     'hasSwumBefore' => (bool)$m['student_has_swum']
                 ],
-                'coachId' => $m['coach_id'],
+                'coachId' => $firstSched ? $firstSched['coachId'] : '',
                 'packageId' => $m['package_id'],
-                'scheduleFrequency' => $m['schedule_frequency'],
-                'scheduleDay' => $m['schedule_day'],
-                'scheduleTime' => $m['schedule_time'],
-                'scheduleDay2' => $m['schedule_day2'],
-                'scheduleTime2' => $m['schedule_time2'],
+                'scheduleFrequency' => count($formattedSchedules) > 1 ? '2x Seminggu' : '1x Seminggu',
+                'scheduleDay' => $firstSched ? $firstSched['day'] : '',
+                'scheduleTime' => $firstSched ? $firstSched['time'] : '',
+                'scheduleDay2' => $secondSched ? $secondSched['day'] : null,
+                'scheduleTime2' => $secondSched ? $secondSched['time'] : null,
+                'schedules' => $formattedSchedules,
                 'coachType' => $m['coach_type'],
                 'status' => $m['status'],
                 'sessionsLeft' => (int)$m['sessions_left'],
@@ -1070,6 +1323,118 @@ class ApiController extends BaseController
     public function deleteLevel($id)
     {
         $this->db->table('program_levels')->where('id', $id)->delete();
+        return $this->respond(['status' => 'success']);
+    }
+
+    public function debugLog()
+    {
+        $json = $this->request->getJSON();
+        if ($json && !empty($json->message)) {
+            $msg = '[' . date('Y-m-d H:i:s') . '] ' . $json->message . PHP_EOL;
+            file_put_contents(WRITEPATH . 'logs/frontend_debug.log', $msg, FILE_APPEND);
+        }
+        return $this->respond(['status' => 'success']);
+    }
+
+    // ==================== COACH ABSENCES ====================
+
+    public function getCoachAbsences()
+    {
+        $builder = $this->db->table('coach_absences')
+            ->orderBy('created_at', 'DESC');
+        
+        $absences = $builder->get()->getResultArray();
+        
+        $formatted = [];
+        foreach ($absences as $a) {
+            $formatted[] = [
+                'id' => $a['id'],
+                'coachId' => $a['coach_id'],
+                'day' => $a['day'],
+                'time' => $a['time'],
+                'date' => $a['date'],
+                'reason' => $a['reason'],
+                'status' => $a['status'],
+                'replacementCoachId' => $a['replacement_coach_id']
+            ];
+        }
+        return $this->respond($formatted);
+    }
+
+    public function reportCoachAbsence()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->coachId) || empty($json->day) || empty($json->time) || empty($json->date)) {
+            return $this->fail('Data laporan absen tidak lengkap.');
+        }
+
+        $id = 'abs-' . rand(100000, 999999);
+        $data = [
+            'id' => $id,
+            'coach_id' => $json->coachId,
+            'day' => $json->day,
+            'time' => $json->time,
+            'date' => $json->date,
+            'reason' => $json->reason ?? 'Berhalangan hadir',
+            'status' => 'Menunggu'
+        ];
+
+        $this->db->table('coach_absences')->insert($data);
+        return $this->respondCreated(['status' => 'success', 'id' => $id]);
+    }
+
+    public function processCoachAbsence()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->absenceId) || empty($json->status)) {
+            return $this->fail('Data pemrosesan absen tidak lengkap.');
+        }
+
+        $absenceId = $json->absenceId;
+        $status = $json->status; // 'Transfer' or 'Reschedule'
+        $replacementCoachId = $json->replacementCoachId ?? null;
+
+        $absence = $this->db->table('coach_absences')->where('id', $absenceId)->get()->getRowArray();
+        if (!$absence) {
+            return $this->failNotFound('Laporan ketidakhadiran tidak ditemukan.');
+        }
+
+        $this->db->transStart();
+
+        // 1. Update coach_absences status
+        $updateData = ['status' => $status];
+        if ($status === 'Transfer' && $replacementCoachId) {
+            $updateData['replacement_coach_id'] = $replacementCoachId;
+        }
+        $this->db->table('coach_absences')->where('id', $absenceId)->update($updateData);
+
+        // 2. If action is Reschedule, log an 'Izin' training progress for affected students
+        if ($status === 'Reschedule') {
+            $affectedSchedules = $this->db->table('member_schedules')
+                ->where('coach_id', $absence['coach_id'])
+                ->where('day', $absence['day'])
+                ->where('time', $absence['time'])
+                ->get()
+                ->getResultArray();
+
+            foreach ($affectedSchedules as $sched) {
+                $progId = 'prog-' . rand(10000000, 99999999);
+                $this->db->table('training_progress')->insert([
+                    'id' => $progId,
+                    'member_id' => $sched['member_id'],
+                    'date' => $absence['date'],
+                    'attendance' => 'Izin',
+                    'note' => 'Sesi Latihan DITIADAKAN karena Coach berhalangan hadir. Sesi diundur ke minggu berikutnya (Sisa paket UTUH).'
+                ]);
+            }
+        }
+
+        $this->db->transComplete();
+
+        if ($this->db->transStatus() === false) {
+            return $this->fail('Gagal memproses ketidakhadiran pelatih.');
+        }
+
         return $this->respond(['status' => 'success']);
     }
 }

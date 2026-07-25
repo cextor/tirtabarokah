@@ -62,6 +62,11 @@ export interface Member {
     status: 'Menunggu' | 'Disetujui' | 'Ditolak';
     reason: string;
   }[];
+  schedules?: {
+    coachId: string;
+    day: string;
+    time: string;
+  }[];
   isActive?: boolean;
 }
 
@@ -87,6 +92,10 @@ export interface ScheduleDay {
 export interface Coach {
   id: string;
   name: string;
+  username?: string;
+  password?: string;
+  email?: string;
+  phone?: string;
   status: 'Tersedia' | 'Penuh';
   photo: string;
   experience: string;
@@ -106,6 +115,7 @@ export interface EventItem {
   date: string;
   description: string;
   imageUrl: string;
+  created_at?: string;
 }
 
 export interface ProgramLevel {
@@ -115,6 +125,13 @@ export interface ProgramLevel {
   target_learning: string;
   materials: string;
   graduation_target: string;
+}
+
+export interface BankAccount {
+  id: string;
+  bank_name: string;
+  account_number: string;
+  account_holder: string;
 }
 
 export interface SiteSettings {
@@ -132,5 +149,19 @@ export interface SiteSettings {
   why_choose_4_title?: string;
   why_choose_4_desc?: string;
   package_notes?: string;
+  admin_whatsapp?: string;
+  bank_accounts?: string;
+}
+
+export interface CoachAbsence {
+  id: string;
+  coachId: string;
+  day: string;
+  time: string;
+  date: string;
+  reason: string;
+  status: 'Menunggu' | 'Transfer' | 'Reschedule' | 'Batal';
+  replacementCoachId?: string;
+  created_at?: string;
 }
 

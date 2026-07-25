@@ -2,6 +2,24 @@
 Options -Indexes
 
 # ----------------------------------------------------------------------
+# CORS Configuration for API calls
+# ----------------------------------------------------------------------
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "https://tirtabarokah.id"
+    Header set Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Client-Key"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header set Access-Control-Allow-Credentials "true"
+</IfModule>
+
+# Handle OPTIONS Preflight Requests before hitting CodeIgniter
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^(.*)$ - [R=200,L]
+</IfModule>
+
+
+# ----------------------------------------------------------------------
 # Rewrite engine
 # ----------------------------------------------------------------------
 

@@ -2,7 +2,7 @@
  * API Service for communicating with CodeIgniter 4 Backend
  */
 
-const API_BASE_URL = '';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 async function request(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
@@ -81,4 +81,12 @@ export const api = {
   addLevel: (data: any) => request('/api/levels/add', { method: 'POST', body: JSON.stringify(data) }),
   updateLevel: (data: any) => request('/api/levels/update', { method: 'POST', body: JSON.stringify(data) }),
   deleteLevel: (id: string | number) => request(`/api/levels/delete/${id}`, { method: 'DELETE' }),
+  debugLog: (message: string) => request('/api/debug/log', { method: 'POST', body: JSON.stringify({ message }) }),
+
+  // Coach Absences
+  getCoachAbsences: () => request('/api/absences'),
+  reportCoachAbsence: (data: { coachId: string; day: string; time: string; date: string; reason: string }) =>
+    request('/api/absences/report', { method: 'POST', body: JSON.stringify(data) }),
+  processCoachAbsence: (data: { absenceId: string; status: 'Transfer' | 'Reschedule'; replacementCoachId?: string }) =>
+    request('/api/absences/process', { method: 'POST', body: JSON.stringify(data) }),
 };

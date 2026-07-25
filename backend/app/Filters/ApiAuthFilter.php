@@ -11,7 +11,7 @@ class ApiAuthFilter implements FilterInterface
     public function before(RequestInterface $request, $arguments = null)
     {
         // Handle preflight CORS requests automatically
-        if ($request->getMethod() === 'options') {
+        if (strtolower($request->getMethod()) === 'options') {
             return;
         }
 
@@ -35,12 +35,21 @@ class ApiAuthFilter implements FilterInterface
             'api/auth/login',
             'api/auth/parent-login',
             'api/settings',
-            'api/levels'
+            'api/levels',
+            'api/debug/log'
         ];
 
         // 1. Enforce Client Key for ALL API requests
         $clientKey = $request->getHeaderLine('X-Client-Key');
         $expectedClientKey = 'TirtaBarokahClientSecret2026';
+
+        // DEBUG LOG FOR HEADERS
+        $headersLog = [];
+        foreach ($request->headers() as $name => $h) {
+            $headersLog[$name] = $h->getValueLine();
+        }
+        $msg = '[' . date('Y-m-d H:i:s') . '] Filter debug path: ' . $path . ' ClientKey: "' . $clientKey . '", expected: "' . $expectedClientKey . '", Headers: ' . json_encode($headersLog) . PHP_EOL;
+        file_put_contents(WRITEPATH . 'logs/frontend_debug.log', $msg, FILE_APPEND);
 
         if (!$clientKey || $clientKey !== $expectedClientKey) {
             $response = service('response');
@@ -140,12 +149,12 @@ class ApiAuthFilter implements FilterInterface
         ];
         $isCoachOnly = in_array($path, $coachEndpoints);
 
-        if ($isCoachOnly && $userRole !== 'coach') {
+        if ($isCoachOnly && $userRole !== 'coach' && $userRole !== 'admin') {
             $response = service('response');
             $response->setStatusCode(403);
             return $response->setJSON([
                 'status' => 'error',
-                'message' => 'Akses ditolak: Hanya Pelatih yang diizinkan.'
+                'message' => 'Akses ditolak: Hanya Pelatih atau Administrator yang diizinkan.'
             ]);
         }
     }

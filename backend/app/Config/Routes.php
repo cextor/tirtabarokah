@@ -6,6 +6,8 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 $routes->get('/', 'Home::index');
+$routes->post('login', 'Home::login');
+$routes->get('logout', 'Home::logout');
 
 $routes->group('api', function($routes) {
     // Auth API
@@ -48,4 +50,12 @@ $routes->group('api', function($routes) {
     $routes->post('levels/add', 'ApiController::addLevel');
     $routes->post('levels/update', 'ApiController::updateLevel');
     $routes->delete('levels/delete/(:segment)', 'ApiController::deleteLevel/$1');
+
+    // Coach Absences API
+    $routes->get('absences', 'ApiController::getCoachAbsences');
+    $routes->post('absences/report', 'ApiController::reportCoachAbsence');
+    $routes->post('absences/process', 'ApiController::processCoachAbsence');
+
+    // Debug API
+    $routes->post('debug/log', 'ApiController::debugLog');
 });

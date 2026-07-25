@@ -4,8 +4,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Coach, Member, EventItem, SiteSettings, ProgramLevel } from './types';
-import { api } from './api';
+import Swal from 'sweetalert2';
+import { Coach, Member, EventItem, SiteSettings, ProgramLevel, CoachAbsence } from './types';
+import { api, API_BASE_URL } from './api';
 import MainPortal from './components/MainPortal';
 import AdminDashboard from './components/AdminDashboard';
 import CoachDashboard from './components/CoachDashboard';
@@ -22,6 +23,7 @@ export default function App() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [settings, setSettings] = useState<SiteSettings>({});
   const [levels, setLevels] = useState<ProgramLevel[]>([]);
+  const [absences, setAbsences] = useState<CoachAbsence[]>([]);
   const [activeRole, setActiveRole] = useState<'member' | 'admin' | 'coach' | 'parent'>(() => {
     const path = window.location.pathname;
     if (path === '/belakang') return 'admin';
@@ -158,6 +160,7 @@ export default function App() {
       const canFetchMembers = token && (role === 'admin' || role === 'coach');
       if (canFetchMembers) {
         fetchPromises.push(api.getMembers());
+        fetchPromises.push(api.getCoachAbsences());
       }
 
       const results = await Promise.all(fetchPromises);
@@ -170,8 +173,10 @@ export default function App() {
 
       if (canFetchMembers) {
         setMembers(results[4]);
+        setAbsences(results[5] || []);
       } else {
         setMembers([]);
+        setAbsences([]);
       }
     } catch (e: any) {
       console.error("Failed to load data from MariaDB backend", e);
@@ -258,7 +263,11 @@ export default function App() {
             photo: added.photo,
             maxQuota: added.maxQuota,
             packages: added.packages,
-            schedule: added.schedule
+            schedule: added.schedule,
+            username: added.username,
+            password: added.password,
+            email: added.email,
+            phone: added.phone
           });
         }
       } else if (newCoaches.length < coaches.length) {
@@ -280,7 +289,11 @@ export default function App() {
             maxQuota: updated.maxQuota,
             isActive: updated.isActive,
             packages: updated.packages,
-            schedule: updated.schedule
+            schedule: updated.schedule,
+            username: updated.username,
+            password: updated.password,
+            email: updated.email,
+            phone: updated.phone
           });
         }
       }
@@ -293,9 +306,11 @@ export default function App() {
 
   // Sync to database on updates (Members)
   const updateMembersState = async (newMembers: Member[]) => {
+    console.log("DEBUG: updateMembersState called with", newMembers.length, "members");
     setMembers(newMembers);
     try {
       if (newMembers.length > members.length) {
+        console.log("DEBUG: Member added");
         const added = newMembers.find(nm => !members.some(m => m.id === nm.id));
         if (added) {
           await api.registerMember({
@@ -308,6 +323,7 @@ export default function App() {
             scheduleTime: added.scheduleTime,
             scheduleDay2: added.scheduleDay2,
             scheduleTime2: added.scheduleTime2,
+            schedules: added.schedules,
             coachType: added.coachType,
             sessionsLeft: added.sessionsLeft,
             sessionsTotal: added.sessionsTotal,
@@ -321,26 +337,45 @@ export default function App() {
           });
         }
       } else if (newMembers.length < members.length) {
+        console.log("DEBUG: Member deleted");
         const deleted = members.find(m => !newMembers.some(nm => nm.id === m.id));
         if (deleted) {
           await api.deleteMember(deleted.id);
         }
       } else {
+        console.log("DEBUG: Member modified check");
+        await api.debugLog("DEBUG: Member modified check started");
         const updated = newMembers.find(nm => {
           const old = members.find(m => m.id === nm.id);
-          return old && JSON.stringify(old) !== JSON.stringify(nm);
+          const isDiff = old && JSON.stringify(old) !== JSON.stringify(nm);
+          if (isDiff) {
+            console.log("DEBUG: Diff found for member", nm.id);
+          }
+          return isDiff;
         });
         if (updated) {
           const old = members.find(m => m.id === updated.id)!;
+          console.log("DEBUG: Updating member ID", updated.id);
+          console.log("DEBUG: old.progress length:", old.progress.length, "updated.progress length:", updated.progress.length);
+          await api.debugLog(`DEBUG: Updating member ID ${updated.id}. Old progress: ${old.progress.length}, New: ${updated.progress.length}`);
 
           if (updated.progress.length > old.progress.length) {
             const newProgress = updated.progress[0];
-            await api.addProgress({
-              memberId: updated.id,
-              attendance: newProgress.attendance,
-              note: newProgress.note,
-              date: newProgress.date
-            });
+            console.log("DEBUG: Calling api.addProgress for", updated.id, newProgress);
+            await api.debugLog(`DEBUG: Calling api.addProgress for ${updated.id} with note "${newProgress.note}"`);
+            try {
+              const res = await api.addProgress({
+                memberId: updated.id,
+                attendance: newProgress.attendance,
+                note: newProgress.note,
+                date: newProgress.date
+              });
+              console.log("DEBUG: api.addProgress response:", res);
+              await api.debugLog(`DEBUG: api.addProgress response: ${JSON.stringify(res)}`);
+            } catch (err: any) {
+              await api.debugLog(`DEBUG: api.addProgress error: ${err.message || err}`);
+              throw err;
+            }
           } else if (updated.scheduleDay !== old.scheduleDay || updated.scheduleTime !== old.scheduleTime) {
             const lastReq = updated.rescheduleRequests?.[updated.rescheduleRequests.length - 1];
             await api.requestReschedule({
@@ -352,12 +387,18 @@ export default function App() {
           } else if (updated.payment.status === 'Pembayaran Berhasil' && old.payment.status !== 'Pembayaran Berhasil') {
             await api.verifyPayment(updated.id);
           } else {
+            console.log("DEBUG: Calling api.updateMember for generic changes");
+            await api.debugLog("DEBUG: Calling api.updateMember for generic changes");
             await api.updateMember(updated);
           }
+        } else {
+          console.log("DEBUG: No updated member found in diff check!");
+          await api.debugLog("DEBUG: No updated member found in diff check!");
         }
       }
-    } catch (e) {
-      console.error("Failed to update member:", e);
+    } catch (e: any) {
+      console.error("DEBUG: Failed to update member:", e);
+      await api.debugLog(`DEBUG: Failed to update member: ${e.message || e}`);
     }
     loadAllData();
   };
@@ -397,9 +438,9 @@ export default function App() {
   };
 
   // Registration callback
-  const handleRegisterMember = async (newMemberData: Omit<Member, 'id' | 'registeredAt'>) => {
+  const handleRegisterMember = async (newMemberData: Omit<Member, 'id' | 'registeredAt'>): Promise<string | null> => {
     try {
-      await api.registerMember({
+      const res = await api.registerMember({
         parent: newMemberData.parent,
         student: newMemberData.student,
         coachId: newMemberData.coachId,
@@ -409,6 +450,7 @@ export default function App() {
         scheduleTime: newMemberData.scheduleTime,
         scheduleDay2: newMemberData.scheduleDay2,
         scheduleTime2: newMemberData.scheduleTime2,
+        schedules: newMemberData.schedules,
         coachType: newMemberData.coachType,
         sessionsLeft: newMemberData.sessionsLeft,
         sessionsTotal: newMemberData.sessionsTotal,
@@ -420,12 +462,27 @@ export default function App() {
         },
         referralCodeUsed: newMemberData.referralCodeUsed
       });
-      alert('Pendaftaran berhasil diajukan! Silakan hubungi admin untuk verifikasi pembayaran.');
+      Swal.fire({
+        title: 'Pendaftaran Diajukan!',
+        text: 'Pendaftaran berhasil diajukan! Silakan hubungi admin untuk verifikasi pembayaran.',
+        icon: 'success',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#0891b2'
+      });
+      return res.id || null;
     } catch (e) {
       console.error("Failed to register member via API", e);
-      alert('Terjadi kesalahan saat mendaftar. Silakan coba lagi.');
+      Swal.fire({
+        title: 'Pendaftaran Gagal',
+        text: 'Terjadi kesalahan saat mendaftar. Silakan coba lagi.',
+        icon: 'error',
+        confirmButtonText: 'Coba Lagi',
+        confirmButtonColor: '#e11d48'
+      });
+      return null;
+    } finally {
+      loadAllData();
     }
-    loadAllData();
   };
 
   return (
@@ -441,7 +498,7 @@ export default function App() {
               <div>
                 <h1 className="text-sm font-black text-slate-800 tracking-tight">TIRTA BAROKAH</h1>
                 <p className="text-[10px] text-slate-400 font-mono flex items-center gap-1 font-semibold">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Palembang • Sandbox
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Palembang
                 </p>
               </div>
             </div>
@@ -466,14 +523,14 @@ export default function App() {
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <h3 className="font-extrabold text-slate-800 text-lg">Gagal Terhubung ke Backend</h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Aplikasi React tidak dapat mengambil data dari backend CodeIgniter 4 di <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-rose-600">http://127.0.0.1:8080</code>.
+              <p className="text-xs text-slate-605 leading-relaxed">
+                Aplikasi React tidak dapat mengambil data dari backend CodeIgniter 4 di <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-rose-600">{API_BASE_URL || window.location.origin}</code>.
               </p>
               <div className="bg-slate-900 text-rose-300 p-4 rounded-xl text-left text-xs font-mono overflow-auto max-h-40 border border-slate-800">
                 Error: {error}
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                Pastikan server backend PHP Spark sudah berjalan di terminal Anda dan port <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">8080</code> terbuka serta tidak terhalang kebijakan CORS.
+              <p className="text-[11px] text-slate-505 leading-relaxed">
+                Pastikan server backend PHP Anda sudah berjalan, terkonfigurasi dengan benar di hosting Anda, dan URL API di atas dapat diakses.
               </p>
               <button
                 onClick={loadAllData}
@@ -509,7 +566,6 @@ export default function App() {
                       <label className="text-[10px] font-bold text-slate-500 uppercase block">Username</label>
                       <input
                         type="text"
-                        placeholder="Username (admin)"
                         value={adminUsername}
                         onChange={(e) => setAdminUsername(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
@@ -521,7 +577,6 @@ export default function App() {
                       <label className="text-[10px] font-bold text-slate-500 uppercase block">Password</label>
                       <input
                         type="password"
-                        placeholder="Password (admin123)"
                         value={adminPassword}
                         onChange={(e) => setAdminPassword(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
@@ -540,10 +595,6 @@ export default function App() {
                       Masuk Administrator
                     </button>
                   </form>
-
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[10px] text-slate-500 text-center">
-                    Demo Login: <strong className="text-slate-700">admin</strong> / <strong className="text-slate-700">admin123</strong>
-                  </div>
                 </div>
               ) : (
                 <AdminDashboard
@@ -552,6 +603,8 @@ export default function App() {
                   events={events}
                   settings={settings}
                   levels={levels}
+                  absences={absences}
+                  onReloadData={loadAllData}
                   onUpdateSettings={handleUpdateSettings}
                   onUpdateLevels={handleUpdateLevels}
                   onUpdateCoaches={updateCoachesState}
@@ -615,6 +668,8 @@ export default function App() {
                 <CoachDashboard
                   coaches={coaches}
                   members={members}
+                  absences={absences}
+                  onReloadData={loadAllData}
                   onUpdateMembers={updateMembersState}
                   loggedCoachId={loggedCoachId}
                 />
@@ -639,7 +694,6 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-4 text-center">
           <div>
             <p className="font-extrabold text-slate-300 tracking-wide text-[10px] uppercase">Private Renang Tirta Barokah Palembang</p>
-            <p className="text-[10px] text-slate-500 mt-1">Sistem Informasi Pendaftaran, Penjadwalan & Multi-Dashboard Terpadu</p>
           </div>
           <p className="text-[10px] text-slate-500">© 2026 Tirta Barokah Academy. Semua Hak Dilindungi Undang-Undang.</p>
         </div>
