@@ -1,3 +1,5 @@
+DirectoryIndex dist/index.html
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
