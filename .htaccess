@@ -5,16 +5,20 @@
     # 1. Route API requests to backend/public/index.php
     RewriteRule ^api(/.*)?$ backend/public/index.php [QSA,L]
 
-    # 2. Serve files directly if they exist in the root
+    # 2. Explicitly rewrite index.html to dist/index.html
+    RewriteRule ^index\.html$ dist/index.html [L]
+
+    # 3. Serve other files directly if they exist in the root (excluding index.html)
     RewriteCond %{REQUEST_FILENAME} -f
+    RewriteCond %{REQUEST_URI} !^/index\.html$
     RewriteRule ^ - [L]
 
-    # 3. Rewrite other requests to serve from the dist/ folder
+    # 4. Rewrite other requests to serve from the dist/ folder
     RewriteCond %{REQUEST_URI} !^/dist/
     RewriteCond %{DOCUMENT_ROOT}/dist%{REQUEST_URI} -f
     RewriteRule ^(.*)$ dist/$1 [L]
 
-    # 4. Fallback for React Router (SPA Routing)
+    # 5. Fallback for React Router (SPA Routing)
     RewriteCond %{REQUEST_URI} !^/dist/
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
