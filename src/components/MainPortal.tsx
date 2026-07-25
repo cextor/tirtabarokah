@@ -432,15 +432,13 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
                       />
-                      <div className="absolute top-3 left-3">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold shadow-md ${
-                          quota.isFull 
-                            ? 'bg-rose-100 text-rose-800 border border-rose-200' 
-                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        }`}>
-                          {quota.isFull ? 'Kuota Penuh' : 'Tersedia'}
-                        </span>
-                      </div>
+                      {quota.isFull && (
+                        <div className="absolute top-3 left-3">
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold shadow-md bg-rose-100 text-rose-800 border border-rose-200">
+                            Kuota Penuh
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                       <div className="space-y-2">
@@ -454,25 +452,11 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                         </p>
                       </div>
                       
-                      <div className="pt-3 border-t border-slate-100 space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-500 font-medium">Kuota Terpakai:</span>
-                          <span className="font-bold text-slate-800">{quota.current} / {quota.max} Siswa</span>
+                      {quota.isFull && (
+                        <div className="pt-3 border-t border-slate-100">
+                          <p className="text-rose-600 text-[10px] font-semibold text-center italic">Tidak menerima siswa baru sementara waktu (Kuota Penuh)</p>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              quota.isFull ? 'bg-rose-500' : 'bg-cyan-500'
-                            }`}
-                            style={{ width: `${(quota.current / quota.max) * 100}%` }}
-                          />
-                        </div>
-                        {quota.isFull ? (
-                          <p className="text-rose-600 text-[10px] font-semibold text-center italic">Tidak menerima siswa baru sementara waktu</p>
-                        ) : (
-                          <p className="text-cyan-700 text-[10px] font-semibold text-center italic">Tersisa {quota.remaining} slot siswa aktif</p>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1465,13 +1449,11 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                             Bukti bayar tidak perlu diunggah ke website. Anda cukup melakukan konfirmasi manual dengan klik tombol WhatsApp di bawah. Pesan berisi rincian pendaftaran dan nominal akan terisi otomatis untuk dikirim ke WhatsApp Admin Tirta Barokah.
                           </p>
                           {paymentMethod === 'Transfer BNI' && (() => {
-                            let bankAccountsList = [
-                              { id: 'default', bank_name: 'Transfer BNI', account_number: '123-456-7890', account_holder: 'Private Renang Tirta Barokah' }
-                            ];
+                            let bankAccountsList = [];
                             if (settings.bank_accounts) {
                               try {
                                 const parsed = JSON.parse(settings.bank_accounts);
-                                if (Array.isArray(parsed) && parsed.length > 0) {
+                                if (Array.isArray(parsed)) {
                                   bankAccountsList = parsed;
                                 }
                               } catch (e) {}
@@ -1479,13 +1461,19 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                             return (
                               <div className="space-y-2">
                                 <p className="font-bold text-[11px] text-slate-500 uppercase">Rekening Transfer Pembayaran:</p>
-                                {bankAccountsList.map((acc) => (
-                                  <div key={acc.id} className="bg-white border border-emerald-100 rounded-xl p-3 text-xs text-slate-700 space-y-1 shadow-xs">
-                                    <p className="font-bold text-[10px] text-emerald-600 uppercase">{acc.bank_name}</p>
-                                    <p className="font-mono text-sm font-bold text-cyan-900">{acc.account_number}</p>
-                                    <p className="font-semibold text-slate-800">a.n. {acc.account_holder}</p>
+                                {bankAccountsList.length === 0 ? (
+                                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 italic">
+                                    Belum ada rekening pembayaran aktif. Silakan hubungi Admin untuk konfirmasi pembayaran.
                                   </div>
-                                ))}
+                                ) : (
+                                  bankAccountsList.map((acc) => (
+                                    <div key={acc.id} className="bg-white border border-emerald-100 rounded-xl p-3 text-xs text-slate-700 space-y-1 shadow-xs">
+                                      <p className="font-bold text-[10px] text-emerald-600 uppercase">{acc.bank_name}</p>
+                                      <p className="font-mono text-sm font-bold text-cyan-900">{acc.account_number}</p>
+                                      <p className="font-semibold text-slate-800">a.n. {acc.account_holder}</p>
+                                    </div>
+                                  ))
+                                )}
                               </div>
                             );
                           })()}
