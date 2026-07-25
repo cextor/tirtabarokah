@@ -2,7 +2,32 @@
  * API Service for communicating with CodeIgniter 4 Backend
  */
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+export const API_BASE_URL = (() => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && envUrl !== 'https://api.tirtabarokah.id' && envUrl !== 'https://apidemo.tirtabarokah.id') {
+    return envUrl;
+  }
+
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return '';
+    }
+    if (hostname === 'demo.tirtabarokah.id') {
+      return 'https://apidemo.tirtabarokah.id';
+    }
+    if (hostname === 'tirtabarokah.id' || hostname === 'www.tirtabarokah.id') {
+      return 'https://api.tirtabarokah.id';
+    }
+    if (hostname.endsWith('tirtabarokah.id')) {
+      const prefix = hostname.replace('.tirtabarokah.id', '').replace('www.', '');
+      if (prefix && prefix !== 'tirtabarokah') {
+        return `https://api${prefix}.tirtabarokah.id`;
+      }
+    }
+  }
+  return 'https://api.tirtabarokah.id';
+})();
 
 async function request(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}${endpoint}`;

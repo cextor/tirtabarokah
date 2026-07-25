@@ -5,7 +5,7 @@ Options -Indexes
 # CORS Configuration for API calls
 # ----------------------------------------------------------------------
 <IfModule mod_headers.c>
-    SetEnvIf Origin "^http(s)?://(www\.)?tirtabarokah\.id$" AccessControlAllowOrigin=$0
+    SetEnvIf Origin "^http(s)?://([a-z0-9-]+\.)?tirtabarokah\.id$" AccessControlAllowOrigin=$0
     Header set Access-Control-Allow-Origin %{AccessControlAllowOrigin}e env=AccessControlAllowOrigin
     Header set Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Client-Key"
     Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
