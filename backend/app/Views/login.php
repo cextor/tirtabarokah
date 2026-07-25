@@ -24,10 +24,19 @@
     </script>
     
     <style>
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
             background-color: #0b0f19;
             overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            width: 100%;
         }
 
         /* Glassmorphic card styling */
@@ -163,28 +172,28 @@
                 <?= csrf_field() ?>
                 
                 <div class="space-y-1.5">
-                    <label class="text-[10px] font-bold text-slate-405 uppercase tracking-widest block">Username</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Username</label>
                     <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none text-xs">👤</span>
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 pointer-events-none text-sm">👤</span>
                         <input 
                             type="text" 
                             name="username" 
                             placeholder="Ketik username Anda"
-                            class="w-full glass-input pl-9.5 pr-4 py-3 rounded-xl text-sm placeholder:text-slate-550"
+                            class="w-full glass-input pl-10 pr-4 py-3 rounded-xl text-sm placeholder:text-slate-500"
                             required
                         >
                     </div>
                 </div>
 
                 <div class="space-y-1.5">
-                    <label class="text-[10px] font-bold text-slate-405 uppercase tracking-widest block">Password</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Password</label>
                     <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none text-xs">🔒</span>
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 pointer-events-none text-sm">🔒</span>
                         <input 
                             type="password" 
                             name="password" 
                             placeholder="••••••••"
-                            class="w-full glass-input pl-9.5 pr-4 py-3 rounded-xl text-sm placeholder:text-slate-550"
+                            class="w-full glass-input pl-10 pr-4 py-3 rounded-xl text-sm placeholder:text-slate-500"
                             required
                         >
                     </div>
