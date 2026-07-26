@@ -21,13 +21,18 @@ interface MainPortalProps {
   levels: ProgramLevel[];
   onRegister: (newMember: Omit<Member, 'id' | 'registeredAt'>) => Promise<string | null>;
   onUpdateEvents: (events: EventItem[]) => void;
+  view?: 'home' | 'register';
+  navigateTo?: (path: string) => void;
 }
 
-export default function MainPortal({ coaches, members, events, settings = {}, levels = [], onRegister, onUpdateEvents }: MainPortalProps) {
+export default function MainPortal({ coaches, members, events, settings = {}, levels = [], onRegister, onUpdateEvents, view = 'home', navigateTo }: MainPortalProps) {
+  const currentView = view;
+
   // Navigation / Scroll helper
   const scrollToRegister = () => {
-    setCurrentView('register');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (navigateTo) {
+      navigateTo('/daftar');
+    }
   };
 
   const [eventCategoryFilter, setEventCategoryFilter] = useState<'Semua' | 'Fun Swimming' | 'Lomba' | 'Latihan Bersama' | 'Pengumuman'>('Semua');
@@ -61,7 +66,6 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
 
   const [paymentMethod, setPaymentMethod] = useState<'Transfer BNI' | 'Tunai di Kasir'>('Transfer BNI');
   const [createdMemberId, setCreatedMemberId] = useState<string | null>(null);
-  const [currentView, setCurrentView] = useState<'home' | 'register'>('home');
 
   // Auto calculate age
   useEffect(() => {
@@ -285,59 +289,11 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
     .sort((a, b) => new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime());
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50/20">
-      {/* Sticky Premium Navbar */}
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/40 shadow-xs px-4 py-3.5">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-            <span className="text-xl">🏊‍♂️</span>
-            <span className="font-extrabold text-sm text-slate-800 uppercase tracking-wider">Tirta Barokah</span>
-          </div>
-          
-          {currentView === 'home' ? (
-            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-bold text-slate-600">
-              <button 
-                onClick={() => document.getElementById('program-info')?.scrollIntoView({ behavior: 'smooth' })}
-                className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0"
-              >
-                Kurikulum & Informasi Program
-              </button>
-              <button 
-                onClick={() => document.getElementById('coaches-section')?.scrollIntoView({ behavior: 'smooth' })}
-                className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0"
-              >
-                Daftar Pelatih Kami
-              </button>
-              <button 
-                onClick={() => document.getElementById('events-section')?.scrollIntoView({ behavior: 'smooth' })}
-                className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0"
-              >
-                Event & Berita
-              </button>
-              <button
-                onClick={scrollToRegister}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3.5 py-1.5 rounded-lg transition shadow-xs cursor-pointer border-0"
-              >
-                Daftar Sekarang
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer border-0"
-            >
-              ← Kembali ke Beranda
-            </button>
-          )}
-        </div>
-      </nav>
-
-      {/* Main Content Area */}
-      <div className="max-w-6xl mx-auto p-4 md:p-6 w-full flex-1">
-        {currentView === 'home' ? (
-          <div className="space-y-12">
-            {/* Grid Container for Hero and Profile side-by-side */}
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
+    <>
+      {currentView === 'home' ? (
+        <div className="space-y-12">
+          {/* Grid Container for Hero and Profile side-by-side */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
         {/* Hero Section */}
         <section className="lg:col-span-3 relative bg-gradient-to-br from-cyan-900 via-blue-950 to-indigo-950 rounded-3xl overflow-hidden shadow-xl p-6 md:p-8 text-white flex flex-col justify-center">
           <div className="absolute inset-0 bg-[url('/images/hero_pool.png')] opacity-10 bg-cover bg-center pointer-events-none" />
@@ -1591,7 +1547,6 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
           </section>
         </div>
       )}
-      </div>
-    </div>
+    </>
   );
 }

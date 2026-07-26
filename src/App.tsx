@@ -24,13 +24,22 @@ export default function App() {
   const [settings, setSettings] = useState<SiteSettings>({});
   const [levels, setLevels] = useState<ProgramLevel[]>([]);
   const [absences, setAbsences] = useState<CoachAbsence[]>([]);
-  const [activeRole, setActiveRole] = useState<'member' | 'admin' | 'coach' | 'parent'>(() => {
-    const path = window.location.pathname;
-    if (path === '/belakang') return 'admin';
-    if (path === '/coachs') return 'coach';
-    if (path === '/ortu') return 'parent';
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
+
+  const navigateTo = (path: string) => {
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path);
+    }
+    setCurrentPath(path);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const activeRole = (() => {
+    if (currentPath === '/belakang') return 'admin';
+    if (currentPath === '/coachs') return 'coach';
+    if (currentPath === '/ortu') return 'parent';
     return 'member';
-  });
+  })();
   const [error, setError] = useState<string | null>(null);
 
   // Auth States for Admin and Coach
@@ -139,7 +148,7 @@ export default function App() {
     setIsAdminLoggedIn(false);
     setIsCoachLoggedIn(false);
     setLoggedCoachId('');
-    setActiveRole('member');
+    navigateTo('/');
     loadAllData();
   };
 
@@ -221,34 +230,11 @@ export default function App() {
 
     // Listen to browser forward/back buttons
     const handlePopState = () => {
-      const currentPath = window.location.pathname;
-      if (currentPath === '/belakang') {
-        setActiveRole('admin');
-      } else if (currentPath === '/coachs') {
-        setActiveRole('coach');
-      } else if (currentPath === '/ortu') {
-        setActiveRole('parent');
-      } else {
-        setActiveRole('member');
-      }
+      setCurrentPath(window.location.pathname);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
-  // Sync browser URL pathname when activeRole changes
-  useEffect(() => {
-    const path = window.location.pathname;
-    if (activeRole === 'admin' && path !== '/belakang') {
-      window.history.pushState(null, '', '/belakang');
-    } else if (activeRole === 'coach' && path !== '/coachs') {
-      window.history.pushState(null, '', '/coachs');
-    } else if (activeRole === 'parent' && path !== '/ortu') {
-      window.history.pushState(null, '', '/ortu');
-    } else if (activeRole === 'member' && path !== '/') {
-      window.history.pushState(null, '', '/');
-    }
-  }, [activeRole]);
 
   // Sync to database on updates (Coaches)
   const updateCoachesState = async (newCoaches: Coach[]) => {
@@ -491,9 +477,9 @@ export default function App() {
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-xs px-4 py-3 md:px-8">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
-          {/* Logo Brand */}
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2">
+          {/* Logo Brand & Navigation */}
+          <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-4">
+            <div className="flex items-center gap-2 cursor-pointer select-none" onClick={() => navigateTo('/')}>
               <span className="text-xl">🏊‍♂️</span>
               <div>
                 <h1 className="text-sm font-black text-slate-800 tracking-tight">TIRTA BAROKAH</h1>
@@ -502,6 +488,55 @@ export default function App() {
                 </p>
               </div>
             </div>
+
+            {/* Menu in the red box: only show for member role */}
+            {activeRole === 'member' && (
+              currentPath === '/daftar' ? (
+                <button
+                  onClick={() => navigateTo('/')}
+                  className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer border border-slate-200"
+                >
+                  ← Kembali ke Beranda
+                </button>
+              ) : (
+                <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-bold text-slate-600">
+                  <button 
+                    onClick={() => {
+                      const el = document.getElementById('program-info');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                  >
+                    Kurikulum & Informasi Program
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const el = document.getElementById('coaches-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                  >
+                    Daftar Pelatih Kami
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const el = document.getElementById('events-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                  >
+                    Event & Berita
+                  </button>
+                  <button
+                    onClick={() => navigateTo('/daftar')}
+                    className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3.5 py-1.5 rounded-lg transition shadow-xs cursor-pointer border-0"
+                  >
+                    Daftar Sekarang
+                  </button>
+                </div>
+              )
+            )}
+
             {activeRole !== 'member' && (
               <button
                 onClick={handleLogout}
@@ -549,6 +584,8 @@ export default function App() {
                 levels={levels}
                 onRegister={handleRegisterMember}
                 onUpdateEvents={updateEventsState}
+                view={currentPath === '/daftar' ? 'register' : 'home'}
+                navigateTo={navigateTo}
               />
             ) : activeRole === 'admin' ? (
               !isAdminLoggedIn ? (
