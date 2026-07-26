@@ -5029,9 +5029,9 @@ function SettingsAndLevelsTab({
 
         {/* Pricing Modal Form */}
         {(isAddingPricing || editingPricing) && (
-          <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <div className="relative bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="relative bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-md max-h-[85vh] md:max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
                 <h4 className="font-black text-sm text-slate-800 uppercase tracking-wide">
                   {isAddingPricing ? 'Tambah Paket Baru' : 'Edit Paket Harga'}
                 </h4>
@@ -5041,114 +5041,118 @@ function SettingsAndLevelsTab({
                     setIsAddingPricing(false);
                     setEditingPricing(null);
                   }}
-                  className="p-1 text-slate-400 hover:text-slate-650 hover:bg-slate-100 rounded-lg transition"
+                  className="p-1 text-slate-400 hover:text-slate-650 hover:bg-slate-100 rounded-lg transition cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
               
-              <form onSubmit={handleSavePricing} className="p-6 space-y-4 text-xs text-slate-700">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-600 block">Kategori Paket</label>
-                  <select
-                    value={pricingForm.category}
-                    onChange={(e) => setPricingForm({ ...pricingForm, category: e.target.value as any })}
-                    className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                  >
-                    <option value="PROMO">PROMO</option>
-                    <option value="REGULER">REGULER</option>
-                    <option value="PRIVATE">PRIVATE</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-600 block">Nama Paket (Contoh: Paket Reguler PROMO 5x latihan)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Nama paket"
-                    value={pricingForm.name}
-                    onChange={(e) => setPricingForm({ ...pricingForm, name: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
+              <form onSubmit={handleSavePricing} className="flex flex-col flex-1 overflow-hidden">
+                {/* Scrollable form body */}
+                <div className="p-6 overflow-y-auto space-y-4 flex-1 text-xs text-slate-700 pr-4">
                   <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-600 block">Harga (Rp)</label>
-                    <input
-                      type="number"
-                      required
-                      placeholder="Harga paket"
-                      value={pricingForm.price || ''}
-                      onChange={(e) => setPricingForm({ ...pricingForm, price: parseInt(e.target.value) || 0 })}
-                      className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                    />
+                    <label className="text-[11px] font-semibold text-slate-600 block">Kategori Paket</label>
+                    <select
+                      value={pricingForm.category}
+                      onChange={(e) => setPricingForm({ ...pricingForm, category: e.target.value as any })}
+                      className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                    >
+                      <option value="PROMO">PROMO</option>
+                      <option value="REGULER">REGULER</option>
+                      <option value="PRIVATE">PRIVATE</option>
+                    </select>
                   </div>
+
                   <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-600 block">Jumlah Sesi Latihan</label>
+                    <label className="text-[11px] font-semibold text-slate-600 block">Nama Paket (Contoh: Paket Reguler PROMO 5x latihan)</label>
                     <input
-                      type="number"
+                      type="text"
                       required
-                      placeholder="Jumlah sesi"
-                      value={pricingForm.sessions || ''}
-                      onChange={(e) => setPricingForm({ ...pricingForm, sessions: parseInt(e.target.value) || 0 })}
+                      placeholder="Nama paket"
+                      value={pricingForm.name}
+                      onChange={(e) => setPricingForm({ ...pricingForm, name: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
                     />
                   </div>
-                </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-600 block">Masa Aktif (Contoh: 1 Bulan, 3 Bulan, 2 Bulan)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Masa aktif"
-                    value={pricingForm.active_period}
-                    onChange={(e) => setPricingForm({ ...pricingForm, active_period: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                  />
-                </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-600 block">Harga (Rp)</label>
+                      <input
+                        type="number"
+                        required
+                        placeholder="Harga paket"
+                        value={pricingForm.price || ''}
+                        onChange={(e) => setPricingForm({ ...pricingForm, price: parseInt(e.target.value) || 0 })}
+                        className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-600 block">Jumlah Sesi Latihan</label>
+                      <input
+                        type="number"
+                        required
+                        placeholder="Jumlah sesi"
+                        value={pricingForm.sessions || ''}
+                        onChange={(e) => setPricingForm({ ...pricingForm, sessions: parseInt(e.target.value) || 0 })}
+                        className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                      />
+                    </div>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-600 block">Deskripsi Paket / Aturan Main</label>
-                  <textarea
-                    placeholder="Contoh: 1 pelatih mengajar 1-6 anak. Jika tidak habis maka hangus."
-                    value={pricingForm.description}
-                    onChange={(e) => setPricingForm({ ...pricingForm, description: e.target.value })}
-                    rows={2}
-                    className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                  />
-                </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-600 block">Masa Aktif (Contoh: 1 Bulan, 3 Bulan, 2 Bulan)</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Masa aktif"
+                      value={pricingForm.active_period}
+                      onChange={(e) => setPricingForm({ ...pricingForm, active_period: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                    />
+                  </div>
 
-                <div className="space-y-1.5 border-t border-slate-100 pt-3">
-                  <label className="text-[11px] font-extrabold text-slate-700 block uppercase tracking-wider">Hubungkan dengan Pelatih</label>
-                  <p className="text-[10px] text-slate-400 mb-2">Pilih pelatih yang melayani paket latihan ini:</p>
-                  <div className="max-h-32 overflow-y-auto space-y-2 border border-slate-200/60 p-2.5 rounded-xl bg-slate-50/50">
-                    {coaches.map(coach => {
-                      const coachIds = pricingForm.coachIds || [];
-                      const isChecked = coachIds.includes(coach.id);
-                      return (
-                        <label key={coach.id} className="flex items-center gap-2 text-xs font-semibold text-slate-750 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              const updatedCoachIds = e.target.checked
-                                ? [...coachIds, coach.id]
-                                : coachIds.filter(id => id !== coach.id);
-                              setPricingForm({ ...pricingForm, coachIds: updatedCoachIds });
-                            }}
-                            className="rounded text-cyan-600 focus:ring-cyan-500/20 w-4 h-4 border-slate-300"
-                          />
-                          <span>{coach.name}</span>
-                        </label>
-                      );
-                    })}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-600 block">Deskripsi Paket / Aturan Main</label>
+                    <textarea
+                      placeholder="Contoh: 1 pelatih mengajar 1-6 anak. Jika tidak habis maka hangus."
+                      value={pricingForm.description}
+                      onChange={(e) => setPricingForm({ ...pricingForm, description: e.target.value })}
+                      rows={2}
+                      className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                    <label className="text-[11px] font-extrabold text-slate-700 block uppercase tracking-wider">Hubungkan dengan Pelatih</label>
+                    <p className="text-[10px] text-slate-400 mb-2">Pilih pelatih yang melayani paket latihan ini:</p>
+                    <div className="max-h-32 overflow-y-auto space-y-2 border border-slate-200/60 p-2.5 rounded-xl bg-slate-50/50">
+                      {coaches.map(coach => {
+                        const coachIds = pricingForm.coachIds || [];
+                        const isChecked = coachIds.includes(coach.id);
+                        return (
+                          <label key={coach.id} className="flex items-center gap-2 text-xs font-semibold text-slate-750 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const updatedCoachIds = e.target.checked
+                                  ? [...coachIds, coach.id]
+                                  : coachIds.filter(id => id !== coach.id);
+                                setPricingForm({ ...pricingForm, coachIds: updatedCoachIds });
+                              }}
+                              className="rounded text-cyan-600 focus:ring-cyan-500/20 w-4 h-4 border-slate-300 cursor-pointer"
+                            />
+                            <span>{coach.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                {/* Sticky action footer */}
+                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => {
