@@ -64,6 +64,14 @@ export default function AdminDashboard({
   onUpdateMembers,
   onUpdateEvents
 }: AdminDashboardProps) {
+  // Load global pricing packages
+  let globalPricingPackages: PricingPackage[] = [];
+  if (settings.pricing_packages) {
+    try {
+      globalPricingPackages = JSON.parse(settings.pricing_packages);
+    } catch (e) {}
+  }
+
   const [activeTab, setActiveTab] = useState<'dashboard' | 'verifikasi' | 'peserta' | 'pelatih' | 'reminder' | 'events' | 'laporan' | 'pengaturan' | 'absensi_coach' | 'referral' | 'jadwal_hari_ini'>('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
@@ -118,10 +126,7 @@ export default function AdminDashboard({
   const [newCoachQuota, setNewCoachQuota] = useState<number>(6);
   const [newCoachReferralCode, setNewCoachReferralCode] = useState<string>('');
 
-  // Default package templates for new coach
-  const [newCoachPkg4Price, setNewCoachPkg4Price] = useState<number>(250000);
-  const [newCoachPkg8Price, setNewCoachPkg8Price] = useState<number>(450000);
-  const [newCoachPkg12Price, setNewCoachPkg12Price] = useState<number>(600000);
+  const [newCoachPackages, setNewCoachPackages] = useState<string[]>([]);
 
   const [selectedEditCoachId, setSelectedEditCoachId] = useState<string>('');
   const [expandedCoachScheduleId, setExpandedCoachScheduleId] = useState<string>('');
@@ -619,12 +624,28 @@ export default function AdminDashboard({
 
 
   // ACTION: ADD COACH
-  const handleAddCoachSubmit = (e: React.FormEvent) => {
+  const handleAddCoachSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCoachName || !newCoachExperience) return;
 
     const defaultPhoto = newCoachPhoto || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=400&fit=crop&q=80';
     const newId = `coach-${newCoachName.toLowerCase().replace(/\s+/g, '-')}`;
+
+    // Load global packages to construct local packages
+    let globalPricingPackages: PricingPackage[] = [];
+    if (settings.pricing_packages) {
+      try {
+        globalPricingPackages = JSON.parse(settings.pricing_packages);
+      } catch (err) {}
+    }
+
+    const selectedPkgs = globalPricingPackages.filter(p => newCoachPackages.includes(p.id));
+    const coachPkgs = selectedPkgs.map(p => ({
+      id: `pkg-${newId}-${p.id}`,
+      name: p.name,
+      price: p.price,
+      sessions: p.sessions
+    }));
 
     const newCoach: Coach = {
       id: newId,
@@ -636,11 +657,7 @@ export default function AdminDashboard({
       currentQuota: 0,
       referralCode: newCoachReferralCode.trim() ? newCoachReferralCode.trim().toUpperCase() : `COACH-${newCoachName.toUpperCase().replace(/\s+/g, '')}`,
       referralBonus: 0,
-      packages: [
-        { id: `${newId}-p4`, name: 'Paket 4x latihan', price: newCoachPkg4Price, sessions: 4 },
-        { id: `${newId}-p8`, name: 'Paket 8x latihan', price: newCoachPkg8Price, sessions: 8 },
-        { id: `${newId}-p12`, name: 'Paket 12x latihan', price: newCoachPkg12Price, sessions: 12 }
-      ],
+      packages: coachPkgs,
       schedule: [
         {
           day: 'Senin',
@@ -667,6 +684,25 @@ export default function AdminDashboard({
     };
 
     onUpdateCoaches([...coaches, newCoach]);
+
+    // Sync to global settings coachIds
+    if (globalPricingPackages.length > 0) {
+      const updatedGlobalPkgs = globalPricingPackages.map(gp => {
+        if (newCoachPackages.includes(gp.id)) {
+          const currentIds = gp.coachIds || [];
+          const newIds = currentIds.includes(newId) ? currentIds : [...currentIds, newId];
+          return { ...gp, coachIds: newIds };
+        }
+        return gp;
+      });
+      const updatedSettings = { ...settings, pricing_packages: JSON.stringify(updatedGlobalPkgs) };
+      try {
+        await api.updateSettings(updatedSettings);
+        onUpdateSettings(updatedSettings);
+      } catch (err) {
+        console.error("Failed to sync settings from coach save", err);
+      }
+    }
     
     // reset form
     setNewCoachName('');
@@ -674,6 +710,7 @@ export default function AdminDashboard({
     setNewCoachPhoto('');
     setNewCoachQuota(6);
     setNewCoachReferralCode('');
+    setNewCoachPackages([]);
     setShowAddCoachModal(false);
 
     Swal.fire({
@@ -685,7 +722,7 @@ export default function AdminDashboard({
   };
 
   // ACTION: SAVE COACH SETTINGS
-  const handleSaveCoachSettings = (coachId: string) => {
+  const handleSaveCoachSettings = async (coachId: string) => {
     const updated = coaches.map(c => {
       if (c.id === coachId) {
         return {
@@ -703,6 +740,45 @@ export default function AdminDashboard({
     });
 
     onUpdateCoaches(updated);
+
+    // Synchronize back to global pricing packages coachIds
+    let globalPricingPackages: PricingPackage[] = [];
+    if (settings.pricing_packages) {
+      try {
+        globalPricingPackages = JSON.parse(settings.pricing_packages);
+      } catch (e) {}
+    }
+
+    if (globalPricingPackages.length > 0) {
+      const updatedGlobalPkgs = globalPricingPackages.map(gp => {
+        const isSelected = editCoachPackages.some(ecp => 
+          ecp.name.toLowerCase().trim() === gp.name.toLowerCase().trim() ||
+          ecp.id.includes(gp.id)
+        );
+        const currentIds = gp.coachIds || [];
+        let newIds = [...currentIds];
+        if (isSelected) {
+          if (!newIds.includes(coachId)) {
+            newIds.push(coachId);
+          }
+        } else {
+          newIds = newIds.filter(id => id !== coachId);
+        }
+        return {
+          ...gp,
+          coachIds: newIds
+        };
+      });
+
+      const updatedSettings = { ...settings, pricing_packages: JSON.stringify(updatedGlobalPkgs) };
+      try {
+        await api.updateSettings(updatedSettings);
+        onUpdateSettings(updatedSettings);
+      } catch (e) {
+        console.error("Failed to sync settings from coach save", e);
+      }
+    }
+
     setSelectedEditCoachId('');
     Swal.fire({
       title: 'Berhasil!',
@@ -3466,20 +3542,28 @@ export default function AdminDashboard({
                       </div>
 
                       <div className="space-y-1.5 border-t border-slate-150 pt-3">
-                        <h5 className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Harga Paket Default Pelatih Baru</h5>
-                        <div className="grid grid-cols-3 gap-3 mt-1.5">
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-semibold text-slate-500 block">Paket 4x (Rp)</label>
-                            <input type="number" value={newCoachPkg4Price} onChange={e => setNewCoachPkg4Price(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 text-xs rounded-lg font-mono" />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-semibold text-slate-500 block">Paket 8x (Rp)</label>
-                            <input type="number" value={newCoachPkg8Price} onChange={e => setNewCoachPkg8Price(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 text-xs rounded-lg font-mono" />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-semibold text-slate-500 block">Paket 12x (Rp)</label>
-                            <input type="number" value={newCoachPkg12Price} onChange={e => setNewCoachPkg12Price(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 px-2 py-1.5 text-xs rounded-lg font-mono" />
-                          </div>
+                        <h5 className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Pilih Paket Latihan yang Disediakan</h5>
+                        <p className="text-[10px] text-slate-400">Pilih paket dari master pricing packages (Kelola Profil & Level):</p>
+                        <div className="grid md:grid-cols-2 gap-2 mt-1.5 max-h-32 overflow-y-auto border border-slate-200/60 p-2.5 rounded-xl bg-slate-50/50">
+                          {globalPricingPackages.map(gp => {
+                            const isChecked = newCoachPackages.includes(gp.id);
+                            return (
+                              <label key={gp.id} className="flex items-center gap-2 text-xs font-semibold text-slate-750 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    const updated = e.target.checked
+                                      ? [...newCoachPackages, gp.id]
+                                      : newCoachPackages.filter(id => id !== gp.id);
+                                    setNewCoachPackages(updated);
+                                  }}
+                                  className="rounded text-cyan-600 focus:ring-cyan-500/20 w-4 h-4 border-slate-300 cursor-pointer"
+                                />
+                                <span>{gp.name} (Rp {gp.price.toLocaleString('id-ID')})</span>
+                              </label>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -3626,62 +3710,79 @@ export default function AdminDashboard({
 
                     <div className="pt-3 border-t border-slate-150 space-y-3">
                       <div className="flex justify-between items-center">
-                        <h5 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Kelola Paket Belajar (CRUD)</h5>
-                        <button
-                          type="button"
-                          onClick={handleAddEditPackage}
-                          className="text-[10px] bg-cyan-50 hover:bg-cyan-100 text-cyan-700 font-extrabold px-2.5 py-1.5 rounded-lg border border-cyan-200/50 transition flex items-center gap-1 cursor-pointer"
-                        >
-                          <Plus className="w-3 h-3" /> Tambah Paket Baru
-                        </button>
+                        <h5 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">Kelola Paket Belajar Pelatih</h5>
+                      </div>
+
+                      {/* Dropdown to add package */}
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60 space-y-2">
+                        <label className="text-[10px] font-bold text-slate-500 block">Hubungkan Paket Baru (dari Kelola Profil & Level):</label>
+                        <div className="flex gap-2">
+                          <select
+                            id="global-package-select"
+                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-semibold"
+                            defaultValue=""
+                            onChange={(e) => {
+                              const pkgId = e.target.value;
+                              if (!pkgId) return;
+                              const selectedPkg = globalPricingPackages.find(p => p.id === pkgId);
+                              if (selectedPkg) {
+                                const alreadyAdded = editCoachPackages.some(ep => 
+                                  ep.name.toLowerCase().trim() === selectedPkg.name.toLowerCase().trim()
+                                );
+                                if (alreadyAdded) {
+                                  Swal.fire({
+                                    title: 'Sudah Ada',
+                                    text: 'Paket ini sudah terdaftar pada pelatih.',
+                                    icon: 'info',
+                                    confirmButtonColor: '#06b6d4'
+                                  });
+                                } else {
+                                  const newId = `pkg-${selectedEditCoachId}-${selectedPkg.id}`;
+                                  setEditCoachPackages(prev => [...prev, {
+                                    id: newId,
+                                    name: selectedPkg.name,
+                                    price: selectedPkg.price,
+                                    sessions: selectedPkg.sessions
+                                  }]);
+                                }
+                              }
+                              e.target.value = ""; // Reset
+                            }}
+                          >
+                            <option value="">-- Pilih Paket Untuk Ditambahkan --</option>
+                            {globalPricingPackages
+                              .filter(gp => !editCoachPackages.some(ecp => ecp.name.toLowerCase().trim() === gp.name.toLowerCase().trim()))
+                              .map(gp => (
+                                <option key={gp.id} value={gp.id}>
+                                  {gp.name} - Rp {gp.price.toLocaleString('id-ID')} ({gp.sessions} Sesi)
+                                </option>
+                              ))
+                            }
+                          </select>
+                        </div>
                       </div>
 
                       <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-500 block">Daftar Paket Aktif Pelatih:</label>
                         {editCoachPackages.length === 0 ? (
                           <p className="text-[10px] text-slate-400 italic">Belum ada paket belajar untuk pelatih ini.</p>
                         ) : (
                           editCoachPackages.map((pkg, idx) => (
-                            <div key={pkg.id || idx} className="grid grid-cols-12 gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-200/40">
-                              <div className="col-span-4">
-                                <label className="text-[8px] font-bold text-slate-400">Nama Paket</label>
-                                <input 
-                                  type="text"
-                                  value={pkg.name}
-                                  onChange={(e) => handleUpdateEditPackageField(pkg.id, 'name', e.target.value)}
-                                  className="w-full bg-white border border-slate-200 rounded-md px-2 py-1 text-[11px] font-bold text-slate-800"
-                                  placeholder="Nama Paket"
-                                />
+                            <div key={pkg.id || idx} className="flex justify-between items-center bg-cyan-50/20 p-2.5 rounded-xl border border-cyan-100">
+                              <div className="text-xs">
+                                <p className="font-bold text-slate-800">{pkg.name}</p>
+                                <p className="text-[10px] text-cyan-700 font-semibold mt-0.5">
+                                  Rp {pkg.price.toLocaleString('id-ID')} ({pkg.sessions}x Pertemuan)
+                                </p>
                               </div>
-                              <div className="col-span-3">
-                                <label className="text-[8px] font-bold text-slate-400">Sesi Latihan</label>
-                                <input 
-                                  type="number"
-                                  value={pkg.sessions}
-                                  onChange={(e) => handleUpdateEditPackageField(pkg.id, 'sessions', Number(e.target.value))}
-                                  className="w-full bg-white border border-slate-200 rounded-md px-2 py-1 text-[11px] font-mono text-slate-800"
-                                  placeholder="Sesi"
-                                />
-                              </div>
-                              <div className="col-span-4">
-                                <label className="text-[8px] font-bold text-slate-400">Harga (Rp)</label>
-                                <input 
-                                  type="number"
-                                  value={pkg.price}
-                                  onChange={(e) => handleUpdateEditPackageField(pkg.id, 'price', Number(e.target.value))}
-                                  className="w-full bg-white border border-slate-200 rounded-md px-2 py-1 text-[11px] font-mono text-slate-800"
-                                  placeholder="Harga"
-                                />
-                              </div>
-                              <div className="col-span-1 text-center pt-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteEditPackage(pkg.id)}
-                                  className="text-slate-400 hover:text-rose-600 transition p-1 cursor-pointer"
-                                  title="Hapus Paket"
-                                >
-                                  <Trash className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEditPackage(pkg.id)}
+                                className="text-slate-400 hover:text-rose-600 transition p-1.5 hover:bg-rose-50 rounded-lg cursor-pointer border-0"
+                                title="Hapus Paket"
+                              >
+                                <Trash className="w-4 h-4" />
+                              </button>
                             </div>
                           ))
                         )}
