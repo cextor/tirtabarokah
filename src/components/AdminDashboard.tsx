@@ -4042,8 +4042,10 @@ export default function AdminDashboard({
           <SettingsAndLevelsTab 
             settings={settings}
             levels={levels}
+            coaches={coaches}
             onUpdateSettings={onUpdateSettings}
             onUpdateLevels={onUpdateLevels}
+            onReloadData={onReloadData}
           />
         )}
 
@@ -4199,13 +4201,17 @@ export default function AdminDashboard({
 function SettingsAndLevelsTab({ 
   settings, 
   levels, 
+  coaches,
   onUpdateSettings, 
-  onUpdateLevels 
+  onUpdateLevels,
+  onReloadData
 }: { 
   settings: SiteSettings; 
   levels: ProgramLevel[]; 
+  coaches: Coach[];
   onUpdateSettings: (settings: SiteSettings) => void;
   onUpdateLevels: (levels: ProgramLevel[]) => void;
+  onReloadData: () => void;
 }) {
   const [localSettings, setLocalSettings] = useState<SiteSettings>({ ...settings });
   
