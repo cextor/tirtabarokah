@@ -4231,18 +4231,85 @@ function SettingsAndLevelsTab({
     account_holder: ''
   });
 
+  // Pricing packages states
+  const [pricingPackages, setPricingPackages] = useState<PricingPackage[]>([]);
+  const [editingPricing, setEditingPricing] = useState<PricingPackage | null>(null);
+  const [isAddingPricing, setIsAddingPricing] = useState(false);
+  const [pricingForm, setPricingForm] = useState<PricingPackage>({
+    id: '',
+    category: 'REGULER',
+    name: '',
+    price: 0,
+    sessions: 5,
+    active_period: '',
+    description: ''
+  });
+
   useEffect(() => {
     setLocalSettings({ ...settings });
+    
+    // Load Bank Accounts
     if (settings.bank_accounts) {
       try {
         const parsed = JSON.parse(settings.bank_accounts);
         if (Array.isArray(parsed)) {
           setBankAccounts(parsed);
-          return;
         }
       } catch (e) {}
+    } else {
+      setBankAccounts([]);
     }
-    setBankAccounts([]);
+
+    // Load Pricing Packages
+    if (settings.pricing_packages) {
+      try {
+        const parsed = JSON.parse(settings.pricing_packages);
+        if (Array.isArray(parsed)) {
+          setPricingPackages(parsed);
+        }
+      } catch (e) {}
+    } else {
+      // Seed default packages if empty
+      const defaultPkgs: PricingPackage[] = [
+        {
+          id: 'pkg-promo',
+          category: 'PROMO',
+          name: 'Paket Reguler PROMO 5x latihan',
+          price: 220000,
+          sessions: 5,
+          active_period: '1 Bulan',
+          description: '1 pelatih mengajar 1-6 anak. Masa aktif 1 bulan, jika tidak habis maka hangus.'
+        },
+        {
+          id: 'pkg-reguler',
+          category: 'REGULER',
+          name: 'Paket Reguler 5x latihan',
+          price: 250000,
+          sessions: 5,
+          active_period: '3 Bulan',
+          description: '1 pelatih mengajar 1-6 anak. Masa aktif 3 bulan, jika tidak habis maka hangus.'
+        },
+        {
+          id: 'pkg-private-2',
+          category: 'PRIVATE',
+          name: 'Paket Private 2 anak',
+          price: 1300000,
+          sessions: 8,
+          active_period: '2 Bulan',
+          description: '1 pelatih KHUSUS mengajar 2 anak.'
+        },
+        {
+          id: 'pkg-private-3',
+          category: 'PRIVATE',
+          name: 'Paket Private 3 anak',
+          price: 1500000,
+          sessions: 8,
+          active_period: '2 Bulan',
+          description: '1 pelatih KHUSUS mengajar 3 anak.'
+        }
+      ];
+      setPricingPackages(defaultPkgs);
+    }
   }, [settings]);
 
   const handleDeleteBank = (id: string) => {
@@ -4309,6 +4376,76 @@ function SettingsAndLevelsTab({
       Swal.fire({
         title: 'Gagal!',
         text: 'Gagal menyimpan rekening: ' + e,
+        icon: 'error',
+        confirmButtonColor: '#06b6d4'
+      });
+    }
+  };
+
+  const handleDeletePricing = (id: string) => {
+    Swal.fire({
+      title: 'Apakah Anda yakin?',
+      text: 'Ingin menghapus paket harga ini?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        const updated = pricingPackages.filter(p => p.id !== id);
+        setPricingPackages(updated);
+        const updatedSettings = { ...localSettings, pricing_packages: JSON.stringify(updated) };
+        setLocalSettings(updatedSettings);
+        try {
+          await api.updateSettings(updatedSettings);
+          onUpdateSettings(updatedSettings);
+          Swal.fire({
+            title: 'Terhapus!',
+            text: 'Paket harga berhasil dihapus!',
+            icon: 'success',
+            confirmButtonColor: '#06b6d4'
+          });
+        } catch (e) {
+          Swal.fire({
+            title: 'Gagal!',
+            text: 'Gagal menghapus paket: ' + e,
+            icon: 'error',
+            confirmButtonColor: '#06b6d4'
+          });
+        }
+      }
+    });
+  };
+
+  const handleSavePricing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    let updated: PricingPackage[];
+    if (isAddingPricing) {
+      const newPkg = { ...pricingForm, id: 'pricing-' + Date.now() };
+      updated = [...pricingPackages, newPkg];
+    } else {
+      updated = pricingPackages.map(p => p.id === pricingForm.id ? pricingForm : p);
+    }
+    setPricingPackages(updated);
+    setIsAddingPricing(false);
+    setEditingPricing(null);
+    const updatedSettings = { ...localSettings, pricing_packages: JSON.stringify(updated) };
+    setLocalSettings(updatedSettings);
+    try {
+      await api.updateSettings(updatedSettings);
+      onUpdateSettings(updatedSettings);
+      Swal.fire({
+        title: 'Berhasil!',
+        text: 'Paket harga berhasil disimpan!',
+        icon: 'success',
+        confirmButtonColor: '#06b6d4'
+      });
+    } catch (e) {
+      Swal.fire({
+        title: 'Gagal!',
+        text: 'Gagal menyimpan paket: ' + e,
         icon: 'error',
         confirmButtonColor: '#06b6d4'
       });
@@ -4731,6 +4868,208 @@ function SettingsAndLevelsTab({
                     onClick={() => {
                       setIsAddingBank(false);
                       setEditingBank(null);
+                    }}
+                    className="border border-slate-300 hover:bg-slate-50 text-slate-650 font-bold px-4 py-2 rounded-xl text-xs cursor-pointer transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-5 py-2 rounded-xl text-xs cursor-pointer transition shadow-md shadow-cyan-600/10"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* SECTION 1.6: PRICING PACKAGES CRUD */}
+      <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-xs space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-cyan-650" /> Kelola Informasi Paket & Harga Latihan (Homepage)
+            </h3>
+            <p className="text-slate-500 text-xs mt-0.5">Kelola paket latihan (PROMO, REGULER, PRIVATE) yang tampil di bagian informasi harga halaman depan.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsAddingPricing(true);
+              setEditingPricing(null);
+              setPricingForm({
+                id: '',
+                category: 'REGULER',
+                name: '',
+                price: 0,
+                sessions: 5,
+                active_period: '',
+                description: ''
+              });
+            }}
+            className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer transition shadow-md shadow-cyan-600/10"
+          >
+            <Plus className="w-4 h-4" /> Tambah Paket Harga
+          </button>
+        </div>
+
+        {/* Pricing packages list */}
+        {pricingPackages.length === 0 ? (
+          <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
+            Belum ada paket harga yang dibuat.
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {pricingPackages.map((pkg) => (
+              <div key={pkg.id} className="border border-slate-200/70 p-4 rounded-xl bg-slate-50/30 flex flex-col justify-between hover:border-cyan-200 transition">
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className={`font-extrabold text-[9px] px-2 py-0.5 rounded uppercase tracking-wider ${
+                      pkg.category === 'PROMO' ? 'bg-rose-100 text-rose-800' :
+                      pkg.category === 'PRIVATE' ? 'bg-indigo-100 text-indigo-800' :
+                      'bg-cyan-100 text-cyan-800'
+                    }`}>
+                      {pkg.category}
+                    </span>
+                    <span className="text-[10px] text-slate-450 font-bold">{pkg.active_period}</span>
+                  </div>
+                  <h4 className="font-extrabold text-slate-800 text-sm">{pkg.name}</h4>
+                  <p className="font-mono text-base font-black text-cyan-755">Rp {pkg.price.toLocaleString('id-ID')}</p>
+                  <div className="space-y-1 text-slate-500 text-[11px] leading-relaxed">
+                    <p>• <strong>{pkg.sessions}x</strong> Pertemuan Latihan</p>
+                    {pkg.description && <p>• {pkg.description}</p>}
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPricing(pkg);
+                      setIsAddingPricing(false);
+                      setPricingForm({ ...pkg });
+                    }}
+                    className="p-1 text-slate-400 hover:text-cyan-600 rounded hover:bg-slate-100 transition cursor-pointer"
+                    title="Edit"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePricing(pkg.id)}
+                    className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100 transition cursor-pointer"
+                    title="Hapus"
+                  >
+                    <Trash className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pricing Modal Form */}
+        {(isAddingPricing || editingPricing) && (
+          <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="relative bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <h4 className="font-black text-sm text-slate-800 uppercase tracking-wide">
+                  {isAddingPricing ? 'Tambah Paket Baru' : 'Edit Paket Harga'}
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingPricing(false);
+                    setEditingPricing(null);
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-650 hover:bg-slate-100 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <form onSubmit={handleSavePricing} className="p-6 space-y-4 text-xs text-slate-700">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600 block">Kategori Paket</label>
+                  <select
+                    value={pricingForm.category}
+                    onChange={(e) => setPricingForm({ ...pricingForm, category: e.target.value as any })}
+                    className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                  >
+                    <option value="PROMO">PROMO</option>
+                    <option value="REGULER">REGULER</option>
+                    <option value="PRIVATE">PRIVATE</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600 block">Nama Paket (Contoh: Paket Reguler PROMO 5x latihan)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nama paket"
+                    value={pricingForm.name}
+                    onChange={(e) => setPricingForm({ ...pricingForm, name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-600 block">Harga (Rp)</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="Harga paket"
+                      value={pricingForm.price || ''}
+                      onChange={(e) => setPricingForm({ ...pricingForm, price: parseInt(e.target.value) || 0 })}
+                      className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-600 block">Jumlah Sesi Latihan</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="Jumlah sesi"
+                      value={pricingForm.sessions || ''}
+                      onChange={(e) => setPricingForm({ ...pricingForm, sessions: parseInt(e.target.value) || 0 })}
+                      className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600 block">Masa Aktif (Contoh: 1 Bulan, 3 Bulan, 2 Bulan)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Masa aktif"
+                    value={pricingForm.active_period}
+                    onChange={(e) => setPricingForm({ ...pricingForm, active_period: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600 block">Deskripsi Paket / Aturan Main</label>
+                  <textarea
+                    placeholder="Contoh: 1 pelatih mengajar 1-6 anak. Jika tidak habis maka hangus."
+                    value={pricingForm.description}
+                    onChange={(e) => setPricingForm({ ...pricingForm, description: e.target.value })}
+                    rows={2}
+                    className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingPricing(false);
+                      setEditingPricing(null);
                     }}
                     className="border border-slate-300 hover:bg-slate-50 text-slate-650 font-bold px-4 py-2 rounded-xl text-xs cursor-pointer transition"
                   >

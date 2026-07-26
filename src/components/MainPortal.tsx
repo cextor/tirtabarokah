@@ -412,6 +412,114 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
             </div>
           </section>
 
+          {/* Paket & Biaya Latihan Section */}
+          <section id="pricing-section" className="space-y-8 bg-slate-50/50 rounded-3xl p-6 md:p-8 border border-slate-100">
+            <div className="text-center max-w-xl mx-auto space-y-2">
+              <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                💰 Paket Pilihan & Biaya
+              </div>
+              <h2 className="text-2xl md:text-3xl font-black text-slate-800">Paket & Biaya Latihan</h2>
+              <p className="text-slate-500 text-xs md:text-sm">
+                Investasi terbaik untuk masa depan buah hati Anda dengan belajar renang bersama kami.
+              </p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {(() => {
+                let packagesList = [];
+                if (settings.pricing_packages) {
+                  try {
+                    packagesList = JSON.parse(settings.pricing_packages);
+                  } catch (e) {}
+                }
+                if (!Array.isArray(packagesList) || packagesList.length === 0) {
+                  // Fallback defaults
+                  packagesList = [
+                    {
+                      category: 'PROMO',
+                      name: 'Paket Reguler PROMO 5x latihan',
+                      price: 220000,
+                      sessions: 5,
+                      active_period: '1 Bulan',
+                      description: '1 pelatih mengajar 1-6 anak. Masa aktif 1 bulan, jika tidak habis maka hangus.'
+                    },
+                    {
+                      category: 'REGULER',
+                      name: 'Paket Reguler 5x latihan',
+                      price: 250000,
+                      sessions: 5,
+                      active_period: '3 Bulan',
+                      description: '1 pelatih mengajar 1-6 anak. Masa aktif 3 bulan, jika tidak habis maka hangus.'
+                    },
+                    {
+                      category: 'PRIVATE',
+                      name: 'Paket Private 2 anak',
+                      price: 1300000,
+                      sessions: 8,
+                      active_period: '2 Bulan',
+                      description: '1 pelatih KHUSUS mengajar 2 anak.'
+                    },
+                    {
+                      category: 'PRIVATE',
+                      name: 'Paket Private 3 anak',
+                      price: 1500000,
+                      sessions: 8,
+                      active_period: '2 Bulan',
+                      description: '1 pelatih KHUSUS mengajar 3 anak.'
+                    }
+                  ];
+                }
+
+                return packagesList.map((pkg: any, idx: number) => (
+                  <div key={idx} className="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-6 flex flex-col justify-between hover:border-cyan-300 hover:shadow-md transition">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded ${
+                          pkg.category === 'PROMO' ? 'bg-rose-100 text-rose-800' :
+                          pkg.category === 'PRIVATE' ? 'bg-indigo-100 text-indigo-800' :
+                          'bg-cyan-100 text-cyan-800'
+                        }`}>
+                          {pkg.category}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-bold bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{pkg.active_period}</span>
+                      </div>
+                      <h4 className="font-extrabold text-slate-800 text-sm leading-snug">{pkg.name}</h4>
+                      
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-slate-400 font-semibold block uppercase">BIAYA LATIHAN</p>
+                        <p className="text-xl font-black text-slate-900 leading-none">Rp {pkg.price.toLocaleString('id-ID')}</p>
+                      </div>
+
+                      <div className="space-y-1.5 text-[11px] text-slate-600 border-t border-slate-100 pt-3 leading-relaxed">
+                        <p>• <strong>{pkg.sessions}x</strong> Pertemuan Latihan</p>
+                        {pkg.description && <p>• {pkg.description}</p>}
+                      </div>
+                    </div>
+
+                    <div className="mt-6">
+                      <button
+                        onClick={scrollToRegister}
+                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-4 rounded-xl transition text-xs shadow-sm cursor-pointer border-0"
+                      >
+                        Pilih Paket
+                      </button>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            <div className="bg-cyan-50/50 border border-cyan-100 p-4 rounded-2xl text-[11px] text-cyan-800 flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 text-cyan-600 shrink-0 mt-0.5" />
+              <div className="space-y-1 leading-relaxed">
+                <p className="font-bold">Informasi Tambahan Penting:</p>
+                <p>• Biaya di atas hanya untuk <strong>biaya pelatihan saja</strong>, belum termasuk tiket masuk kolam renang peserta.</p>
+                <p>• Untuk paket reguler, 1 pelatih dapat mengajar kelompok berisi 1-6 anak secara fleksibel.</p>
+                <p>• Untuk paket private, pelatih bersifat eksklusif (khusus) mengajar jumlah anak sesuai paket pilihan Anda.</p>
+              </div>
+            </div>
+          </section>
+
           {/* Coaches Showcase Section */}
           <section id="coaches-section" className="space-y-6">
             <div className="text-center max-w-xl mx-auto space-y-2">

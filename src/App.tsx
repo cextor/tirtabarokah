@@ -507,7 +507,16 @@ export default function App() {
                     }}
                     className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
                   >
-                    Kurikulum & Informasi Program
+                    Kurikulum & Program
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const el = document.getElementById('pricing-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                  >
+                    Paket & Biaya
                   </button>
                   <button 
                     onClick={() => {
@@ -516,14 +525,14 @@ export default function App() {
                     }}
                     className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
                   >
-                    Daftar Pelatih Kami
+                    Daftar Pelatih
                   </button>
                   <button 
                     onClick={() => {
                       const el = document.getElementById('events-section');
                       if (el) el.scrollIntoView({ behavior: 'smooth' });
                     }}
-                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                    className="hover:text-cyan-650 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
                   >
                     Event & Berita
                   </button>

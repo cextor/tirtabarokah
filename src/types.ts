@@ -151,6 +151,17 @@ export interface SiteSettings {
   package_notes?: string;
   admin_whatsapp?: string;
   bank_accounts?: string;
+  pricing_packages?: string;
+}
+
+export interface PricingPackage {
+  id: string;
+  category: 'PROMO' | 'REGULER' | 'PRIVATE';
+  name: string;
+  price: number;
+  sessions: number;
+  active_period: string;
+  description: string;
 }
 
 export interface CoachAbsence {
