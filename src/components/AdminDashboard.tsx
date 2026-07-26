@@ -1173,10 +1173,10 @@ export default function AdminDashboard({
 
       {/* Sidebar Navigation */}
       <aside className={`
-        fixed inset-y-0 left-0 lg:static z-50 lg:z-10
+        fixed inset-y-0 left-0 lg:sticky lg:top-20 z-50 lg:z-10
         w-72 lg:w-64 bg-white p-5 rounded-r-2xl lg:rounded-2xl border-r lg:border border-slate-200/60 lg:border-slate-100 
         flex flex-col justify-between shadow-xl lg:shadow-sm
-        transition-transform duration-300 ease-in-out h-full lg:h-auto
+        transition-transform duration-300 ease-in-out h-full lg:h-fit lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto
         ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         <div className="space-y-6">
