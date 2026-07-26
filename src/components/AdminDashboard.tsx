@@ -4382,6 +4382,51 @@ function SettingsAndLevelsTab({
     }
   };
 
+  const syncCoachesPackages = async (updatedPricingPackages: PricingPackage[]) => {
+    // For each coach, find the pricing packages that have their coach ID in `coachIds`
+    const newCoaches = coaches.map(coach => {
+      // Find pricing packages that are related to this coach
+      const relatedPricingPkgs = updatedPricingPackages.filter(p => (p.coachIds || []).includes(coach.id));
+      // Map to Package format
+      const coachPkgs = relatedPricingPkgs.map(p => ({
+        id: `pkg-${coach.id}-${p.id}`,
+        name: p.name,
+        price: p.price,
+        sessions: p.sessions
+      }));
+      return {
+        ...coach,
+        packages: coachPkgs
+      };
+    });
+
+    // Save each updated coach to database
+    for (const nc of newCoaches) {
+      const oldCoach = coaches.find(c => c.id === nc.id);
+      if (oldCoach && JSON.stringify(oldCoach.packages) !== JSON.stringify(nc.packages)) {
+        try {
+          await api.updateCoach({
+            id: nc.id,
+            name: nc.name,
+            experience: nc.experience,
+            photo: nc.photo,
+            maxQuota: nc.maxQuota,
+            isActive: nc.isActive,
+            packages: nc.packages,
+            schedule: nc.schedule,
+            username: nc.username,
+            password: nc.password,
+            email: nc.email,
+            phone: nc.phone
+          });
+        } catch (err) {
+          console.error("Failed to sync packages for coach", nc.name, err);
+        }
+      }
+    }
+    onReloadData();
+  };
+
   const handleDeletePricing = (id: string) => {
     Swal.fire({
       title: 'Apakah Anda yakin?',
@@ -4401,6 +4446,7 @@ function SettingsAndLevelsTab({
         try {
           await api.updateSettings(updatedSettings);
           onUpdateSettings(updatedSettings);
+          await syncCoachesPackages(updated);
           Swal.fire({
             title: 'Terhapus!',
             text: 'Paket harga berhasil dihapus!',
@@ -4436,6 +4482,7 @@ function SettingsAndLevelsTab({
     try {
       await api.updateSettings(updatedSettings);
       onUpdateSettings(updatedSettings);
+      await syncCoachesPackages(updated);
       Swal.fire({
         title: 'Berhasil!',
         text: 'Paket harga berhasil disimpan!',
@@ -4907,7 +4954,8 @@ function SettingsAndLevelsTab({
                 price: 0,
                 sessions: 5,
                 active_period: '',
-                description: ''
+                description: '',
+                coachIds: []
               });
             }}
             className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer transition shadow-md shadow-cyan-600/10"
@@ -4949,7 +4997,10 @@ function SettingsAndLevelsTab({
                     onClick={() => {
                       setEditingPricing(pkg);
                       setIsAddingPricing(false);
-                      setPricingForm({ ...pkg });
+                      setPricingForm({
+                        ...pkg,
+                        coachIds: pkg.coachIds || []
+                      });
                     }}
                     className="p-1 text-slate-400 hover:text-cyan-600 rounded hover:bg-slate-100 transition cursor-pointer"
                     title="Edit"
@@ -5062,6 +5113,33 @@ function SettingsAndLevelsTab({
                     rows={2}
                     className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
                   />
+                </div>
+
+                <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                  <label className="text-[11px] font-extrabold text-slate-700 block uppercase tracking-wider">Hubungkan dengan Pelatih</label>
+                  <p className="text-[10px] text-slate-400 mb-2">Pilih pelatih yang melayani paket latihan ini:</p>
+                  <div className="max-h-32 overflow-y-auto space-y-2 border border-slate-200/60 p-2.5 rounded-xl bg-slate-50/50">
+                    {coaches.map(coach => {
+                      const coachIds = pricingForm.coachIds || [];
+                      const isChecked = coachIds.includes(coach.id);
+                      return (
+                        <label key={coach.id} className="flex items-center gap-2 text-xs font-semibold text-slate-750 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const updatedCoachIds = e.target.checked
+                                ? [...coachIds, coach.id]
+                                : coachIds.filter(id => id !== coach.id);
+                              setPricingForm({ ...pricingForm, coachIds: updatedCoachIds });
+                            }}
+                            className="rounded text-cyan-600 focus:ring-cyan-500/20 w-4 h-4 border-slate-300"
+                          />
+                          <span>{coach.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">

@@ -162,6 +162,7 @@ export interface PricingPackage {
   sessions: number;
   active_period: string;
   description: string;
+  coachIds?: string[];
 }
 
 export interface CoachAbsence {

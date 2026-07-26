@@ -157,22 +157,17 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
     return selectedCoach.packages || [];
   };
 
-  // Auto-select coach package matching selected global package price
+  // Auto-select coach package matching selected global package
   useEffect(() => {
     if (selectedCoach && selectedPricingPackage) {
-      const matchedPkg = selectedCoach.packages.find(cp => cp.price === selectedPricingPackage.price);
+      const matchedPkg = selectedCoach.packages.find(cp => cp.name.toLowerCase().trim() === selectedPricingPackage.name.toLowerCase().trim())
+        || selectedCoach.packages.find(cp => cp.price === selectedPricingPackage.price)
+        || selectedCoach.packages[0];
+
       if (matchedPkg) {
         setSelectedPackageId(matchedPkg.id);
         const isPriv = matchedPkg.name.toLowerCase().includes('privat') || matchedPkg.name.toLowerCase().includes('private') || selectedPricingPackage.category === 'PRIVATE';
         setCoachType(isPriv ? 'Privat' : 'Reguler');
-      } else {
-        // Fallback: select first coach package
-        const firstPkg = selectedCoach.packages[0];
-        if (firstPkg) {
-          setSelectedPackageId(firstPkg.id);
-          const isPriv = firstPkg.name.toLowerCase().includes('privat') || firstPkg.name.toLowerCase().includes('private') || selectedPricingPackage.category === 'PRIVATE';
-          setCoachType(isPriv ? 'Privat' : 'Reguler');
-        }
       }
     } else {
       setSelectedPackageId('');
@@ -1103,6 +1098,9 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                         {(() => {
                           const matchingCoaches = coaches.filter(c => {
                             if (c.isActive === false) return false;
+                            if (selectedPricingPackage?.coachIds && selectedPricingPackage.coachIds.length > 0) {
+                              return selectedPricingPackage.coachIds.includes(c.id);
+                            }
                             return (c.packages || []).some(cp => cp.price === selectedPricingPackage?.price);
                           });
 
