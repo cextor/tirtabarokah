@@ -26,10 +26,8 @@ interface MainPortalProps {
 export default function MainPortal({ coaches, members, events, settings = {}, levels = [], onRegister, onUpdateEvents }: MainPortalProps) {
   // Navigation / Scroll helper
   const scrollToRegister = () => {
-    const registerSection = document.getElementById('registration-section');
-    if (registerSection) {
-      registerSection.scrollIntoView({ behavior: 'smooth' });
-    }
+    setCurrentView('register');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const [eventCategoryFilter, setEventCategoryFilter] = useState<'Semua' | 'Fun Swimming' | 'Lomba' | 'Latihan Bersama' | 'Pengumuman'>('Semua');
@@ -63,6 +61,7 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
 
   const [paymentMethod, setPaymentMethod] = useState<'Transfer BNI' | 'Tunai di Kasir'>('Transfer BNI');
   const [createdMemberId, setCreatedMemberId] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<'home' | 'register'>('home');
 
   // Auto calculate age
   useEffect(() => {
@@ -188,6 +187,7 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
     setPaymentMethod('Transfer BNI');
     setCreatedMemberId(null);
     setStep(1);
+    setCurrentView('home');
   };
 
   // Helper: check schedule slot availability
@@ -285,9 +285,59 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
     .sort((a, b) => new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime());
 
   return (
-    <div className="space-y-12">
-      {/* Grid Container for Hero and Profile side-by-side */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
+    <div className="min-h-screen flex flex-col bg-slate-50/20">
+      {/* Sticky Premium Navbar */}
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/40 shadow-xs px-4 py-3.5">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+            <span className="text-xl">🏊‍♂️</span>
+            <span className="font-extrabold text-sm text-slate-800 uppercase tracking-wider">Tirta Barokah</span>
+          </div>
+          
+          {currentView === 'home' ? (
+            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-bold text-slate-600">
+              <button 
+                onClick={() => document.getElementById('program-info')?.scrollIntoView({ behavior: 'smooth' })}
+                className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0"
+              >
+                Kurikulum & Informasi Program
+              </button>
+              <button 
+                onClick={() => document.getElementById('coaches-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0"
+              >
+                Daftar Pelatih Kami
+              </button>
+              <button 
+                onClick={() => document.getElementById('events-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0"
+              >
+                Event & Berita
+              </button>
+              <button
+                onClick={scrollToRegister}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3.5 py-1.5 rounded-lg transition shadow-xs cursor-pointer border-0"
+              >
+                Daftar Sekarang
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer border-0"
+            >
+              ← Kembali ke Beranda
+            </button>
+          )}
+        </div>
+      </nav>
+
+      {/* Main Content Area */}
+      <div className="max-w-6xl mx-auto p-4 md:p-6 w-full flex-1">
+        {currentView === 'home' ? (
+          <div className="space-y-12">
+            {/* Grid Container for Hero and Profile side-by-side */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">
         {/* Hero Section */}
         <section className="lg:col-span-3 relative bg-gradient-to-br from-cyan-900 via-blue-950 to-indigo-950 rounded-3xl overflow-hidden shadow-xl p-6 md:p-8 text-white flex flex-col justify-center">
           <div className="absolute inset-0 bg-[url('/images/hero_pool.png')] opacity-10 bg-cover bg-center pointer-events-none" />
@@ -407,7 +457,7 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
           </section>
 
           {/* Coaches Showcase Section */}
-          <section className="space-y-6">
+          <section id="coaches-section" className="space-y-6">
             <div className="text-center max-w-xl mx-auto space-y-2">
               <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900">Daftar Pelatih Profesional Kami</h2>
               <p className="text-slate-500 text-sm">
@@ -447,9 +497,11 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                           <Award className="w-4 h-4 text-cyan-600 flex-shrink-0 mt-0.5" />
                           <span>{coach.experience}</span>
                         </p>
+                        {/* Referral jangan ditampilkan tapi jangan dihapus
                         <p className="text-slate-400 text-[10px] font-semibold font-mono bg-slate-50 px-2 py-1 rounded w-max">
                           Referral Code: {coach.referralCode}
                         </p>
+                        */}
                       </div>
                       
                       {quota.isFull && (
@@ -465,7 +517,7 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
           </section>
 
           {/* Event & Berita Kegiatan Section */}
-          <section className="space-y-8 bg-slate-50/50 border border-slate-100 p-8 rounded-3xl">
+          <section id="events-section" className="space-y-8 bg-slate-50/50 border border-slate-100 p-8 rounded-3xl">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-1.5 bg-cyan-50 text-cyan-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider mb-2">
                 📢 Update Terkini
@@ -526,75 +578,19 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
               </div>
             )}
           </section>
-
-          {/* General Schedule Grid */}
-          <section className="bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 space-y-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div className="space-y-1">
-                <div className="inline-flex items-center gap-1.5 bg-cyan-50 text-cyan-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider">
-                  📅 Penjadwalan Latihan
-                </div>
-                <h2 className="text-xl md:text-2xl font-black text-slate-800">Jadwal Kelas Aktif Pelatih</h2>
-                <p className="text-slate-500 text-xs">
-                  Informasi hari, waktu, lokasi kolam, dan sisa ketersediaan slot siswa untuk masing-masing pelatih.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {coaches.filter(c => c.isActive !== false).map((coach) => (
-                <div key={coach.id} className="bg-slate-50/60 rounded-2xl p-5 border border-slate-200/70 space-y-4 hover:bg-white hover:border-cyan-200 transition">
-                  {/* Coach Card Header */}
-                  <div className="flex items-center gap-3 border-b border-slate-200/60 pb-3">
-                    <div className="w-10 h-10 rounded-xl bg-slate-200 overflow-hidden flex-shrink-0">
-                      <img src={coach.photo} alt={coach.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-sm text-slate-900">{coach.name}</h3>
-                      <p className="text-[10px] text-slate-500 font-medium">{coach.experience}</p>
-                    </div>
-                  </div>
-
-                  {/* Day Schedules */}
-                  <div className="space-y-3">
-                    {coach.schedule.map((day) => {
-                      const locationName = day.day === 'Selasa' ? 'Kolam GHL' : 'Grand Garden';
-                      return (
-                        <div key={day.day} className="space-y-1.5">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-extrabold text-slate-700">Hari {day.day}</span>
-                            <span className="text-[9px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200/80 shadow-2xs">
-                              📍 {locationName}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {day.timeSlots.map((slot) => {
-                              const status = getSlotDetails(coach, day.day, slot.time);
-                              return (
-                                <div 
-                                  key={slot.time}
-                                  className={`text-[10px] px-2.5 py-1 rounded-lg font-mono font-bold border transition ${
-                                    status.isFull 
-                                      ? 'bg-rose-50 text-rose-500 border-rose-200/70 line-through opacity-70' 
-                                      : 'bg-white text-slate-800 border-slate-200/80 shadow-2xs'
-                                  }`}
-                                >
-                                  {slot.time} <span className={`ml-0.5 text-[9px] font-sans ${status.isFull ? 'text-rose-600' : 'text-cyan-700 font-extrabold'}`}>({status.current}/{status.max})</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+        </div>
+      ) : (
+        /* New Page/View for Registration Form */
+        <div className="max-w-4xl mx-auto space-y-6">
+          <button
+            onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 font-bold text-xs mb-2 transition cursor-pointer border-0 bg-transparent"
+          >
+            ← Kembali ke Beranda
+          </button>
 
           {/* Registration Funnel Section */}
-          <section id="registration-section" className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden">
+          <section id="registration-section" className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
             <div className="bg-gradient-to-r from-cyan-600 to-indigo-600 p-6 md:p-8 text-white">
               <h2 className="text-2xl font-extrabold">Formulir Pendaftaran Member Baru</h2>
               <p className="text-cyan-100 text-sm mt-1">Lengkapi data pendaftaran, pilih jenis latihan, paket, serta pilih jadwal rutin mingguan.</p>
@@ -757,6 +753,7 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                             className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition text-sm text-slate-800"
                           />
                         </div>
+                        {/* 
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-xs font-semibold text-slate-600 block flex items-center gap-1">
                             <Gift className="w-3.5 h-3.5 text-cyan-600" /> Kode Referral Pelatih / Teman (Opsional)
@@ -770,6 +767,7 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                           />
                           <p className="text-[10px] text-slate-400">Masukkan kode referral jika ada: Pelatih pendamping berhak mendapat Rp 50.000, atau Teman sesama member mendapat Rp 25.000.</p>
                         </div>
+                        */}
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-xs font-semibold text-slate-600 block">Apakah Siswa Pernah Belajar Renang Sebelumnya?</label>
                           <div className="grid grid-cols-2 gap-2">
@@ -1537,7 +1535,7 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                         {createdMemberId}
                       </h4>
                       <p className="text-[11px] text-cyan-100 max-w-xs mx-auto leading-normal">
-                        Simpan Kode ID di atas sebagai bukti pendaftaran resmi. ID ini juga berfungsi sebagai <strong>Kode Referral</strong> Anda untuk mengajak teman dan mendapatkan reward bonus Rp 25.000!
+                        Simpan Kode ID di atas sebagai bukti pendaftaran resmi.
                       </p>
                     </div>
 
@@ -1591,6 +1589,9 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
               </AnimatePresence>
             </div>
           </section>
+        </div>
+      )}
+      </div>
     </div>
   );
 }
