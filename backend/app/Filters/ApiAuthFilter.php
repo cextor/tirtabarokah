@@ -36,6 +36,9 @@ class ApiAuthFilter implements FilterInterface
             'api/auth/parent-login',
             'api/settings',
             'api/levels',
+            'api/pricing-packages',
+            'api/event-categories',
+            'api/swimming-pools',
             'api/debug/log'
         ];
 
@@ -110,35 +113,63 @@ class ApiAuthFilter implements FilterInterface
         // 3. Enforce Role-based Authorization
         $userRole = $tokenRecord['role'];
 
-        // Admin-only endpoints
+        // Admin/Operator endpoints
         $adminEndpoints = [
             'api/coaches/add',
             'api/coaches/update',
             'api/members/verify-payment',
             'api/members/update',
+            'api/members/register',
             'api/events/add',
             'api/events/update',
+            'api/absences/process',
+            'api/absences/report',
         ];
 
-        $isAdminOnly = false;
+        $isAdminOrOperator = false;
         foreach ($adminEndpoints as $ep) {
             if ($path === $ep) {
-                $isAdminOnly = true;
+                $isAdminOrOperator = true;
                 break;
             }
         }
         if (str_starts_with($path, 'api/coaches/delete/') || 
             str_starts_with($path, 'api/members/delete/') || 
             str_starts_with($path, 'api/events/delete/')) {
-            $isAdminOnly = true;
+            $isAdminOrOperator = true;
         }
 
-        if ($isAdminOnly && $userRole !== 'admin') {
+        if ($isAdminOrOperator && $userRole !== 'admin' && $userRole !== 'operator') {
             $response = service('response');
             $response->setStatusCode(403);
             return $response->setJSON([
                 'status' => 'error',
-                'message' => 'Akses ditolak: Hanya Administrator yang diizinkan.'
+                'message' => 'Akses ditolak: Hanya Admin atau Operator yang dapat melakukan tindakan ini.'
+            ]);
+        }
+
+        // Super-Admin only endpoints
+        $superAdminEndpoints = [
+            'api/pricing-packages/add',
+            'api/pricing-packages/update',
+            'api/swimming-pools/add',
+            'api/swimming-pools/update',
+            'api/levels/add',
+            'api/levels/update',
+            'api/settings',
+            'api/audit-logs'
+        ];
+        $isSuperAdminOnly = in_array($path, $superAdminEndpoints) ||
+            str_starts_with($path, 'api/pricing-packages/delete/') ||
+            str_starts_with($path, 'api/swimming-pools/delete/') ||
+            str_starts_with($path, 'api/levels/delete/');
+
+        if ($isSuperAdminOnly && $userRole !== 'admin') {
+            $response = service('response');
+            $response->setStatusCode(403);
+            return $response->setJSON([
+                'status' => 'error',
+                'message' => 'Akses ditolak: Hanya Admin Utama yang dapat mengakses fitur ini.'
             ]);
         }
 

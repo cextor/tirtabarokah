@@ -14,6 +14,7 @@ $routes->group('api', function($routes) {
     $routes->post('auth/login', 'ApiController::login');
     $routes->post('auth/logout', 'ApiController::logout');
     $routes->post('auth/parent-login', 'ApiController::parentLogin');
+    $routes->post('auth/change-password', 'ApiController::changePassword');
 
     // Coaches API
     $routes->get('coaches', 'ApiController::getCoaches');
@@ -45,6 +46,15 @@ $routes->group('api', function($routes) {
     $routes->get('settings', 'ApiController::getSettings');
     $routes->post('settings', 'ApiController::updateSettings');
 
+    // Pricing Packages API
+    $routes->get('pricing-packages', 'ApiController::getPricingPackages');
+    $routes->post('pricing-packages/add', 'ApiController::addPricingPackage');
+    $routes->post('pricing-packages/update', 'ApiController::updatePricingPackage');
+    $routes->delete('pricing-packages/delete/(:segment)', 'ApiController::deletePricingPackage/$1');
+
+    // Audit Logs API
+    $routes->get('audit-logs', 'ApiController::getAuditLogs');
+
     // Program Levels API
     $routes->get('levels', 'ApiController::getLevels');
     $routes->post('levels/add', 'ApiController::addLevel');
@@ -55,6 +65,18 @@ $routes->group('api', function($routes) {
     $routes->get('absences', 'ApiController::getCoachAbsences');
     $routes->post('absences/report', 'ApiController::reportCoachAbsence');
     $routes->post('absences/process', 'ApiController::processCoachAbsence');
+
+    // Event Categories API
+    $routes->get('event-categories', 'ApiController::getEventCategories');
+    $routes->post('event-categories/add', 'ApiController::addEventCategory');
+    $routes->post('event-categories/update', 'ApiController::updateEventCategory');
+    $routes->delete('event-categories/delete/(:segment)', 'ApiController::deleteEventCategory/$1');
+
+    // Swimming Pools API
+    $routes->get('swimming-pools', 'ApiController::getSwimmingPools');
+    $routes->post('swimming-pools/add', 'ApiController::addSwimmingPool');
+    $routes->post('swimming-pools/update', 'ApiController::updateSwimmingPool');
+    $routes->delete('swimming-pools/delete/(:segment)', 'ApiController::deleteSwimmingPool/$1');
 
     // Debug API
     $routes->post('debug/log', 'ApiController::debugLog');

@@ -5,13 +5,14 @@
 
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleTimeSlot, EventItem, SiteSettings, ProgramLevel } from '../types';
+import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleTimeSlot, EventItem, SiteSettings, ProgramLevel, PricingPackage } from '../types';
 import { 
   Award, Shield, Calendar, Users, CheckCircle, ArrowRight, ArrowLeft, 
   CreditCard, Clock, Phone, User, Compass, AlertCircle,
   Gift, Sparkles, Image as ImageIcon, Plus, HeartHandshake, Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { checkScheduleSlotConflict } from '../utils/scheduleValidation';
 
 interface MainPortalProps {
   coaches: Coach[];
@@ -19,13 +20,25 @@ interface MainPortalProps {
   events: EventItem[];
   settings: SiteSettings;
   levels: ProgramLevel[];
+  pricingPackages: PricingPackage[];
   onRegister: (newMember: Omit<Member, 'id' | 'registeredAt'>) => Promise<string | null>;
   onUpdateEvents: (events: EventItem[]) => void;
   view?: 'home' | 'register';
   navigateTo?: (path: string) => void;
 }
 
-export default function MainPortal({ coaches, members, events, settings = {}, levels = [], onRegister, onUpdateEvents, view = 'home', navigateTo }: MainPortalProps) {
+export default function MainPortal({ 
+  coaches, 
+  members, 
+  events, 
+  settings = {}, 
+  levels = [], 
+  pricingPackages = [],
+  onRegister, 
+  onUpdateEvents, 
+  view = 'home', 
+  navigateTo 
+}: MainPortalProps) {
   const currentView = view;
 
   // Navigation / Scroll helper
@@ -86,12 +99,7 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
   }, [studentData.dob]);
 
   // Load pricing packages list
-  let packagesList: PricingPackage[] = [];
-  if (settings.pricing_packages) {
-    try {
-      packagesList = JSON.parse(settings.pricing_packages);
-    } catch (e) {}
-  }
+  let packagesList: PricingPackage[] = pricingPackages;
   if (!Array.isArray(packagesList) || packagesList.length === 0) {
     packagesList = [
       {
@@ -486,12 +494,7 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {(() => {
-                let packagesList = [];
-                if (settings.pricing_packages) {
-                  try {
-                    packagesList = JSON.parse(settings.pricing_packages);
-                  } catch (e) {}
-                }
+                let packagesList = pricingPackages;
                 if (!Array.isArray(packagesList) || packagesList.length === 0) {
                   // Fallback defaults
                   packagesList = [
@@ -580,59 +583,126 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
             </div>
           </section>
 
-          {/* Coaches Showcase Section */}
-          <section id="coaches-section" className="space-y-6">
+          {/* Coaches Showcase Section (ID CARD STYLE) */}
+          <section id="coaches-section" className="space-y-8">
             <div className="text-center max-w-xl mx-auto space-y-2">
-              <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900">Daftar Pelatih Profesional Kami</h2>
+              <span className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border border-cyan-200/60 inline-block">
+                🪪 TIM PELATIH TERTIFIED
+              </span>
+              <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Daftar Pelatih Profesional Kami</h2>
               <p className="text-slate-500 text-sm">
-                Setiap pelatih memiliki batas kuota maksimal 6 siswa aktif demi efektivitas pengajaran.
+                Setiap pelatih memiliki kartu identitas resmi dan kuota maksimal 6 siswa aktif demi efektivitas pengajaran.
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {coaches.filter(c => c.isActive !== false).map((coach) => {
                 const quota = getCoachOverallQuota(coach);
                 return (
                   <div 
                     key={coach.id} 
-                    className={`bg-white rounded-2xl border transition overflow-hidden shadow-sm flex flex-col sm:flex-row ${
-                      quota.isFull ? 'border-slate-200 opacity-80' : 'border-slate-100 hover:border-cyan-300'
-                    }`}
+                    className="relative group transition-all duration-300 transform hover:-translate-y-1.5"
                   >
-                    <div className="relative w-full sm:w-2/5 min-h-[200px] sm:min-h-full bg-slate-100 flex-shrink-0">
-                      <img 
-                        src={coach.photo} 
-                        alt={coach.name} 
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                      {quota.isFull && (
-                        <div className="absolute top-3 left-3">
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold shadow-md bg-rose-100 text-rose-800 border border-rose-200">
-                            Kuota Penuh
-                          </span>
+                    {/* Top Lanyard Strap Visual */}
+                    <div className="w-12 h-3 bg-cyan-800/20 mx-auto rounded-b-md border-x border-b border-cyan-800/30"></div>
+                    <div className="w-8 h-2.5 bg-slate-300 border border-slate-400 rounded-full mx-auto -mt-1.5 shadow-inner relative z-20"></div>
+
+                    {/* Main ID Card Frame */}
+                    <div className={`bg-white rounded-3xl border-2 transition-all duration-300 overflow-hidden shadow-lg hover:shadow-2xl relative ${
+                      quota.isFull ? 'border-slate-300 opacity-90' : 'border-cyan-100 hover:border-cyan-400'
+                    }`}>
+                      {/* ID Card Header Banner */}
+                      <div className="bg-gradient-to-r from-cyan-800 via-blue-900 to-slate-900 text-white p-5 pb-12 relative overflow-hidden text-center">
+                        {/* Background Decorative Lines */}
+                        <div className="absolute -right-8 -bottom-8 w-24 h-24 bg-white/5 rounded-full blur-xs pointer-events-none"></div>
+                        <div className="absolute left-3 top-3 flex items-center gap-1">
+                          {/* Micro Smart Chip */}
+                          <div className="w-5 h-4 bg-gradient-to-tr from-amber-300 via-yellow-400 to-amber-200 rounded border border-amber-500/80 shadow-xs"></div>
                         </div>
-                      )}
-                    </div>
-                    <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                      <div className="space-y-2">
-                        <h3 className="font-bold text-base md:text-lg text-slate-900">{coach.name}</h3>
-                        <p className="text-slate-500 text-xs flex items-start gap-1">
-                          <Award className="w-4 h-4 text-cyan-600 flex-shrink-0 mt-0.5" />
-                          <span>{coach.experience}</span>
-                        </p>
-                        {/* Referral jangan ditampilkan tapi jangan dihapus
-                        <p className="text-slate-400 text-[10px] font-semibold font-mono bg-slate-50 px-2 py-1 rounded w-max">
-                          Referral Code: {coach.referralCode}
-                        </p>
-                        */}
+
+                        <div className="space-y-0.5">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300">TIRTA BAROKAH</p>
+                          <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-white">OFFICIAL COACH BADGE</h4>
+                        </div>
+
+                        {/* Status Badge */}
+                        <div className="absolute top-3 right-3">
+                          {quota.isFull ? (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white shadow-xs">
+                              KUOTA PENUH
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-white shadow-xs flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> TERSEDIA
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      
-                      {quota.isFull && (
-                        <div className="pt-3 border-t border-slate-100">
-                          <p className="text-rose-600 text-[10px] font-semibold text-center italic">Tidak menerima siswa baru sementara waktu (Kuota Penuh)</p>
+
+                      {/* Coach Photo in ID Frame */}
+                      <div className="relative -mt-10 px-6 text-center">
+                        <div className="relative inline-block">
+                          <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl overflow-hidden border-4 border-white shadow-xl mx-auto bg-slate-100 relative group-hover:scale-105 transition duration-300">
+                            <img 
+                              src={coach.photo} 
+                              alt={coach.name} 
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
                         </div>
-                      )}
+                      </div>
+
+                      {/* Coach Details */}
+                      <div className="p-6 pt-3 text-center space-y-3">
+                        <div>
+                          <h3 className="font-black text-lg md:text-xl text-slate-900 tracking-tight">{coach.name}</h3>
+                          <p className="text-slate-500 text-xs font-semibold mt-0.5 flex items-center justify-center gap-1">
+                            <Award className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
+                            <span>{coach.experience}</span>
+                          </p>
+                        </div>
+
+                        {/* ID Card Specs & Badges */}
+                        <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 space-y-2 text-xs">
+                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+                            <span>Siswa Aktif</span>
+                            <span className="text-slate-800 font-extrabold">{quota.currentActive} Anak</span>
+                          </div>
+                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            <span>Maksimal Kuota</span>
+                            <span className="text-cyan-700 font-extrabold">{coach.maxQuota} Anak</span>
+                          </div>
+                        </div>
+
+                        {quota.isFull && (
+                          <p className="text-rose-600 text-[10px] font-bold italic bg-rose-50 p-2 rounded-xl border border-rose-100">
+                            * Tidak menerima siswa baru sementara waktu
+                          </p>
+                        )}
+
+                        {/* Fake ID Card Barcode at Bottom */}
+                        <div className="pt-2 border-t border-slate-100 space-y-1">
+                          <div className="flex justify-center items-center gap-0.5 h-6 opacity-60">
+                            <div className="w-1 h-full bg-slate-800"></div>
+                            <div className="w-0.5 h-full bg-slate-800"></div>
+                            <div className="w-1.5 h-full bg-slate-800"></div>
+                            <div className="w-0.5 h-full bg-slate-800"></div>
+                            <div className="w-2 h-full bg-slate-800"></div>
+                            <div className="w-0.5 h-full bg-slate-800"></div>
+                            <div className="w-1 h-full bg-slate-800"></div>
+                            <div className="w-2.5 h-full bg-slate-800"></div>
+                            <div className="w-0.5 h-full bg-slate-800"></div>
+                            <div className="w-1.5 h-full bg-slate-800"></div>
+                            <div className="w-1 h-full bg-slate-800"></div>
+                            <div className="w-0.5 h-full bg-slate-800"></div>
+                            <div className="w-2 h-full bg-slate-800"></div>
+                          </div>
+                          <p className="text-[9px] font-mono text-slate-400 uppercase tracking-widest font-extrabold">
+                            ID: TB-COACH-{coach.id.replace('coach-', '').toUpperCase()}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1315,8 +1385,10 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                   {day.timeSlots.map((slot) => {
                                     const details = getSlotDetails(selectedCoach, day.day, slot.time);
+                                    const targetCoachType: 'Reguler' | 'Privat' = selectedPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
+                                    const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
                                     const isSelected = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
-                                    const isDisabled = details.isFull || (selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time);
+                                    const isDisabled = details.isFull || conflictInfo.isConflict || (selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time);
                                     return (
                                       <button
                                         type="button"
@@ -1339,9 +1411,9 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                                           {isSelected && <span className="text-xs">✓</span>}
                                         </div>
                                         <span className={`text-[9px] mt-1.5 font-bold ${
-                                          isSelected ? 'text-cyan-100' : details.isFull ? 'text-rose-600' : 'text-slate-500'
+                                          isSelected ? 'text-cyan-100' : conflictInfo.isConflict || details.isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'
                                         }`}>
-                                          {details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
+                                          {conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
                                         </span>
                                       </button>
                                     );
@@ -1381,9 +1453,11 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                     {day.timeSlots.map((slot) => {
                                       const details = getSlotDetails(selectedCoach, day.day, slot.time);
+                                      const targetCoachType: 'Reguler' | 'Privat' = selectedPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
+                                      const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
                                       const isSelected = selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time;
                                       const isSameAsSesi1 = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
-                                      const isDisabled = details.isFull || isSameAsSesi1;
+                                      const isDisabled = details.isFull || conflictInfo.isConflict || isSameAsSesi1;
                                       return (
                                         <button
                                           type="button"
@@ -1406,9 +1480,9 @@ export default function MainPortal({ coaches, members, events, settings = {}, le
                                             {isSelected && <span className="text-xs">✓</span>}
                                           </div>
                                           <span className={`text-[9px] mt-1.5 font-bold ${
-                                            isSelected ? 'text-indigo-100' : isSameAsSesi1 ? 'text-amber-600 font-semibold' : details.isFull ? 'text-rose-600' : 'text-slate-500'
+                                            isSelected ? 'text-indigo-100' : isSameAsSesi1 ? 'text-amber-600 font-semibold' : conflictInfo.isConflict || details.isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'
                                           }`}>
-                                            {isSameAsSesi1 ? '⚠️ Dipilih di Sesi 1' : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
+                                            {isSameAsSesi1 ? '⚠️ Dipilih di Sesi 1' : conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
                                           </span>
                                         </button>
                                       );

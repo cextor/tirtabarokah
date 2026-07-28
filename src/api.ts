@@ -67,6 +67,7 @@ export const api = {
   login: (data: any) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   parentLogin: (whatsapp: string) => request('/api/auth/parent-login', { method: 'POST', body: JSON.stringify({ whatsapp }) }),
+  changePassword: (data: { oldPassword?: string; newPassword: string; targetUsername?: string }) => request('/api/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
 
   // Coaches
   getCoaches: () => request('/api/coaches'),
@@ -101,6 +102,12 @@ export const api = {
   getSettings: () => request('/api/settings'),
   updateSettings: (data: any) => request('/api/settings', { method: 'POST', body: JSON.stringify(data) }),
 
+  // Pricing Packages
+  getPricingPackages: () => request('/api/pricing-packages'),
+  addPricingPackage: (data: any) => request('/api/pricing-packages/add', { method: 'POST', body: JSON.stringify(data) }),
+  updatePricingPackage: (data: any) => request('/api/pricing-packages/update', { method: 'POST', body: JSON.stringify(data) }),
+  deletePricingPackage: (id: string) => request(`/api/pricing-packages/delete/${id}`, { method: 'DELETE' }),
+
   // Program Levels
   getLevels: () => request('/api/levels'),
   addLevel: (data: any) => request('/api/levels/add', { method: 'POST', body: JSON.stringify(data) }),
@@ -114,4 +121,19 @@ export const api = {
     request('/api/absences/report', { method: 'POST', body: JSON.stringify(data) }),
   processCoachAbsence: (data: { absenceId: string; status: 'Transfer' | 'Reschedule'; replacementCoachId?: string }) =>
     request('/api/absences/process', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Audit Logs
+  getAuditLogs: () => request('/api/audit-logs'),
+
+  // Event Categories
+  getEventCategories: () => request('/api/event-categories'),
+  addEventCategory: (name: string) => request('/api/event-categories/add', { method: 'POST', body: JSON.stringify({ name }) }),
+  updateEventCategory: (id: string | number, name: string) => request('/api/event-categories/update', { method: 'POST', body: JSON.stringify({ id, name }) }),
+  deleteEventCategory: (id: string | number) => request(`/api/event-categories/delete/${id}`, { method: 'DELETE' }),
+
+  // Swimming Pools
+  getSwimmingPools: () => request('/api/swimming-pools'),
+  addSwimmingPool: (data: any) => request('/api/swimming-pools/add', { method: 'POST', body: JSON.stringify(data) }),
+  updateSwimmingPool: (data: any) => request('/api/swimming-pools/update', { method: 'POST', body: JSON.stringify(data) }),
+  deleteSwimmingPool: (id: string) => request(`/api/swimming-pools/delete/${id}`, { method: 'DELETE' }),
 };

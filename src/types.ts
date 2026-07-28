@@ -82,6 +82,7 @@ export interface ScheduleTimeSlot {
   maxSlots: number;
   currentSlots: number;
   students: string[]; // Member IDs
+  swimmingPoolId?: string;
 }
 
 export interface ScheduleDay {
@@ -175,5 +176,31 @@ export interface CoachAbsence {
   status: 'Menunggu' | 'Transfer' | 'Reschedule' | 'Batal';
   replacementCoachId?: string;
   created_at?: string;
+}
+
+export interface AuditLog {
+  id: number;
+  user_id: string;
+  username: string;
+  role: string;
+  action_type: 'input' | 'edit' | 'hapus' | 'verifikasi';
+  table_name: string;
+  record_id: string;
+  description: string;
+  created_at: string;
+  user_name?: string;
+}
+
+export interface EventCategory {
+  id: number | string;
+  name: string;
+}
+
+export interface SwimmingPool {
+  id: string;
+  name: string;
+  training_days: string[];
+  training_hours: string[];
+  description?: string;
 }
 

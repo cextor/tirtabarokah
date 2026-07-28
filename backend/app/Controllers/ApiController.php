@@ -66,6 +66,7 @@ class ApiController extends BaseController
                 $groupedSchedule[$dayName]['timeSlots'][] = [
                     'time' => $sched['time'],
                     'maxSlots' => (int)$sched['max_slots'],
+                    'swimmingPoolId' => $sched['swimming_pool_id'] ?? null,
                     'currentSlots' => count($studentIds),
                     'students' => $studentIds
                 ];
@@ -116,7 +117,7 @@ class ApiController extends BaseController
         $coachData = [
             'id' => $id,
             'name' => $json->name,
-            'photo' => $json->photo ?? '/images/coach_rian.png',
+            'photo' => $this->processCoachPhoto($json->photo ?? '', $json->name),
             'experience' => $json->experience ?? 'Pelatih Renang Profesional',
             'referral_code' => $referralCode,
             'referral_bonus' => 0,
@@ -133,7 +134,7 @@ class ApiController extends BaseController
         // Add packages
         if (!empty($json->packages) && is_array($json->packages)) {
             foreach ($json->packages as $pkg) {
-                $pkgId = isset($pkg->id) && !str_starts_with($pkg->id, 'pkg-') ? $pkg->id : $id . '-pkg-' . rand(100, 999);
+                $pkgId = isset($pkg->id) && !empty($pkg->id) ? $pkg->id : $id . '-pkg-' . rand(100, 999);
                 $this->db->table('packages')->insert([
                     'id' => $pkgId,
                     'coach_id' => $id,
@@ -141,6 +142,15 @@ class ApiController extends BaseController
                     'price' => (int)$pkg->price,
                     'sessions' => (int)$pkg->sessions
                 ]);
+
+                // Sync relationship to coach_pricing_packages
+                $globalPkg = $this->db->table('pricing_packages')->where('name', $pkg->name)->get()->getRowArray();
+                if ($globalPkg) {
+                    $this->db->table('coach_pricing_packages')->insert([
+                        'coach_id' => $id,
+                        'pricing_package_id' => $globalPkg['id']
+                    ]);
+                }
             }
         } else {
             // Default packages if empty
@@ -182,13 +192,15 @@ class ApiController extends BaseController
                             'coach_id' => $id,
                             'day' => $dayName,
                             'time' => $slot->time,
-                            'max_slots' => isset($slot->maxSlots) ? (int)$slot->maxSlots : 6
+                            'max_slots' => isset($slot->maxSlots) ? (int)$slot->maxSlots : 6,
+                            'swimming_pool_id' => $slot->swimmingPoolId ?? null
                         ]);
                     }
                 }
             }
         }
 
+        $this->logAction('input', 'coaches', $id, "Menambahkan pelatih baru: {$json->name}");
         $this->db->transComplete();
 
         if ($this->db->transStatus() === false) {
@@ -218,7 +230,7 @@ class ApiController extends BaseController
         $coachData = [
             'name' => $json->name,
             'experience' => $json->experience,
-            'photo' => $json->photo,
+            'photo' => $this->processCoachPhoto($json->photo ?? '', $json->name),
             'max_quota' => (int)$json->maxQuota,
             'is_active' => isset($json->isActive) ? ($json->isActive ? 1 : 0) : 1,
             'email' => (!empty($json->email)) ? trim($json->email) : null,
@@ -239,7 +251,7 @@ class ApiController extends BaseController
                 $isNew = true;
                 $pkgId = '';
 
-                if (isset($pkg->id) && !empty($pkg->id) && !str_starts_with($pkg->id, 'pkg-')) {
+                if (isset($pkg->id) && !empty($pkg->id)) {
                     if (in_array($pkg->id, $existingIds)) {
                         $isNew = false;
                         $pkgId = $pkg->id;
@@ -247,14 +259,20 @@ class ApiController extends BaseController
                 }
 
                 if ($isNew) {
-                    $pkgId = $id . '-pkg-' . rand(1000, 9999);
-                    $this->db->table('packages')->insert([
-                        'id' => $pkgId,
-                        'coach_id' => $id,
-                        'name' => $pkg->name,
-                        'price' => (int)$pkg->price,
-                        'sessions' => (int)$pkg->sessions
-                    ]);
+                    $globalPkg = $this->db->table('pricing_packages')->where('name', $pkg->name)->get()->getRowArray();
+                    $pricingPkgId = $globalPkg ? $globalPkg['id'] : rand(1000, 9999);
+                    $pkgId = 'pkg-' . $id . '-' . $pricingPkgId;
+                    
+                    if ($this->db->table('packages')->where('id', $pkgId)->countAllResults() === 0) {
+                        $this->db->table('packages')->insert([
+                            'id' => $pkgId,
+                            'coach_id' => $id,
+                            'name' => $pkg->name,
+                            'price' => (int)$pkg->price,
+                            'sessions' => (int)$pkg->sessions
+                        ]);
+                    }
+                    $keepIds[] = $pkgId;
                 } else {
                     $this->db->table('packages')->where('id', $pkgId)->update([
                         'name' => $pkg->name,
@@ -272,6 +290,18 @@ class ApiController extends BaseController
                     $this->db->table('packages')->where('id', $deleteId)->delete();
                 } catch (\Exception $e) {
                     // Ignore if in use by members
+                }
+            }
+
+            // Sync junction table relations for this coach
+            $this->db->table('coach_pricing_packages')->where('coach_id', $id)->delete();
+            foreach ($json->packages as $pkg) {
+                $globalPkg = $this->db->table('pricing_packages')->where('name', $pkg->name)->get()->getRowArray();
+                if ($globalPkg) {
+                    $this->db->table('coach_pricing_packages')->insert([
+                        'coach_id' => $id,
+                        'pricing_package_id' => $globalPkg['id']
+                    ]);
                 }
             }
         } else {
@@ -307,13 +337,15 @@ class ApiController extends BaseController
                             'coach_id' => $id,
                             'day' => $dayName,
                             'time' => $slot->time,
-                            'max_slots' => isset($slot->maxSlots) ? (int)$slot->maxSlots : 6
+                            'max_slots' => isset($slot->maxSlots) ? (int)$slot->maxSlots : 6,
+                            'swimming_pool_id' => $slot->swimmingPoolId ?? null
                         ]);
                     }
                 }
             }
         }
 
+        $this->logAction('edit', 'coaches', $id, "Mengubah profil/paket pelatih: {$json->name}");
         $this->db->transComplete();
 
         if ($this->db->transStatus() === false) {
@@ -346,19 +378,24 @@ class ApiController extends BaseController
             }
         }
 
+        $coach = $this->db->table('coaches')->where('id', $id)->get()->getRowArray();
+        $coachName = $coach ? $coach['name'] : $id;
+
         // Clean up dependent tables that reference coaches
         $this->db->table('packages')->where('coach_id', $id)->delete();
         $this->db->table('coach_schedules')->where('coach_id', $id)->delete();
         $this->db->table('coaches')->where('id', $id)->delete();
         $this->db->table('users')->where('id', $id)->delete();
 
+        $this->logAction('hapus', 'coaches', $id, "Menghapus pelatih: {$coachName}");
+
         return $this->respondDeleted(['status' => 'success']);
     }
 
-    private function checkScheduleConflict($studentName, $id, $newSchedules)
+    private function checkScheduleConflict($studentName, $id, $newSchedules, $coachType = null)
     {
         $studentName = trim($studentName);
-        if (empty($studentName) || empty($newSchedules) || !is_array($newSchedules)) {
+        if (empty($newSchedules) || !is_array($newSchedules)) {
             return null;
         }
 
@@ -372,30 +409,57 @@ class ApiController extends BaseController
             $seenSlots[$key] = true;
         }
 
-        // Find other active members with the same student name
-        $query = $this->db->table('members')
-            ->where('LOWER(TRIM(student_name))', strtolower($studentName))
-            ->where('status !=', 'Selesai');
+        // 1. Check Package Category Conflict (Reguler vs Privat)
+        if ($coachType) {
+            $targetType = trim($coachType); // 'Reguler' or 'Privat'
+            foreach ($newSchedules as $ns) {
+                if (empty($ns['coach_id']) || empty($ns['day']) || empty($ns['time'])) continue;
 
-        if ($id) {
-            $query->where('id !=', $id);
+                $builder = $this->db->table('member_schedules')
+                    ->join('members', 'members.id = member_schedules.member_id')
+                    ->where('member_schedules.coach_id', $ns['coach_id'])
+                    ->where('member_schedules.day', $ns['day'])
+                    ->where('member_schedules.time', $ns['time'])
+                    ->where('members.status !=', 'Selesai')
+                    ->where('members.coach_type !=', $targetType);
+
+                if ($id) {
+                    $builder->where('members.id !=', $id);
+                }
+
+                $conflicting = $builder->get()->getResultArray();
+                if (!empty($conflicting)) {
+                    $existingType = $conflicting[0]['coach_type'];
+                    return "Jadwal pelatih pada hari {$ns['day']} jam {$ns['time']} WIB sudah terisi siswa paket {$existingType}. Paket {$targetType} tidak dapat dipilih pada jam yang sama.";
+                }
+            }
         }
 
-        $otherMembers = $query->get()->getResultArray();
+        // 2. Find other active members with the same student name
+        if (!empty($studentName)) {
+            $query = $this->db->table('members')
+                ->where('LOWER(TRIM(student_name))', strtolower($studentName))
+                ->where('status !=', 'Selesai');
 
-        foreach ($otherMembers as $other) {
-            // Get schedules for this other member
-            $otherSchedules = $this->db->table('member_schedules')
-                ->where('member_id', $other['id'])
-                ->get()
-                ->getResultArray();
+            if ($id) {
+                $query->where('id !=', $id);
+            }
 
-            foreach ($newSchedules as $ns) {
-                foreach ($otherSchedules as $os) {
-                    if ($ns['day'] === $os['day'] && $ns['time'] === $os['time']) {
-                        $coach = $this->db->table('coaches')->where('id', $os['coach_id'])->get()->getRowArray();
-                        $coachName = $coach ? $coach['name'] : 'pelatih lain';
-                        return "Siswa bernama \"$studentName\" sudah terdaftar di jadwal " . $ns['day'] . " pukul " . $ns['time'] . " dengan pelatih $coachName.";
+            $otherMembers = $query->get()->getResultArray();
+
+            foreach ($otherMembers as $other) {
+                $otherSchedules = $this->db->table('member_schedules')
+                    ->where('member_id', $other['id'])
+                    ->get()
+                    ->getResultArray();
+
+                foreach ($newSchedules as $ns) {
+                    foreach ($otherSchedules as $os) {
+                        if ($ns['day'] === $os['day'] && $ns['time'] === $os['time']) {
+                            $coach = $this->db->table('coaches')->where('id', $os['coach_id'])->get()->getRowArray();
+                            $coachName = $coach ? $coach['name'] : 'pelatih lain';
+                            return "Siswa bernama \"$studentName\" sudah terdaftar di jadwal " . $ns['day'] . " pukul " . $ns['time'] . " dengan pelatih $coachName.";
+                        }
                     }
                 }
             }
@@ -551,7 +615,8 @@ class ApiController extends BaseController
         $conflictError = $this->checkScheduleConflict(
             $json->student->fullName ?? '',
             null,
-            $schedules
+            $schedules,
+            $json->coachType ?? 'Reguler'
         );
         if ($conflictError) {
             return $this->fail($conflictError);
@@ -636,7 +701,7 @@ class ApiController extends BaseController
         ];
 
         $this->db->table('payments')->insert($paymentData);
-
+        $this->logAction('input', 'members', $id, "Pendaftaran siswa baru: {$json->student->fullName} (Orang tua: {$json->parent->fatherMotherName})");
         $this->db->transComplete();
 
         if ($this->db->transStatus() === false) {
@@ -653,6 +718,9 @@ class ApiController extends BaseController
             return $this->fail('ID Siswa harus dilampirkan.');
         }
 
+        $member = $this->db->table('members')->where('id', $json->id)->get()->getRowArray();
+        $studentName = $member ? $member['student_name'] : $json->id;
+
         $this->db->transStart();
         $this->db->table('payments')->where('member_id', $json->id)->update([
             'status' => 'Pembayaran Berhasil',
@@ -661,6 +729,7 @@ class ApiController extends BaseController
         $this->db->table('members')->where('id', $json->id)->update([
             'status' => 'Aktif'
         ]);
+        $this->logAction('verifikasi', 'members', $json->id, "Memverifikasi pendaftaran/pembayaran siswa: {$studentName}");
         $this->db->transComplete();
 
         if ($this->db->transStatus() === false) {
@@ -709,7 +778,8 @@ class ApiController extends BaseController
         $conflictError = $this->checkScheduleConflict(
             $json->student->fullName ?? '',
             $id,
-            $schedules
+            $schedules,
+            $json->coachType ?? 'Reguler'
         );
         if ($conflictError) {
             return $this->fail($conflictError);
@@ -765,6 +835,7 @@ class ApiController extends BaseController
             ]);
         }
 
+        $this->logAction('edit', 'members', $id, "Mengubah data siswa: {$json->student->fullName}");
         $this->db->transComplete();
 
         if ($this->db->transStatus() === false) {
@@ -776,12 +847,14 @@ class ApiController extends BaseController
 
     public function deleteMember($id)
     {
-        $exists = $this->db->table('members')->where('id', $id)->countAllResults();
-        if (!$exists) {
+        $member = $this->db->table('members')->where('id', $id)->get()->getRowArray();
+        if (!$member) {
             return $this->failNotFound('Siswa tidak ditemukan.');
         }
+        $studentName = $member['student_name'];
 
         $this->db->table('members')->where('id', $id)->delete();
+        $this->logAction('hapus', 'members', $id, "Menghapus data siswa: {$studentName}");
         return $this->respondDeleted(['status' => 'success']);
     }
 
@@ -814,6 +887,7 @@ class ApiController extends BaseController
         ];
 
         $this->db->table('events')->insert($eventData);
+        $this->logAction('input', 'events', $id, "Menambahkan kegiatan baru: {$json->title}");
         return $this->respondCreated(['status' => 'success', 'id' => $id]);
     }
 
@@ -833,17 +907,20 @@ class ApiController extends BaseController
         ];
 
         $this->db->table('events')->where('id', $json->id)->update($eventData);
+        $this->logAction('edit', 'events', $json->id, "Mengubah kegiatan: {$json->title}");
         return $this->respond(['status' => 'success']);
     }
 
     public function deleteEvent($id)
     {
-        $exists = $this->db->table('events')->where('id', $id)->countAllResults();
-        if (!$exists) {
+        $event = $this->db->table('events')->where('id', $id)->get()->getRowArray();
+        if (!$event) {
             return $this->failNotFound('Kegiatan tidak ditemukan.');
         }
+        $eventTitle = $event['title'];
 
         $this->db->table('events')->where('id', $id)->delete();
+        $this->logAction('hapus', 'events', $id, "Menghapus kegiatan: {$eventTitle}");
         return $this->respondDeleted(['status' => 'success']);
     }
 
@@ -1060,8 +1137,13 @@ class ApiController extends BaseController
             return $this->failUnauthorized('Username atau Password salah.');
         }
 
-        if ($user['role'] !== $role) {
-            return $this->failUnauthorized('Peran pengguna tidak cocok.');
+        $userRole = $user['role'];
+        if ($userRole !== $role) {
+            if (($userRole === 'admin' || $userRole === 'operator') && ($role === 'admin' || $role === 'operator')) {
+                $role = $userRole;
+            } else {
+                return $this->failUnauthorized('Peran pengguna tidak cocok.');
+            }
         }
 
         $isPasswordValid = false;
@@ -1116,6 +1198,90 @@ class ApiController extends BaseController
         return $this->respond([
             'status' => 'success',
             'message' => 'Berhasil keluar.'
+        ]);
+    }
+
+    public function changePassword()
+    {
+        $authHeader = $this->request->getHeaderLine('Authorization');
+        if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
+            return $this->failUnauthorized('Token autentikasi tidak ditemukan.');
+        }
+
+        $token = substr($authHeader, 7);
+        $tokenRecord = $this->db->table('user_tokens')
+            ->where('token', $token)
+            ->get()
+            ->getRowArray();
+
+        if (!$tokenRecord) {
+            return $this->failUnauthorized('Sesi login tidak valid atau telah berakhir.');
+        }
+
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->newPassword)) {
+            return $this->fail('Password baru wajib diisi.');
+        }
+
+        $targetUsername = !empty($json->targetUsername) ? trim($json->targetUsername) : null;
+        $oldPassword = !empty($json->oldPassword) ? trim($json->oldPassword) : '';
+        $newPassword = trim($json->newPassword);
+
+        if (strlen($newPassword) < 4) {
+            return $this->fail('Password baru minimal 4 karakter.');
+        }
+
+        // Determine user to change
+        if ($targetUsername && ($tokenRecord['role'] === 'admin')) {
+            $user = $this->db->table('users')
+                ->where('username', $targetUsername)
+                ->get()
+                ->getRowArray();
+            if (!$user) {
+                return $this->failNotFound("Pengguna dengan username '{$targetUsername}' tidak ditemukan.");
+            }
+        } else {
+            // Changing own password
+            $user = $this->db->table('users')
+                ->where('id', $tokenRecord['user_id'])
+                ->get()
+                ->getRowArray();
+
+            if (!$user) {
+                return $this->failNotFound('Pengguna tidak ditemukan.');
+            }
+
+            if (empty($oldPassword)) {
+                return $this->fail('Password lama wajib diisi.');
+            }
+
+            // Verify old password
+            $isOldValid = false;
+            if (str_starts_with($user['password'], '$2y$') || str_starts_with($user['password'], '$2a$')) {
+                $isOldValid = password_verify($oldPassword, $user['password']);
+            } else {
+                $isOldValid = ($oldPassword === $user['password']);
+            }
+
+            if (!$isOldValid) {
+                return $this->fail('Password lama yang Anda masukkan salah.');
+            }
+        }
+
+        // Hash new password using BCRYPT
+        $newHash = password_hash($newPassword, PASSWORD_BCRYPT);
+        $this->db->table('users')
+            ->where('id', $user['id'])
+            ->update([
+                'password' => $newHash,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+
+        $this->logAudit('Ubah Password', "Password untuk pengguna '{$user['username']}' ({$user['role']}) berhasil diperbarui.");
+
+        return $this->respond([
+            'status' => 'success',
+            'message' => "Password untuk '{$user['username']}' berhasil diperbarui!"
         ]);
     }
 
@@ -1267,6 +1433,7 @@ class ApiController extends BaseController
                 $this->db->table('site_settings')->insert(['key_name' => $key, 'value_text' => $value]);
             }
         }
+        $this->logAction('edit', 'site_settings', 'settings', "Mengubah konfigurasi situs / pengaturan dinamis");
         $this->db->transComplete();
 
         if ($this->db->transStatus() === false) {
@@ -1298,6 +1465,8 @@ class ApiController extends BaseController
         ];
 
         $this->db->table('program_levels')->insert($data);
+        $insertId = $this->db->insertID();
+        $this->logAction('input', 'program_levels', $insertId, "Menambahkan tingkatan level baru: {$json->name} (Level {$json->level_number})");
         return $this->respondCreated(['status' => 'success']);
     }
 
@@ -1317,12 +1486,17 @@ class ApiController extends BaseController
         ];
 
         $this->db->table('program_levels')->where('id', $json->id)->update($data);
+        $this->logAction('edit', 'program_levels', $json->id, "Mengubah tingkatan level: {$json->name} (Level {$json->level_number})");
         return $this->respond(['status' => 'success']);
     }
 
     public function deleteLevel($id)
     {
+        $level = $this->db->table('program_levels')->where('id', $id)->get()->getRowArray();
+        $levelName = $level ? $level['name'] : $id;
+
         $this->db->table('program_levels')->where('id', $id)->delete();
+        $this->logAction('hapus', 'program_levels', $id, "Menghapus tingkatan level: {$levelName}");
         return $this->respond(['status' => 'success']);
     }
 
@@ -1436,5 +1610,409 @@ class ApiController extends BaseController
         }
 
         return $this->respond(['status' => 'success']);
+    }
+
+    private function getCurrentUser()
+    {
+        $authHeader = $this->request->getHeaderLine('Authorization');
+        if ($authHeader && str_starts_with($authHeader, 'Bearer ')) {
+            $token = substr($authHeader, 7);
+            $tokenRow = $this->db->table('user_tokens')
+                ->where('token', $token)
+                ->where('expires_at >', date('Y-m-d H:i:s'))
+                ->get()
+                ->getRowArray();
+
+            if ($tokenRow) {
+                $user = $this->db->table('users')->where('id', $tokenRow['user_id'])->get()->getRowArray();
+                if ($user) {
+                    return $user;
+                }
+            }
+        }
+        return null;
+    }
+
+    private function logAction($actionType, $tableName, $recordId, $description)
+    {
+        $user = $this->getCurrentUser();
+        $userId = $user ? $user['id'] : 'system';
+        $username = $user ? $user['username'] : 'pendaftar_mandiri';
+        $role = $user ? $user['role'] : 'public';
+
+        $this->db->table('audit_logs')->insert([
+            'user_id' => $userId,
+            'username' => $username,
+            'role' => $role,
+            'action_type' => $actionType,
+            'table_name' => $tableName,
+            'record_id' => $recordId,
+            'description' => $description
+        ]);
+    }
+
+    private function syncCoachLegacyPackages($packageId, $packageName, $packagePrice, $packageSessions, $coachIds)
+    {
+        // 1. Ensure relations for checked coaches
+        foreach ($coachIds as $coachId) {
+            $legacyId = "pkg-{$coachId}-{$packageId}";
+            
+            // Upsert into legacy packages
+            $exists = $this->db->table('packages')->where('id', $legacyId)->countAllResults();
+            if ($exists > 0) {
+                $this->db->table('packages')->where('id', $legacyId)->update([
+                    'name' => $packageName,
+                    'price' => $packagePrice,
+                    'sessions' => $packageSessions
+                ]);
+            } else {
+                $this->db->table('packages')->insert([
+                    'id' => $legacyId,
+                    'coach_id' => $coachId,
+                    'name' => $packageName,
+                    'price' => $packagePrice,
+                    'sessions' => $packageSessions
+                ]);
+            }
+        }
+
+        // 2. Remove relations for unchecked coaches (if not used by members)
+        $allCoaches = $this->db->table('coaches')->get()->getResultArray();
+        foreach ($allCoaches as $coach) {
+            $coachId = $coach['id'];
+            if (!in_array($coachId, $coachIds)) {
+                $legacyId = "pkg-{$coachId}-{$packageId}";
+                // Check if used by members
+                $memberCount = $this->db->table('members')->where('package_id', $legacyId)->countAllResults();
+                if ($memberCount === 0) {
+                    $this->db->table('packages')->where('id', $legacyId)->delete();
+                }
+            }
+        }
+    }
+
+    public function getPricingPackages()
+    {
+        $packages = $this->db->table('pricing_packages')->orderBy('created_at', 'DESC')->get()->getResultArray();
+        
+        // Load relationships
+        $relations = $this->db->table('coach_pricing_packages')->get()->getResultArray();
+        $relationsGrouped = [];
+        foreach ($relations as $rel) {
+            $relationsGrouped[$rel['pricing_package_id']][] = $rel['coach_id'];
+        }
+
+        foreach ($packages as &$pkg) {
+            $pkg['price'] = (int)$pkg['price'];
+            $pkg['sessions'] = (int)$pkg['sessions'];
+            $pkg['coachIds'] = $relationsGrouped[$pkg['id']] ?? [];
+        }
+
+        return $this->respond($packages);
+    }
+
+    public function addPricingPackage()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->category) || empty($json->name) || !isset($json->price)) {
+            return $this->fail('Data paket tidak lengkap.');
+        }
+
+        $id = (!empty($json->id)) ? $json->id : 'pkg-' . rand(100000, 999999);
+        $category = $json->category;
+        $name = $json->name;
+        $price = (int)$json->price;
+        $sessions = (int)($json->sessions ?? 5);
+        $activePeriod = $json->active_period ?? '';
+        $description = $json->description ?? '';
+        $coachIds = $json->coachIds ?? [];
+
+        $this->db->transStart();
+
+        // Insert global pricing package
+        $this->db->table('pricing_packages')->insert([
+            'id' => $id,
+            'category' => $category,
+            'name' => $name,
+            'price' => $price,
+            'sessions' => $sessions,
+            'active_period' => $activePeriod,
+            'description' => $description
+        ]);
+
+        // Insert relations
+        foreach ($coachIds as $coachId) {
+            $this->db->table('coach_pricing_packages')->insert([
+                'coach_id' => $coachId,
+                'pricing_package_id' => $id
+            ]);
+        }
+
+        // Sync legacy packages
+        $this->syncCoachLegacyPackages($id, $name, $price, $sessions, $coachIds);
+
+        $this->logAction('input', 'pricing_packages', $id, "Menambahkan paket harga global baru: {$name}");
+        $this->db->transComplete();
+
+        if ($this->db->transStatus() === false) {
+            return $this->fail('Gagal menambah paket harga.');
+        }
+
+        return $this->respondCreated(['status' => 'success', 'id' => $id]);
+    }
+
+    public function updatePricingPackage()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->id)) {
+            return $this->fail('ID paket tidak ditemukan.');
+        }
+
+        $id = $json->id;
+        $category = $json->category;
+        $name = $json->name;
+        $price = (int)$json->price;
+        $sessions = (int)($json->sessions ?? 5);
+        $activePeriod = $json->active_period ?? '';
+        $description = $json->description ?? '';
+        $coachIds = $json->coachIds ?? [];
+
+        $this->db->transStart();
+
+        // Update pricing packages
+        $this->db->table('pricing_packages')->where('id', $id)->update([
+            'category' => $category,
+            'name' => $name,
+            'price' => $price,
+            'sessions' => $sessions,
+            'active_period' => $activePeriod,
+            'description' => $description
+        ]);
+
+        // Sync junction table relations: Delete old, Insert new
+        $this->db->table('coach_pricing_packages')->where('pricing_package_id', $id)->delete();
+        foreach ($coachIds as $coachId) {
+            $this->db->table('coach_pricing_packages')->insert([
+                'coach_id' => $coachId,
+                'pricing_package_id' => $id
+            ]);
+        }
+
+        // Sync legacy packages
+        $this->syncCoachLegacyPackages($id, $name, $price, $sessions, $coachIds);
+
+        $this->logAction('edit', 'pricing_packages', $id, "Mengubah paket harga global: {$name}");
+        $this->db->transComplete();
+
+        if ($this->db->transStatus() === false) {
+            return $this->fail('Gagal memperbarui paket harga.');
+        }
+
+        return $this->respond(['status' => 'success']);
+    }
+
+    public function deletePricingPackage($id)
+    {
+        $pkg = $this->db->table('pricing_packages')->where('id', $id)->get()->getRowArray();
+        $pkgName = $pkg ? $pkg['name'] : $id;
+
+        $this->db->transStart();
+
+        // Before deleting legacy packages, check if used by members
+        // Check legacy package IDs
+        $coaches = $this->db->table('coaches')->get()->getResultArray();
+        foreach ($coaches as $coach) {
+            $legacyId = "pkg-{$coach['id']}-{$id}";
+            $memberCount = $this->db->table('members')->where('package_id', $legacyId)->countAllResults();
+            if ($memberCount === 0) {
+                $this->db->table('packages')->where('id', $legacyId)->delete();
+            }
+        }
+
+        // Delete from junction and main tables
+        $this->db->table('coach_pricing_packages')->where('pricing_package_id', $id)->delete();
+        $this->db->table('pricing_packages')->where('id', $id)->delete();
+
+        $this->logAction('hapus', 'pricing_packages', $id, "Menghapus paket harga global: {$pkgName}");
+        $this->db->transComplete();
+
+        if ($this->db->transStatus() === false) {
+            return $this->fail('Gagal menghapus paket harga.');
+        }
+
+        return $this->respond(['status' => 'success']);
+    }
+
+    public function getAuditLogs()
+    {
+        $logs = $this->db->table('audit_logs')
+            ->select('audit_logs.*, users.name as user_name')
+            ->join('users', 'users.id = audit_logs.user_id', 'left')
+            ->orderBy('audit_logs.created_at', 'DESC')
+            ->limit(500)
+            ->get()
+            ->getResultArray();
+
+        return $this->respond($logs);
+    }
+
+    // ==================== EVENT CATEGORIES API ====================
+
+    public function getEventCategories()
+    {
+        $categories = $this->db->table('event_categories')
+            ->orderBy('name', 'ASC')
+            ->get()
+            ->getResultArray();
+        return $this->respond($categories);
+    }
+
+    public function addEventCategory()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->name)) {
+            return $this->fail('Nama kategori harus diisi.');
+        }
+
+        $name = trim($json->name);
+        $exists = $this->db->table('event_categories')->where('name', $name)->countAllResults();
+        if ($exists > 0) {
+            return $this->fail('Kategori ini sudah ada.');
+        }
+
+        $this->db->table('event_categories')->insert([
+            'name' => $name
+        ]);
+        $id = $this->db->insertID();
+
+        $this->logAction('input', 'event_categories', (string)$id, "Menambahkan kategori event baru: {$name}");
+        return $this->respondCreated(['status' => 'success', 'id' => $id, 'name' => $name]);
+    }
+
+    public function updateEventCategory()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->id) || empty($json->name)) {
+            return $this->fail('ID dan Nama kategori harus diisi.');
+        }
+
+        $id = $json->id;
+        $name = trim($json->name);
+
+        $this->db->table('event_categories')->where('id', $id)->update([
+            'name' => $name
+        ]);
+
+        $this->logAction('edit', 'event_categories', (string)$id, "Mengubah nama kategori event: {$name}");
+        return $this->respond(['status' => 'success']);
+    }
+
+    public function deleteEventCategory($id)
+    {
+        $cat = $this->db->table('event_categories')->where('id', $id)->get()->getRowArray();
+        $catName = $cat ? $cat['name'] : $id;
+
+        $this->db->table('event_categories')->where('id', $id)->delete();
+        $this->logAction('hapus', 'event_categories', (string)$id, "Menghapus kategori event: {$catName}");
+        return $this->respondDeleted(['status' => 'success']);
+    }
+
+    // ==================== SWIMMING POOLS API ====================
+
+    public function getSwimmingPools()
+    {
+        $pools = $this->db->table('swimming_pools')
+            ->orderBy('name', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        foreach ($pools as &$pool) {
+            $pool['training_days'] = json_decode($pool['training_days'] ?? '[]', true);
+            $pool['training_hours'] = json_decode($pool['training_hours'] ?? '[]', true);
+        }
+
+        return $this->respond($pools);
+    }
+
+    public function addSwimmingPool()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->name)) {
+            return $this->fail('Nama kolam renang harus diisi.');
+        }
+
+        $id = (!empty($json->id)) ? $json->id : 'pool-' . rand(10000, 99999);
+        $name = trim($json->name);
+        $days = isset($json->training_days) && is_array($json->training_days) ? json_encode($json->training_days) : '[]';
+        $hours = isset($json->training_hours) && is_array($json->training_hours) ? json_encode($json->training_hours) : '[]';
+        $description = $json->description ?? '';
+
+        $this->db->table('swimming_pools')->insert([
+            'id' => $id,
+            'name' => $name,
+            'training_days' => $days,
+            'training_hours' => $hours,
+            'description' => $description
+        ]);
+
+        $this->logAction('input', 'swimming_pools', $id, "Menambahkan master kolam renang baru: {$name}");
+        return $this->respondCreated(['status' => 'success', 'id' => $id]);
+    }
+
+    public function updateSwimmingPool()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->id) || empty($json->name)) {
+            return $this->fail('ID dan Nama kolam renang harus diisi.');
+        }
+
+        $id = $json->id;
+        $name = trim($json->name);
+        $days = isset($json->training_days) && is_array($json->training_days) ? json_encode($json->training_days) : '[]';
+        $hours = isset($json->training_hours) && is_array($json->training_hours) ? json_encode($json->training_hours) : '[]';
+        $description = $json->description ?? '';
+
+        $this->db->table('swimming_pools')->where('id', $id)->update([
+            'name' => $name,
+            'training_days' => $days,
+            'training_hours' => $hours,
+            'description' => $description
+        ]);
+
+        $this->logAction('edit', 'swimming_pools', $id, "Mengubah data master kolam renang: {$name}");
+        return $this->respond(['status' => 'success']);
+    }
+
+    public function deleteSwimmingPool($id)
+    {
+        $pool = $this->db->table('swimming_pools')->where('id', $id)->get()->getRowArray();
+        $poolName = $pool ? $pool['name'] : $id;
+
+        $this->db->table('swimming_pools')->where('id', $id)->delete();
+        $this->logAction('hapus', 'swimming_pools', $id, "Menghapus master kolam renang: {$poolName}");
+        return $this->respondDeleted(['status' => 'success']);
+    }
+
+    private function processCoachPhoto($photo, $coachName)
+    {
+        if (empty($photo)) {
+            return '/images/coach_rian.png';
+        }
+        if (strpos($photo, 'data:image/') === 0) {
+            preg_match('/data:image\/(.*?);base64,(.*)/', $photo, $matches);
+            if (count($matches) === 3) {
+                $ext = $matches[1] === 'jpeg' ? 'jpg' : ($matches[1] === 'png' ? 'png' : 'jpg');
+                $imageData = base64_decode($matches[2]);
+                $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
+                $fileName = "coach_" . $slug . "_" . time() . "." . $ext;
+                $publicImagesDir = FCPATH . 'images/';
+                if (!is_dir($publicImagesDir)) {
+                    @mkdir($publicImagesDir, 0777, true);
+                }
+                @file_put_contents($publicImagesDir . $fileName, $imageData);
+                return "/images/" . $fileName;
+            }
+        }
+        return $photo;
     }
 }

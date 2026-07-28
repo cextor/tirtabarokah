@@ -5,11 +5,11 @@
 
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import { Coach, Member, Package, ScheduleDay, EventItem, SiteSettings, ProgramLevel, CoachAbsence, BankAccount } from '../types';
+import { Coach, Member, Package, ScheduleDay, EventItem, SiteSettings, ProgramLevel, CoachAbsence, BankAccount, PricingPackage, AuditLog, EventCategory, SwimmingPool } from '../types';
 import { 
   Users, DollarSign, Award, Calendar, ShieldCheck, TrendingUp, AlertTriangle, 
   Plus, Edit, Trash, Check, X, Bell, BarChart2, PieChart as PieIcon, Settings, Phone, CheckSquare, Sparkles, Image as ImageIcon,
-  LayoutDashboard, Gift, Eye
+  LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, Key
 } from 'lucide-react';
 import { api } from '../api';
 import { 
@@ -17,6 +17,88 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
 import { motion } from 'motion/react';
+import { checkScheduleSlotConflict } from '../utils/scheduleValidation';
+
+interface SearchableSelectProps {
+  options: { value: string; label: string }[];
+  placeholder: string;
+  onSelect?: (value: string) => void;
+  onChange?: (value: string) => void;
+  value?: string;
+  className?: string;
+}
+
+function SearchableSelect({ options, placeholder, onSelect, onChange, value, className }: SearchableSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(opt =>
+    opt.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const selectedOpt = options.find(o => o.value === value);
+  const displayText = selectedOpt ? selectedOpt.label : placeholder;
+
+  return (
+    <div ref={containerRef} className={`relative ${className || ''}`}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-left text-slate-800 font-semibold flex justify-between items-center cursor-pointer shadow-xs hover:border-slate-300 transition"
+      >
+        <span className="truncate">{displayText}</span>
+        <span className="text-slate-400 text-[10px]">▼</span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-[999] mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 space-y-2 max-h-60 flex flex-col">
+          <input
+            type="text"
+            placeholder="Cari..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 transition"
+            autoFocus
+          />
+          <div className="overflow-y-auto space-y-1 pr-1 flex-1">
+            {filteredOptions.length === 0 ? (
+              <div className="text-center py-4 text-[10px] text-slate-400 italic">Tidak ada hasil ditemukan</div>
+            ) : (
+              filteredOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    if (onSelect) onSelect(opt.value);
+                    if (onChange) onChange(opt.value);
+                    setIsOpen(false);
+                    setSearch('');
+                  }}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                    opt.value === value ? 'bg-cyan-50 text-cyan-700 font-bold' : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface AdminDashboardProps {
   coaches: Coach[];
@@ -25,6 +107,11 @@ interface AdminDashboardProps {
   settings: SiteSettings;
   levels: ProgramLevel[];
   absences: CoachAbsence[];
+  pricingPackages: PricingPackage[];
+  auditLogs: AuditLog[];
+  eventCategories?: EventCategory[];
+  swimmingPools?: SwimmingPool[];
+  userRole?: string;
   onReloadData: () => void;
   onUpdateSettings: (settings: SiteSettings) => void;
   onUpdateLevels: (levels: ProgramLevel[]) => void;
@@ -57,6 +144,11 @@ export default function AdminDashboard({
   settings,
   levels,
   absences,
+  pricingPackages,
+  auditLogs = [],
+  eventCategories = [],
+  swimmingPools = [],
+  userRole = 'admin',
   onReloadData,
   onUpdateSettings,
   onUpdateLevels,
@@ -64,15 +156,36 @@ export default function AdminDashboard({
   onUpdateMembers,
   onUpdateEvents
 }: AdminDashboardProps) {
-  // Load global pricing packages
-  let globalPricingPackages: PricingPackage[] = [];
-  if (settings.pricing_packages) {
-    try {
-      globalPricingPackages = JSON.parse(settings.pricing_packages);
-    } catch (e) {}
-  }
+  const globalPricingPackages: PricingPackage[] = pricingPackages;
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'verifikasi' | 'peserta' | 'pelatih' | 'reminder' | 'events' | 'laporan' | 'pengaturan' | 'absensi_coach' | 'referral' | 'jadwal_hari_ini'>('dashboard');
+  const isOperator = userRole === 'operator';
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'verifikasi' | 'peserta' | 'pelatih' | 'reminder' | 'events' | 'laporan' | 'pengaturan' | 'absensi_coach' | 'referral' | 'jadwal_hari_ini' | 'audit_logs' | 'kolam_renang'>(() => {
+    return userRole === 'operator' ? 'verifikasi' : 'dashboard';
+  });
+
+  const [reminderSubTab, setReminderSubTab] = useState<'today' | 'tomorrow'>('today');
+  const [isPelatihGroupOpen, setIsPelatihGroupOpen] = useState<boolean>(false);
+  const [isKonfigurasiGroupOpen, setIsKonfigurasiGroupOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (activeTab === 'pelatih' || activeTab === 'absensi_coach') {
+      setIsPelatihGroupOpen(true);
+    }
+    if (activeTab === 'pengaturan' || activeTab === 'kolam_renang' || activeTab === 'audit_logs') {
+      setIsKonfigurasiGroupOpen(true);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (userRole === 'operator') {
+      const allowedOperatorTabs = ['verifikasi', 'peserta', 'pelatih', 'absensi_coach', 'reminder', 'events'];
+      if (!allowedOperatorTabs.includes(activeTab)) {
+        setActiveTab('verifikasi');
+      }
+    }
+  }, [userRole, activeTab]);
+
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   const [selectedReplacementCoachId, setSelectedReplacementCoachId] = useState<Record<string, string>>({});
@@ -134,6 +247,16 @@ export default function AdminDashboard({
   const [addSlotCoachId, setAddSlotCoachId] = useState<string>('');
   const [addSlotDayName, setAddSlotDayName] = useState<string>('');
   const [newSlotTime, setNewSlotTime] = useState<string>('');
+  const [addSlotPoolId, setAddSlotPoolId] = useState<string>('');
+
+  // Master Kolam Renang State
+  const [showPoolModal, setShowPoolModal] = useState<boolean>(false);
+  const [editingPool, setEditingPool] = useState<SwimmingPool | null>(null);
+  const [poolName, setPoolName] = useState<string>('');
+  const [poolDays, setPoolDays] = useState<string[]>([]);
+  const [poolHours, setPoolHours] = useState<string[]>([]);
+  const [newHourInput, setNewHourInput] = useState<string>('');
+  const [poolDescription, setPoolDescription] = useState<string>('');
   const [editCoachName, setEditCoachName] = useState<string>('');
   const [editCoachExperience, setEditCoachExperience] = useState<string>('');
   const [editCoachPhoto, setEditCoachPhoto] = useState<string>('');
@@ -162,6 +285,12 @@ export default function AdminDashboard({
 
   // FILTERS FOR FINANCE REPORT
   const [financeStartDate, setFinanceStartDate] = useState<string>('');
+
+  // FILTERS FOR AUDIT LOGS
+  const [auditSearch, setAuditSearch] = useState<string>('');
+  const [auditActionFilter, setAuditActionFilter] = useState<'semua' | 'input' | 'edit' | 'hapus' | 'verifikasi'>('semua');
+  const [auditStartDate, setAuditStartDate] = useState<string>('');
+  const [auditEndDate, setAuditEndDate] = useState<string>('');
   const [financeEndDate, setFinanceEndDate] = useState<string>('');
 
   // FILTERS FOR PAYMENT HISTORY TABLE
@@ -310,6 +439,46 @@ export default function AdminDashboard({
         confirmButtonColor: '#06b6d4'
       });
       return;
+    }
+
+    // Validate category conflict (Reguler vs Privat) for Sesi 1
+    const conflict1 = checkScheduleSlotConflict(
+      members,
+      selectedCoachId,
+      schDay1,
+      schTime1,
+      selectedCoachType,
+      editingStudent?.id
+    );
+    if (conflict1.isConflict) {
+      Swal.fire({
+        title: 'Jadwal Bentrok Jenis Paket!',
+        text: `Jadwal Sesi 1 (Hari ${schDay1} jam ${schTime1} WIB) sudah terisi siswa paket ${conflict1.existingType}. Paket ${selectedCoachType} tidak dapat dipilih pada jam yang sama.`,
+        icon: 'warning',
+        confirmButtonColor: '#06b6d4'
+      });
+      return;
+    }
+
+    // Validate category conflict (Reguler vs Privat) for Sesi 2 if 2x seminggu
+    if (scheduleFreq === '2x Seminggu') {
+      const conflict2 = checkScheduleSlotConflict(
+        members,
+        selectedCoachId,
+        schDay2,
+        schTime2,
+        selectedCoachType,
+        editingStudent?.id
+      );
+      if (conflict2.isConflict) {
+        Swal.fire({
+          title: 'Jadwal Bentrok Jenis Paket!',
+          text: `Jadwal Sesi 2 (Hari ${schDay2} jam ${schTime2} WIB) sudah terisi siswa paket ${conflict2.existingType}. Paket ${selectedCoachType} tidak dapat dipilih pada jam yang sama.`,
+          icon: 'warning',
+          confirmButtonColor: '#06b6d4'
+        });
+        return;
+      }
     }
 
     if (editingStudent) {
@@ -741,44 +910,6 @@ export default function AdminDashboard({
 
     onUpdateCoaches(updated);
 
-    // Synchronize back to global pricing packages coachIds
-    let globalPricingPackages: PricingPackage[] = [];
-    if (settings.pricing_packages) {
-      try {
-        globalPricingPackages = JSON.parse(settings.pricing_packages);
-      } catch (e) {}
-    }
-
-    if (globalPricingPackages.length > 0) {
-      const updatedGlobalPkgs = globalPricingPackages.map(gp => {
-        const isSelected = editCoachPackages.some(ecp => 
-          ecp.name.toLowerCase().trim() === gp.name.toLowerCase().trim() ||
-          ecp.id.includes(gp.id)
-        );
-        const currentIds = gp.coachIds || [];
-        let newIds = [...currentIds];
-        if (isSelected) {
-          if (!newIds.includes(coachId)) {
-            newIds.push(coachId);
-          }
-        } else {
-          newIds = newIds.filter(id => id !== coachId);
-        }
-        return {
-          ...gp,
-          coachIds: newIds
-        };
-      });
-
-      const updatedSettings = { ...settings, pricing_packages: JSON.stringify(updatedGlobalPkgs) };
-      try {
-        await api.updateSettings(updatedSettings);
-        onUpdateSettings(updatedSettings);
-      } catch (e) {
-        console.error("Failed to sync settings from coach save", e);
-      }
-    }
-
     setSelectedEditCoachId('');
     Swal.fire({
       title: 'Berhasil!',
@@ -841,6 +972,7 @@ export default function AdminDashboard({
     setAddSlotCoachId(coachId);
     setAddSlotDayName(dayName);
     setNewSlotTime('');
+    setAddSlotPoolId(swimmingPools.length > 0 ? swimmingPools[0].id : '');
     setShowAddSlotModal(true);
   };
 
@@ -857,12 +989,12 @@ export default function AdminDashboard({
     }
     // Replace colon (:) with dot (.) to match our database and application format
     const formattedTime = newSlotTime.replace(':', '.');
-    handleAddScheduleSlot(addSlotCoachId, addSlotDayName, formattedTime);
+    handleAddScheduleSlot(addSlotCoachId, addSlotDayName, formattedTime, addSlotPoolId);
     setShowAddSlotModal(false);
   };
 
   // ACTION: ADD TIME SLOT TO SCHEDULE
-  const handleAddScheduleSlot = (coachId: string, dayName: string, timeStr: string) => {
+  const handleAddScheduleSlot = (coachId: string, dayName: string, timeStr: string, poolId?: string) => {
     const updated = coaches.map(c => {
       if (c.id === coachId) {
         const dayExists = c.schedule.some(d => d.day === dayName);
@@ -878,8 +1010,13 @@ export default function AdminDashboard({
               if (d.timeSlots.find(ts => ts.time === timeStr)) return d;
               return {
                 ...d,
-                timeSlots: [...d.timeSlots, { time: timeStr, maxSlots: c.maxQuota || 6, currentSlots: 0, students: [] }]
-                  .sort((a, b) => a.time.localeCompare(b.time))
+                timeSlots: [...d.timeSlots, { 
+                  time: timeStr, 
+                  maxSlots: c.maxQuota || 6, 
+                  currentSlots: 0, 
+                  students: [],
+                  swimmingPoolId: poolId || undefined 
+                }].sort((a, b) => a.time.localeCompare(b.time))
               };
             }
             return d;
@@ -888,6 +1025,14 @@ export default function AdminDashboard({
       }
       return c;
     });
+
+    const targetCoach = updated.find(c => c.id === coachId);
+    if (targetCoach) {
+      api.updateCoach(targetCoach).then(() => {
+        onReloadData();
+      });
+    }
+
     onUpdateCoaches(updated);
     Swal.fire({
       title: 'Berhasil!',
@@ -895,6 +1040,137 @@ export default function AdminDashboard({
       icon: 'success',
       confirmButtonColor: '#06b6d4'
     });
+  };
+
+  // MASTER KOLAM RENANG HANDLERS
+  const handleOpenAddPoolModal = () => {
+    setEditingPool(null);
+    setPoolName('');
+    setPoolDays(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']);
+    setPoolHours(['08:00 - 09:30', '10:00 - 11:30', '14:00 - 15:30', '16:00 - 17:30']);
+    setNewHourInput('');
+    setPoolDescription('');
+    setShowPoolModal(true);
+  };
+
+  const handleOpenEditPoolModal = (pool: SwimmingPool) => {
+    setEditingPool(pool);
+    setPoolName(pool.name);
+    setPoolDays(Array.isArray(pool.training_days) ? pool.training_days : []);
+    setPoolHours(Array.isArray(pool.training_hours) ? pool.training_hours : []);
+    setNewHourInput('');
+    setPoolDescription(pool.description || '');
+    setShowPoolModal(true);
+  };
+
+  const handleTogglePoolDay = (day: string) => {
+    setPoolDays(prev => 
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  };
+
+  const handleAddPoolHour = () => {
+    if (!newHourInput.trim()) return;
+    const formatted = newHourInput.trim();
+    if (!poolHours.includes(formatted)) {
+      setPoolHours(prev => [...prev, formatted]);
+    }
+    setNewHourInput('');
+  };
+
+  const handleRemovePoolHour = (hour: string) => {
+    setPoolHours(prev => prev.filter(h => h !== hour));
+  };
+
+  const handleSavePool = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!poolName.trim()) {
+      Swal.fire('Perhatian!', 'Nama kolam renang harus diisi!', 'warning');
+      return;
+    }
+
+    try {
+      const payload = {
+        id: editingPool ? editingPool.id : undefined,
+        name: poolName.trim(),
+        training_days: poolDays,
+        training_hours: poolHours,
+        description: poolDescription.trim()
+      };
+
+      let res;
+      if (editingPool) {
+        res = await api.updateSwimmingPool(payload);
+      } else {
+        res = await api.addSwimmingPool(payload);
+      }
+
+      if (res) {
+        Swal.fire({
+          title: 'Berhasil!',
+          text: editingPool ? 'Master data kolam renang berhasil diperbarui.' : 'Master data kolam renang baru berhasil disimpan.',
+          icon: 'success',
+          confirmButtonColor: '#06b6d4'
+        });
+        setShowPoolModal(false);
+        onReloadData();
+      }
+    } catch (err: any) {
+      Swal.fire('Gagal!', err.message || 'Gagal menyimpan data kolam renang.', 'error');
+    }
+  };
+
+  const handleDeletePool = async (poolId: string) => {
+    const result = await Swal.fire({
+      title: 'Konfirmasi Hapus',
+      text: 'Apakah Anda yakin ingin menghapus data master kolam renang ini?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#f43f5e',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await api.deleteSwimmingPool(poolId);
+        Swal.fire('Berhasil!', 'Data kolam renang berhasil dihapus.', 'success');
+        onReloadData();
+      } catch (err: any) {
+        Swal.fire('Gagal!', err.message || 'Gagal menghapus data kolam renang.', 'error');
+      }
+    }
+  };
+
+  const handleQuickAddCategory = async () => {
+    const { value: categoryName } = await Swal.fire({
+      title: 'Tambah Kategori Event Baru',
+      input: 'text',
+      inputLabel: 'Nama Kategori Event:',
+      inputPlaceholder: 'Contoh: Workshop, Fun Swimming, dll.',
+      showCancelButton: true,
+      confirmButtonText: 'Simpan',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#06b6d4',
+      inputValidator: (value) => {
+        if (!value) {
+          return 'Nama kategori tidak boleh kosong!';
+        }
+      }
+    });
+
+    if (categoryName) {
+      try {
+        const res = await api.addEventCategory(categoryName);
+        if (res) {
+          Swal.fire('Berhasil!', `Kategori "${categoryName}" berhasil ditambahkan.`, 'success');
+          onReloadData();
+        }
+      } catch (err: any) {
+        Swal.fire('Gagal!', err.message || 'Gagal menambahkan kategori.', 'error');
+      }
+    }
   };
 
   // ACTION: UPDATE TIME SLOT MAX SLOTS
@@ -1219,23 +1495,15 @@ export default function AdminDashboard({
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 relative">
-      {/* Mobile Sidebar Toggle Header */}
-      <div className="lg:hidden flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm w-full">
-        <div className="flex items-center gap-2">
-          <span className="p-2 bg-cyan-50 text-cyan-600 rounded-xl">
-            <ShieldCheck className="w-5 h-5" />
-          </span>
-          <div>
-            <h3 className="font-black text-xs text-slate-800 uppercase tracking-wider">Menu Admin</h3>
-            <p className="text-[9px] text-slate-400 font-semibold font-mono">TIRTA BAROKAH</p>
-          </div>
-        </div>
+      {/* Floating Mobile Navigation Button (Always accessible regardless of scroll position) */}
+      <div className="lg:hidden fixed bottom-6 right-6 z-[99]">
         <button
           type="button"
           onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-          className="p-2 text-slate-500 hover:text-cyan-600 hover:bg-slate-50 rounded-xl border border-slate-100 transition cursor-pointer"
+          className="bg-cyan-600 hover:bg-cyan-700 active:scale-95 text-white font-extrabold px-4 py-3 rounded-full shadow-2xl flex items-center gap-2.5 ring-4 ring-cyan-500/20 transition cursor-pointer"
         >
-          {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Settings className="w-5 h-5" />}
+          {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
+          <span className="text-xs tracking-wider uppercase font-black">Menu</span>
         </button>
       </div>
 
@@ -1252,74 +1520,353 @@ export default function AdminDashboard({
         fixed inset-y-0 left-0 lg:sticky lg:top-20 z-50 lg:z-10
         w-72 lg:w-64 bg-white p-5 rounded-r-2xl lg:rounded-2xl border-r lg:border border-slate-200/60 lg:border-slate-100 
         flex flex-col justify-between shadow-xl lg:shadow-sm
-        transition-transform duration-300 ease-in-out h-full lg:h-fit lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto
+        transition-transform duration-300 ease-in-out h-dvh max-h-dvh overflow-y-auto lg:h-fit lg:max-h-[calc(100vh-6rem)]
         ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         <div className="space-y-6">
-          {/* Sidebar Title */}
+          {/* Mobile Drawer Header */}
+          <div className="lg:hidden flex justify-between items-center pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-cyan-50 text-cyan-600 rounded-xl">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-xs text-slate-800 tracking-wider uppercase">Menu {isOperator ? 'Operator' : 'Admin'}</h3>
+                <p className="text-[10px] text-slate-400 font-semibold font-mono">TIRTA BAROKAH</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(false)}
+              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Desktop Sidebar Title */}
           <div className="hidden lg:flex items-center gap-2 pb-4 border-b border-slate-100">
             <div className="p-2 bg-cyan-50 text-cyan-600 rounded-xl">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-black text-xs text-slate-800 tracking-wider uppercase">Menu Admin</h3>
+              <h3 className="font-black text-xs text-slate-800 tracking-wider uppercase">Menu {isOperator ? 'Operator' : 'Admin'}</h3>
               <p className="text-[10px] text-slate-400 font-semibold font-mono">TIRTA BAROKAH</p>
             </div>
           </div>
 
           {/* Menu Items */}
           <nav className="space-y-1">
-            {[
-              { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, color: 'text-cyan-600 bg-cyan-50' },
-              { id: 'verifikasi', label: 'Verifikasi Pembayaran', icon: ShieldCheck, badge: pendingPayments.length, color: 'text-amber-600 bg-amber-50' },
-              { id: 'peserta', label: 'Manajemen Siswa', icon: Users, badge: members.length, color: 'text-cyan-600 bg-cyan-50' },
-              { id: 'pelatih', label: 'Pelatih & Kuota', icon: Award, badge: coaches.length, color: 'text-teal-600 bg-teal-50' },
-              { id: 'absensi_coach', label: 'Izin Pelatih', icon: AlertTriangle, badge: absences.filter(a => a.status === 'Menunggu').length, color: 'text-rose-600 bg-rose-50' },
-              { id: 'jadwal_hari_ini', label: 'Jadwal Hari Ini', icon: Calendar, color: 'text-amber-600 bg-amber-50' },
-              { id: 'reminder', label: 'Jadwal & Reminder H-1', icon: Bell, color: 'text-indigo-600 bg-indigo-50' },
-              { id: 'referral', label: 'Rekap Referral', icon: Gift, color: 'text-indigo-600 bg-indigo-50' },
-              { id: 'events', label: 'Event/Berita', icon: ImageIcon, badge: events.length, color: 'text-rose-600 bg-rose-50' },
-              { id: 'laporan', label: 'Laporan Keuangan', icon: BarChart2, color: 'text-emerald-600 bg-emerald-50' },
-              { id: 'pengaturan', label: 'Kelola Profil & Level', icon: Settings, color: 'text-violet-600 bg-violet-50' },
-            ].map(item => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
+            {/* 1. Dashboard (Admin Only) */}
+            {!isOperator && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('dashboard');
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                  activeTab === 'dashboard'
+                    ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                  <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'dashboard' ? 'bg-white/15 text-white' : 'text-cyan-600 bg-cyan-50'}`}>
+                    <LayoutDashboard className="w-4 h-4" />
+                  </div>
+                  <span className="truncate text-xs leading-tight">Dashboard</span>
+                </div>
+              </button>
+            )}
+
+            {/* 2. Verifikasi Pembayaran */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('verifikasi');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                activeTab === 'verifikasi'
+                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'verifikasi' ? 'bg-white/15 text-white' : 'text-amber-600 bg-amber-50'}`}>
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <span className="truncate text-xs leading-tight">Verifikasi Pembayaran</span>
+              </div>
+              {pendingPayments.length > 0 && (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide font-mono shrink-0 ml-1.5 ${
+                  activeTab === 'verifikasi' ? 'bg-white text-cyan-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {pendingPayments.length}
+                </span>
+              )}
+            </button>
+
+            {/* 3. Manajemen Siswa */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('peserta');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                activeTab === 'peserta'
+                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'peserta' ? 'bg-white/15 text-white' : 'text-cyan-600 bg-cyan-50'}`}>
+                  <Users className="w-4 h-4" />
+                </div>
+                <span className="truncate text-xs leading-tight">Manajemen Siswa</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide font-mono shrink-0 ml-1.5 ${
+                activeTab === 'peserta' ? 'bg-white text-cyan-800' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {members.length}
+              </span>
+            </button>
+
+            {/* 4. Group: Pelatih (Submenu: Pelatih & Kuota, Izin Pelatih) */}
+            <div className="space-y-1 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsPelatihGroupOpen(!isPelatihGroupOpen)}
+                className="w-full px-3 py-2 rounded-xl text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between hover:bg-slate-50 cursor-pointer select-none transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Award className="w-4 h-4 text-teal-600" />
+                  <span>Pelatih</span>
+                </div>
+                {isPelatihGroupOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
+              </button>
+
+              {isPelatihGroupOpen && (
+                <div className="pl-3 space-y-1 border-l-2 border-slate-100 ml-3">
+                  {/* 4a. Pelatih & Kuota */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('pelatih');
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                      activeTab === 'pelatih'
+                        ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10 font-black'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
+                      <div className={`p-1 rounded-lg shrink-0 ${activeTab === 'pelatih' ? 'bg-white/15 text-white' : 'text-teal-600 bg-teal-50'}`}>
+                        <Award className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="truncate text-xs leading-tight">Pelatih & Kuota</span>
+                    </div>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black font-mono shrink-0 ${
+                      activeTab === 'pelatih' ? 'bg-white text-teal-800' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {coaches.length}
+                    </span>
+                  </button>
+
+                  {/* 4b. Izin Pelatih */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('absensi_coach');
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                      activeTab === 'absensi_coach'
+                        ? 'bg-rose-600 text-white shadow-md shadow-rose-600/10 font-black'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
+                      <div className={`p-1 rounded-lg shrink-0 ${activeTab === 'absensi_coach' ? 'bg-white/15 text-white' : 'text-rose-600 bg-rose-50'}`}>
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="truncate text-xs leading-tight">Izin Pelatih</span>
+                    </div>
+                    {absences.filter(a => a.status === 'Menunggu').length > 0 && (
+                      <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black font-mono shrink-0 ${
+                        activeTab === 'absensi_coach' ? 'bg-white text-rose-800' : 'bg-rose-100 text-rose-800'
+                      }`}>
+                        {absences.filter(a => a.status === 'Menunggu').length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 5. Jadwal & Reminder (Combined Menu) */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('reminder');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                activeTab === 'reminder'
+                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'reminder' ? 'bg-white/15 text-white' : 'text-indigo-600 bg-indigo-50'}`}>
+                  <Bell className="w-4 h-4" />
+                </div>
+                <span className="truncate text-xs leading-tight">Jadwal & Reminder</span>
+              </div>
+            </button>
+
+            {/* 6. Event & Berita */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('events');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                activeTab === 'events'
+                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'events' ? 'bg-white/15 text-white' : 'text-rose-600 bg-rose-50'}`}>
+                  <ImageIcon className="w-4 h-4" />
+                </div>
+                <span className="truncate text-xs leading-tight">Event/Berita</span>
+              </div>
+              {events.length > 0 && (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide font-mono shrink-0 ml-1.5 ${
+                  activeTab === 'events' ? 'bg-white text-cyan-800' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {events.length}
+                </span>
+              )}
+            </button>
+
+            {/* 7. Laporan Keuangan (Admin Only) */}
+            {!isOperator && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('laporan');
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                  activeTab === 'laporan'
+                    ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                  <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'laporan' ? 'bg-white/15 text-white' : 'text-emerald-600 bg-emerald-50'}`}>
+                    <BarChart2 className="w-4 h-4" />
+                  </div>
+                  <span className="truncate text-xs leading-tight">Laporan Keuangan</span>
+                </div>
+              </button>
+            )}
+
+            {/* 8. Group: Konfigurasi (Admin Only - Submenus: Kelola Profil & Level, Master Kolam Renang, Log Aktivitas) */}
+            {!isOperator && (
+              <div className="space-y-1 pt-1">
                 <button
                   type="button"
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id as any);
-                    setIsMobileSidebarOpen(false);
-                  }}
-                  className={`
-                    w-full px-3.5 py-3 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer
-                    ${isActive 
-                      ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black' 
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }
-                  `}
+                  onClick={() => setIsKonfigurasiGroupOpen(!isKonfigurasiGroupOpen)}
+                  className="w-full px-3 py-2 rounded-xl text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between hover:bg-slate-50 cursor-pointer select-none transition"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-white/15 text-white' : item.color}`}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <span>{item.label}</span>
+                  <div className="flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-violet-600" />
+                    <span>Konfigurasi</span>
                   </div>
-                  {item.badge !== undefined && (
-                    <span className={`
-                      px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide font-mono
-                      ${isActive 
-                        ? 'bg-white text-cyan-800' 
-                        : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
-                      }
-                    `}>
-                      {item.badge}
-                    </span>
-                  )}
+                  {isKonfigurasiGroupOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
                 </button>
-              );
-            })}
+
+                {isKonfigurasiGroupOpen && (
+                  <div className="pl-3 space-y-1 border-l-2 border-slate-100 ml-3">
+                    {/* 8a. Kelola Profil & Level */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('pengaturan');
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                        activeTab === 'pengaturan'
+                          ? 'bg-violet-600 text-white shadow-md shadow-violet-600/10 font-black'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
+                        <div className={`p-1 rounded-lg shrink-0 ${activeTab === 'pengaturan' ? 'bg-white/15 text-white' : 'text-violet-600 bg-violet-50'}`}>
+                          <Settings className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="truncate text-xs leading-tight">Kelola Profil & Level</span>
+                      </div>
+                    </button>
+
+                    {/* 8b. Master Kolam Renang */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('kolam_renang');
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                        activeTab === 'kolam_renang'
+                          ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
+                        <div className={`p-1 rounded-lg shrink-0 ${activeTab === 'kolam_renang' ? 'bg-white/15 text-white' : 'text-cyan-600 bg-cyan-50'}`}>
+                          <MapPin className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="truncate text-xs leading-tight">Master Kolam Renang</span>
+                      </div>
+                      <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black font-mono shrink-0 ${
+                        activeTab === 'kolam_renang' ? 'bg-white text-cyan-800' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {swimmingPools.length}
+                      </span>
+                    </button>
+
+                    {/* 8c. Log Aktivitas */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('audit_logs');
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                        activeTab === 'audit_logs'
+                          ? 'bg-slate-700 text-white shadow-md shadow-slate-700/10 font-black'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
+                        <div className={`p-1 rounded-lg shrink-0 ${activeTab === 'audit_logs' ? 'bg-white/15 text-white' : 'text-slate-600 bg-slate-100'}`}>
+                          <List className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="truncate text-xs leading-tight">Log Aktivitas</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </nav>
         </div>
 
@@ -1327,7 +1874,7 @@ export default function AdminDashboard({
         <div className="pt-4 border-t border-slate-100 mt-6 space-y-2">
           <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl text-[10px] text-slate-500 font-semibold">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
-            <span>Mode: Administrator</span>
+            <span>Mode: {isOperator ? 'Operator Sistem' : 'Administrator'}</span>
           </div>
         </div>
       </aside>
@@ -1347,8 +1894,23 @@ export default function AdminDashboard({
                 <p className="text-slate-500 text-xs">Informasi ringkas mengenai status keuangan, siswa, pelatih, dan aktivitas renang Tirta Barokah.</p>
               </div>
               
-              {/* Date Filter Selector */}
-              <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-auto shadow-xs border border-slate-200/50">
+              {/* Date Filter Selector - Mobile Select & Desktop Pills */}
+              <div className="sm:hidden w-full mt-2">
+                <select
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value as any)}
+                  className="w-full bg-slate-50 border border-slate-200 font-bold text-xs text-slate-800 px-3 py-2.5 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 cursor-pointer"
+                >
+                  <option value="hari-ini">Rentang: Hari Ini</option>
+                  <option value="seminggu">Rentang: Seminggu</option>
+                  <option value="sebulan">Rentang: Sebulan</option>
+                  <option value="setahun">Rentang: Setahun</option>
+                  <option value="kustom">Rentang: Pilih Tanggal (Kustom)</option>
+                  <option value="semua">Rentang: Semua Waktu</option>
+                </select>
+              </div>
+
+              <div className="hidden sm:flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl shadow-xs border border-slate-200/50">
                 {[
                   { id: 'hari-ini', label: 'Hari Ini' },
                   { id: 'seminggu', label: 'Seminggu' },
@@ -1407,44 +1969,52 @@ export default function AdminDashboard({
             )}
 
             {/* 4 Stats Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md transition duration-200">
-                <div className="p-3 bg-cyan-50 rounded-xl text-cyan-600">
-                  <DollarSign className="w-6 h-6" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+              <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 min-w-0">
+                <div className="p-2 sm:p-3 bg-cyan-50 rounded-xl text-cyan-600 shrink-0">
+                  <DollarSign className="w-4 h-4 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <p className="text-[11px] text-slate-500 font-semibold uppercase">Total Pendapatan</p>
-                  <h4 className="text-lg font-black text-slate-800">Rp {totalRevenueFiltered.toLocaleString('id-ID')}</h4>
-                </div>
-              </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md transition duration-200">
-                <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
-                  <Users className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-[11px] text-slate-500 font-semibold uppercase">Member Aktif</p>
-                  <h4 className="text-lg font-black text-slate-800">{activeMembersFiltered.length} Anak</h4>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Total Pendapatan</p>
+                  <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate" title={`Rp ${totalRevenueFiltered.toLocaleString('id-ID')}`}>
+                    Rp {totalRevenueFiltered.toLocaleString('id-ID')}
+                  </h4>
                 </div>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer" onClick={() => setActiveTab('verifikasi')}>
-                <div className="p-3 bg-amber-50 rounded-xl text-amber-600">
-                  <ShieldCheck className="w-6 h-6" />
+              <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 min-w-0">
+                <div className="p-2 sm:p-3 bg-emerald-50 rounded-xl text-emerald-600 shrink-0">
+                  <Users className="w-4 h-4 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <p className="text-[11px] text-slate-500 font-semibold uppercase">Butuh Verifikasi</p>
-                  <h4 className="text-lg font-black text-slate-800">{pendingPaymentsFiltered.length} Akun</h4>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Member Aktif</p>
+                  <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate">
+                    {activeMembersFiltered.length} Anak
+                  </h4>
                 </div>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer" onClick={() => { setActiveTab('peserta'); setPesertaFilter('hampir-habis'); }}>
-                <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
-                  <AlertTriangle className="w-6 h-6" />
+              <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer min-w-0" onClick={() => setActiveTab('verifikasi')}>
+                <div className="p-2 sm:p-3 bg-amber-50 rounded-xl text-amber-600 shrink-0">
+                  <ShieldCheck className="w-4 h-4 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <p className="text-[11px] text-slate-500 font-semibold uppercase">Paket Habis / Kurang</p>
-                  <h4 className="text-lg font-black text-slate-800">{expiringMembersFiltered.length} Siswa</h4>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Butuh Verifikasi</p>
+                  <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate">
+                    {pendingPaymentsFiltered.length} Akun
+                  </h4>
+                </div>
+              </div>
+
+              <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer min-w-0" onClick={() => { setActiveTab('peserta'); setPesertaFilter('hampir-habis'); }}>
+                <div className="p-2 sm:p-3 bg-rose-50 rounded-xl text-rose-600 shrink-0">
+                  <AlertTriangle className="w-4 h-4 sm:w-6 sm:h-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Paket Habis / Kurang</p>
+                  <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate">
+                    {expiringMembersFiltered.length} Siswa
+                  </h4>
                 </div>
               </div>
             </div>
@@ -1541,130 +2111,6 @@ export default function AdminDashboard({
           </div>
         )}
 
-        {/* TAB: JADWAL HARI INI */}
-        {activeTab === 'jadwal_hari_ini' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-amber-600" /> Jadwal Latihan Hari Ini
-                </h3>
-                <p className="text-slate-500 text-xs mt-1">
-                  Melihat daftar siswa aktif yang terjadwal latihan pada hari ini beserta pelatih pendampingnya, dan catat presensi latihan secara instan.
-                </p>
-              </div>
-              
-              {/* Day Selector */}
-              <div className="flex items-center gap-2 text-xs">
-                <span className="font-bold text-slate-650 text-slate-600">Pilih Hari Latihan:</span>
-                <select
-                  value={selectedScheduleDayFilter || getIndonesianDayName(new Date())}
-                  onChange={(e) => setSelectedScheduleDayFilter(e.target.value)}
-                  className="bg-white border border-slate-200 px-3 py-2 rounded-xl font-bold text-slate-800 focus:outline-hidden"
-                >
-                  {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map(day => (
-                    <option key={day} value={day}>{day} {day === getIndonesianDayName(new Date()) ? '(Hari Ini)' : ''}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Schedule List */}
-            {(() => {
-              const targetDay = selectedScheduleDayFilter || getIndonesianDayName(new Date());
-              const scheduledToday = members.filter(m => {
-                if (m.isActive === false || m.sessionsLeft <= 0 || m.status === 'Selesai' || m.status === 'Menunggu Verifikasi') {
-                  return false;
-                }
-                const mSchedules = m.schedules && m.schedules.length > 0
-                  ? m.schedules
-                  : [{ coachId: m.coachId, day: m.scheduleDay, time: m.scheduleTime }];
-                
-                return mSchedules.some(s => s.day === targetDay);
-              });
-
-              if (scheduledToday.length === 0) {
-                return (
-                  <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                    <Calendar className="w-10 h-10 text-slate-300 mx-auto" />
-                    <p className="text-xs text-slate-400 mt-2 font-semibold">Tidak ada jadwal latihan renang pada hari {targetDay}.</p>
-                  </div>
-                );
-              }
-
-              const sortedScheduled = scheduledToday.sort((a, b) => {
-                const getFirstTime = (m: Member) => {
-                  const mSchedules = m.schedules && m.schedules.length > 0 ? m.schedules : [{ time: m.scheduleTime }];
-                  const sched = mSchedules.find(s => s.day === targetDay);
-                  return sched ? sched.time : '24:00';
-                };
-                return getFirstTime(a).localeCompare(getFirstTime(b));
-              });
-
-              return (
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-200">
-                          <th className="p-3.5">Waktu Latihan</th>
-                          <th className="p-3.5">Siswa (ID)</th>
-                          <th className="p-3.5">Nama Orang Tua</th>
-                          <th className="p-3.5">Pelatih / Coach</th>
-                          <th className="p-3.5 text-center">Sisa Paket</th>
-                          <th className="p-3.5 text-right">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {sortedScheduled.map(member => {
-                          const mSchedules = member.schedules && member.schedules.length > 0
-                            ? member.schedules
-                            : [{ coachId: member.coachId, day: member.scheduleDay, time: member.scheduleTime }];
-                          const currentSched = mSchedules.find(s => s.day === targetDay);
-                          const coach = coaches.find(c => c.id === currentSched?.coachId);
-
-                          return (
-                            <tr key={member.id} className="text-slate-700 hover:bg-slate-50/50 transition">
-                              <td className="p-3.5 font-bold font-mono text-cyan-700 text-sm">
-                                {currentSched?.time || member.scheduleTime} WIB
-                              </td>
-                              <td className="p-3.5">
-                                <span className="font-extrabold block text-slate-800">{member.student.fullName}</span>
-                                <span className="text-[10px] text-slate-400 font-mono">ID: {member.id}</span>
-                              </td>
-                              <td className="p-3.5 font-medium">
-                                <div className="font-bold text-slate-700">{member.parent.fatherMotherName}</div>
-                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">{member.parent.whatsapp}</div>
-                              </td>
-                              <td className="p-3.5">
-                                <span className="font-bold text-slate-850 text-slate-800 bg-cyan-50/50 border border-cyan-100 text-cyan-800 px-2.5 py-1 rounded-lg">
-                                  {coach ? coach.name : 'Belum Ditentukan'}
-                                </span>
-                              </td>
-                              <td className="p-3.5 text-center">
-                                <span className="font-bold text-slate-800 block">{member.sessionsLeft} Sesi</span>
-                                <span className="text-[9px] text-slate-400 block mt-0.5">dari {member.sessionsTotal} total</span>
-                              </td>
-                              <td className="p-3.5 text-right">
-                                <button
-                                  onClick={() => handleLogAttendance(member.id)}
-                                  className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl border border-transparent flex items-center gap-1 transition ml-auto shadow-xs cursor-pointer"
-                                >
-                                  <CheckSquare className="w-3.5 h-3.5" /> Absen Sesi
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
 
 
         {/* TAB 1: VERIFIKASI PEMBAYARAN */}
@@ -1733,11 +2179,6 @@ export default function AdminDashboard({
                           <div className="flex items-center gap-2">
                             <span className="font-extrabold text-sm text-slate-800">{member.student.fullName}</span>
                             <span className="text-[10px] font-mono bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded font-bold">{member.id}</span>
-                            {member.referralCodeUsed && (
-                              <span className="text-[9px] font-mono bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded font-bold">
-                                Ref: {member.referralCodeUsed}
-                              </span>
-                            )}
                           </div>
                           <div className="text-xs text-slate-500 grid grid-cols-2 gap-x-6 gap-y-1">
                             <p>📅 Tgl Daftar: <strong className="text-slate-700 font-mono">{member.registeredAt ? member.registeredAt.substring(0, 16).replace('T', ' ') : '-'}</strong></p>
@@ -1806,7 +2247,7 @@ export default function AdminDashboard({
                     resetStudentForm();
                     setShowStudentModal(true);
                   }}
-                  className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 transition shadow-md shadow-cyan-600/10 cursor-pointer whitespace-nowrap"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 transition shadow-md shadow-emerald-600/10 cursor-pointer whitespace-nowrap"
                 >
                   <Plus className="w-4 h-4" /> Tambah Siswa Baru
                 </button>
@@ -1918,7 +2359,7 @@ export default function AdminDashboard({
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditModal(member)}
-                                className="p-1.5 text-slate-500 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition"
+                                className="p-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition"
                                 title="Edit Detail Siswa"
                               >
                                 <Edit className="w-4 h-4" />
@@ -1950,7 +2391,7 @@ export default function AdminDashboard({
                               {/* STOP PACKET / DELETE USER */}
                               <button
                                 onClick={() => handleDeleteMember(member.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition"
                                 title="Stop Latihan (Hapus Member)"
                               >
                                 <Trash className="w-4 h-4" />
@@ -2416,9 +2857,14 @@ export default function AdminDashboard({
                             onChange={(e) => setSchTime1(e.target.value)}
                             className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs focus:outline-hidden"
                           >
-                            {((coaches.find(c => c.id === selectedCoachId) || coaches[0])?.schedule.find(d => d.day === schDay1)?.timeSlots || []).map(ts => (
-                              <option key={ts.time} value={ts.time}>{ts.time} WIB ({ts.currentSlots}/{ts.maxSlots} terisi)</option>
-                            ))}
+                            {((coaches.find(c => c.id === selectedCoachId) || coaches[0])?.schedule.find(d => d.day === schDay1)?.timeSlots || []).map(ts => {
+                              const conf = checkScheduleSlotConflict(members, selectedCoachId, schDay1, ts.time, selectedCoachType, editingStudent?.id);
+                              return (
+                                <option key={ts.time} value={ts.time} disabled={conf.isConflict}>
+                                  {ts.time} WIB ({ts.currentSlots}/{ts.maxSlots} terisi){conf.isConflict ? ` 🚫 Bentrok Paket ${conf.existingType}` : ''}
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
 
@@ -2484,9 +2930,14 @@ export default function AdminDashboard({
                                 onChange={(e) => setSchTime2(e.target.value)}
                                 className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs focus:outline-hidden"
                               >
-                                {((coaches.find(c => c.id === selectedCoachId) || coaches[0])?.schedule.find(d => d.day === schDay2)?.timeSlots || []).map(ts => (
-                                  <option key={ts.time} value={ts.time}>{ts.time} WIB ({ts.currentSlots}/{ts.maxSlots} terisi)</option>
-                                ))}
+                                {((coaches.find(c => c.id === selectedCoachId) || coaches[0])?.schedule.find(d => d.day === schDay2)?.timeSlots || []).map(ts => {
+                                  const conf = checkScheduleSlotConflict(members, selectedCoachId, schDay2, ts.time, selectedCoachType, editingStudent?.id);
+                                  return (
+                                    <option key={ts.time} value={ts.time} disabled={conf.isConflict}>
+                                      {ts.time} WIB ({ts.currentSlots}/{ts.maxSlots} terisi){conf.isConflict ? ` 🚫 Bentrok Paket ${conf.existingType}` : ''}
+                                    </option>
+                                  );
+                                })}
                               </select>
                             </div>
                             <div></div>
@@ -2564,160 +3015,331 @@ export default function AdminDashboard({
           </div>
         )}
 
-        {/* TAB 3: REMINDERS & NOTIFIKASI H-1 */}
+        {/* TAB 3: JADWAL & REMINDER (COMBINED) */}
         {activeTab === 'reminder' && (
           <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            {/* Header & Sub-Tab Switcher */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h3 className="text-sm font-black text-slate-800 flex items-center gap-1">
-                  <Bell className="w-4 h-4 text-cyan-600" /> Pengingat Latihan H-1 & Paket Expiring
+                <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-cyan-600" /> Manajemen Jadwal Latihan & Reminder WhatsApp
                 </h3>
-                <p className="text-slate-500 text-[11px] mt-0.5">Admin mengonfirmasi pesan WhatsApp pengingat besok latihan atau sisa sesi paket yang akan segera habis.</p>
+                <p className="text-slate-500 text-[11px] mt-0.5">
+                  Pilih tab di sebelah kanan untuk beralih antara <strong>Jadwal Latihan Hari Ini</strong> dan <strong>Pengingat WhatsApp H-1 & Paket Expiring</strong>.
+                </p>
               </div>
 
-              {/* Simulated Date Selector */}
-              <div className="space-y-1 w-full md:w-auto">
-                <label className="text-[10px] font-bold text-slate-500 block">Pilih Hari:</label>
-                <select 
-                  value={simulatedToday} 
-                  onChange={(e) => setSimulatedToday(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-hidden"
+              {/* Sub-Tab Selector Pills */}
+              <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-xs self-start sm:self-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setReminderSubTab('today')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+                    reminderSubTab === 'today'
+                      ? 'bg-amber-500 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
                 >
-                  {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map(d => (
-                    <option key={d} value={d}>Hari {d}</option>
-                  ))}
-                </select>
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Jadwal Hari Ini</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReminderSubTab('tomorrow')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+                    reminderSubTab === 'tomorrow'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>Reminder & Besok (H-1)</span>
+                </button>
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-8">
-              {/* Box 1: H-1 Scheduled Latihan */}
-              <div className="space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h4 className="font-black text-sm text-slate-800 flex items-center gap-1">
-                    <Calendar className="w-4 h-4 text-cyan-600" /> Jadwal Latihan Besok ({esokHari})
-                  </h4>
-                  <p className="text-[10px] text-slate-400">Daftar siswa aktif yang memiliki sesi latihan besok.</p>
+            {/* SUB-TAB 1: JADWAL HARI INI */}
+            {reminderSubTab === 'today' && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-3">
+                  <div>
+                    <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-amber-500" />
+                      Presensi & Jadwal Latihan Hari Ini ({selectedScheduleDayFilter || getIndonesianDayName(new Date())})
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Daftar murid aktif yang memiliki jadwal latihan renang pada hari terpilih.</p>
+                  </div>
+                  
+                  {/* Day Selector */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-bold text-slate-600">Pilih Hari Latihan:</span>
+                    <select
+                      value={selectedScheduleDayFilter || getIndonesianDayName(new Date())}
+                      onChange={(e) => setSelectedScheduleDayFilter(e.target.value)}
+                      className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl font-bold text-slate-800 focus:outline-hidden"
+                    >
+                      {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map(day => (
+                        <option key={day} value={day}>{day} {day === getIndonesianDayName(new Date()) ? '(Hari Ini)' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                {membersScheduledTomorrow.length === 0 ? (
-                  <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200">
-                    <Calendar className="w-8 h-8 text-slate-300 mx-auto" />
-                    <p className="text-[11px] text-slate-400 font-semibold mt-1.5">Tidak ada jadwal latihan pada hari {esokHari}.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                    {membersScheduledTomorrow.map(member => {
-                      const coach = coaches.find(c => c.id === member.coachId);
-                      const jam = member.scheduleDay === esokHari ? member.scheduleTime : member.scheduleTime2;
-                      return (
-                        <div key={member.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center hover:border-cyan-200 transition">
-                          <div>
-                            <p className="font-bold text-xs text-slate-800">{member.student.fullName}</p>
-                            <p className="text-[10px] text-slate-500 mt-0.5"> Coach: {coach?.name} | Pukul: {jam} WIB</p>
-                          </div>
-                          <a
-                            href={getWhatsAppH1Link(member)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3 py-2 rounded-lg text-[10px] flex items-center gap-1 cursor-pointer"
-                          >
-                            <Phone className="w-3.5 h-3.5" /> Kirim H-1 WA
-                          </a>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                {/* Schedule List Table */}
+                {(() => {
+                  const targetDay = selectedScheduleDayFilter || getIndonesianDayName(new Date());
+                  const scheduledToday = members.filter(m => {
+                    if (m.isActive === false || m.sessionsLeft <= 0 || m.status === 'Selesai' || m.status === 'Menunggu Verifikasi') {
+                      return false;
+                    }
+                    const mSchedules = m.schedules && m.schedules.length > 0
+                      ? m.schedules
+                      : [{ coachId: m.coachId, day: m.scheduleDay, time: m.scheduleTime }];
+                    
+                    return mSchedules.some(s => s.day === targetDay);
+                  });
+
+                  if (scheduledToday.length === 0) {
+                    return (
+                      <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <Calendar className="w-10 h-10 text-slate-300 mx-auto" />
+                        <p className="text-xs text-slate-400 mt-2 font-semibold">Tidak ada jadwal latihan renang pada hari {targetDay}.</p>
+                      </div>
+                    );
+                  }
+
+                  const sortedScheduled = scheduledToday.sort((a, b) => {
+                    const getFirstTime = (m: Member) => {
+                      const mSchedules = m.schedules && m.schedules.length > 0 ? m.schedules : [{ time: m.scheduleTime }];
+                      const sched = mSchedules.find(s => s.day === targetDay);
+                      return sched ? sched.time : '24:00';
+                    };
+                    return getFirstTime(a).localeCompare(getFirstTime(b));
+                  });
+
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider">
+                              <th className="p-3.5">Waktu Latihan</th>
+                              <th className="p-3.5">Siswa (ID)</th>
+                              <th className="p-3.5">Nama Orang Tua</th>
+                              <th className="p-3.5">Pelatih / Coach</th>
+                              <th className="p-3.5 text-center">Sisa Paket</th>
+                              <th className="p-3.5 text-right">Aksi Presensi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {sortedScheduled.map(member => {
+                              const mSchedules = member.schedules && member.schedules.length > 0
+                                ? member.schedules
+                                : [{ coachId: member.coachId, day: member.scheduleDay, time: member.scheduleTime }];
+                              const currentSched = mSchedules.find(s => s.day === targetDay);
+                              const coach = coaches.find(c => c.id === currentSched?.coachId);
+
+                              return (
+                                <tr key={member.id} className="text-slate-700 hover:bg-slate-50/50 transition">
+                                  <td className="p-3.5 font-bold font-mono text-cyan-700 text-sm">
+                                    {currentSched?.time || member.scheduleTime} WIB
+                                  </td>
+                                  <td className="p-3.5">
+                                    <span className="font-extrabold block text-slate-800">{member.student.fullName}</span>
+                                    <span className="text-[10px] text-slate-400 font-mono">ID: {member.id}</span>
+                                  </td>
+                                  <td className="p-3.5 font-medium">
+                                    <div className="font-bold text-slate-700">{member.parent.fatherMotherName}</div>
+                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{member.parent.whatsapp}</div>
+                                  </td>
+                                  <td className="p-3.5">
+                                    <span className="font-bold text-slate-800 bg-cyan-50/50 border border-cyan-100 text-cyan-800 px-2.5 py-1 rounded-lg">
+                                      {coach ? coach.name : 'Belum Ditentukan'}
+                                    </span>
+                                  </td>
+                                  <td className="p-3.5 text-center">
+                                    <span className="font-bold text-slate-800 block">{member.sessionsLeft} Sesi</span>
+                                    <span className="text-[9px] text-slate-400 block mt-0.5">dari {member.sessionsTotal} total</span>
+                                  </td>
+                                  <td className="p-3.5 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleLogAttendance(member.id)}
+                                      className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl border border-transparent flex items-center gap-1 transition ml-auto shadow-xs cursor-pointer"
+                                    >
+                                      <CheckSquare className="w-3.5 h-3.5" /> Absen Sesi
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
+            )}
 
-              {/* Box 2: Expiring Members Reminder */}
-              <div className="space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h4 className="font-black text-sm text-slate-800 flex items-center gap-1">
-                    <AlertTriangle className="w-4 h-4 text-rose-500" /> Sisa Sesi Paket Hampir Habis (≤ 2 Sesi)
-                  </h4>
-                  <p className="text-[10px] text-slate-400">Kirim WhatsApp penawaran perpanjangan atau stop (hapus slot jika menolak).</p>
+            {/* SUB-TAB 2: REMINDER & JADWAL BESOK (H-1) */}
+            {reminderSubTab === 'tomorrow' && (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                  <div>
+                    <h4 className="text-xs font-black text-indigo-900 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Bell className="w-4 h-4 text-indigo-600" /> Simulasi Kirim Reminder WhatsApp H-1
+                    </h4>
+                    <p className="text-slate-500 text-[11px] mt-0.5">Pilih hari kerja untuk menguji dan mengirim pesan otomatis H-1 ke WhatsApp wali murid.</p>
+                  </div>
+
+                  {/* Simulated Date Selector */}
+                  <div className="flex items-center gap-2 text-xs w-full md:w-auto">
+                    <label className="text-[10px] font-bold text-slate-500">Pilih Hari:</label>
+                    <select 
+                      value={simulatedToday} 
+                      onChange={(e) => setSimulatedToday(e.target.value)}
+                      className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-hidden"
+                    >
+                      {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map(d => (
+                        <option key={d} value={d}>Hari {d}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                {expiringMembers.length === 0 ? (
-                  <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200">
-                    <ShieldCheck className="w-8 h-8 text-slate-300 mx-auto" />
-                    <p className="text-[11px] text-slate-400 font-semibold mt-1.5">Semua siswa memiliki sisa paket yang cukup.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                    {expiringMembers.map(member => {
-                      return (
-                        <div key={member.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5 hover:border-cyan-200 transition">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-bold text-xs text-slate-800">{member.student.fullName}</p>
-                              <p className="text-[10px] text-slate-500">Sisa Paket: <span className="font-black text-rose-600">{member.sessionsLeft} Sesi</span></p>
+                <div className="grid md:grid-cols-2 gap-8">
+                  {/* Box 1: H-1 Scheduled Latihan */}
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 pb-2">
+                      <h4 className="font-black text-sm text-slate-800 flex items-center gap-1">
+                        <Calendar className="w-4 h-4 text-cyan-600" /> Jadwal Latihan Besok ({esokHari})
+                      </h4>
+                      <p className="text-[10px] text-slate-400">Daftar siswa aktif yang memiliki sesi latihan besok.</p>
+                    </div>
+
+                    {membersScheduledTomorrow.length === 0 ? (
+                      <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200">
+                        <Calendar className="w-8 h-8 text-slate-300 mx-auto" />
+                        <p className="text-[11px] text-slate-400 font-semibold mt-1.5">Tidak ada jadwal latihan pada hari {esokHari}.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                        {membersScheduledTomorrow.map(member => {
+                          const coach = coaches.find(c => c.id === member.coachId);
+                          const jam = member.scheduleDay === esokHari ? member.scheduleTime : member.scheduleTime2;
+                          return (
+                            <div key={member.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center hover:border-cyan-200 transition">
+                              <div>
+                                <p className="font-bold text-xs text-slate-800">{member.student.fullName}</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5"> Coach: {coach?.name} | Pukul: {jam} WIB</p>
+                              </div>
+                              <a
+                                href={getWhatsAppH1Link(member)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3 py-2 rounded-lg text-[10px] flex items-center gap-1 cursor-pointer"
+                              >
+                                <Phone className="w-3.5 h-3.5" /> Kirim H-1 WA
+                              </a>
                             </div>
-                            <span className="text-[9px] font-bold font-mono bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded border border-rose-200">SISA SEDIKIT</span>
-                          </div>
-
-                          <div className="flex gap-2.5">
-                            <a
-                                  href={getWhatsAppExpiringLink(member)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-2.5 py-1.5 rounded-lg text-[10px] flex items-center justify-center gap-1 cursor-pointer"
-                            >
-                              <Phone className="w-3.5 h-3.5" /> WA Perpanjangan
-                            </a>
-                            <button
-                              onClick={() => {
-                                Swal.fire({
-                                  title: 'Perpanjang Paket?',
-                                  text: `Perpanjang paket siswa ${member.student.fullName}?`,
-                                  icon: 'question',
-                                  showCancelButton: true,
-                                  confirmButtonColor: '#06b6d4',
-                                  cancelButtonColor: '#64748b',
-                                  confirmButtonText: 'Ya, Perpanjang!',
-                                  cancelButtonText: 'Batal'
-                                }).then((result) => {
-                                  if (result.isConfirmed) {
-                                    const updated = members.map(m => {
-                                      if (m.id === member.id) {
-                                        return {
-                                          ...m,
-                                          sessionsLeft: m.sessionsTotal,
-                                          status: 'Aktif' as any
-                                        };
-                                      }
-                                      return m;
-                                    });
-                                    onUpdateMembers(updated);
-                                    Swal.fire({
-                                      title: 'Berhasil!',
-                                      text: 'Paket berhasil diperpanjang!',
-                                      icon: 'success',
-                                      confirmButtonColor: '#06b6d4'
-                                    });
-                                  }
-                                });
-                              }}
-                              className="bg-cyan-600 hover:bg-cyan-500 text-white font-black px-2.5 py-1.5 rounded-lg text-[10px]"
-                            >
-                              Perpanjang
-                            </button>
-                            <button
-                              onClick={() => handleDeleteMember(member.id)}
-                              className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-2 py-1.5 rounded-lg text-[10px] border border-rose-200"
-                            >
-                              Stop
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  {/* Box 2: Expiring Members Reminder */}
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 pb-2">
+                      <h4 className="font-black text-sm text-slate-800 flex items-center gap-1">
+                        <AlertTriangle className="w-4 h-4 text-rose-500" /> Sisa Sesi Paket Hampir Habis (≤ 2 Sesi)
+                      </h4>
+                      <p className="text-[10px] text-slate-400">Kirim WhatsApp penawaran perpanjangan atau stop (hapus slot jika menolak).</p>
+                    </div>
+
+                    {expiringMembers.length === 0 ? (
+                      <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200">
+                        <ShieldCheck className="w-8 h-8 text-slate-300 mx-auto" />
+                        <p className="text-[11px] text-slate-400 font-semibold mt-1.5">Semua siswa memiliki sisa paket yang cukup.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                        {expiringMembers.map(member => {
+                          return (
+                            <div key={member.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5 hover:border-cyan-200 transition">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="font-bold text-xs text-slate-800">{member.student.fullName}</p>
+                                  <p className="text-[10px] text-slate-500">Sisa Paket: <span className="font-black text-rose-600">{member.sessionsLeft} Sesi</span></p>
+                                </div>
+                                <span className="text-[9px] font-bold font-mono bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded border border-rose-200">SISA SEDIKIT</span>
+                              </div>
+
+                              <div className="flex gap-2.5">
+                                <a
+                                  href={getWhatsAppExpiringLink(member)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-2.5 py-1.5 rounded-lg text-[10px] flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                  <Phone className="w-3.5 h-3.5" /> WA Perpanjangan
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    Swal.fire({
+                                      title: 'Perpanjang Paket?',
+                                      text: `Perpanjang paket siswa ${member.student.fullName}?`,
+                                      icon: 'question',
+                                      showCancelButton: true,
+                                      confirmButtonColor: '#06b6d4',
+                                      cancelButtonColor: '#64748b',
+                                      confirmButtonText: 'Ya, Perpanjang!',
+                                      cancelButtonText: 'Batal'
+                                    }).then((result) => {
+                                      if (result.isConfirmed) {
+                                        const updated = members.map(m => {
+                                          if (m.id === member.id) {
+                                            return {
+                                              ...m,
+                                              sessionsLeft: m.sessionsTotal,
+                                              status: 'Aktif' as any
+                                            };
+                                          }
+                                          return m;
+                                        });
+                                        onUpdateMembers(updated);
+                                        Swal.fire({
+                                          title: 'Berhasil!',
+                                          text: 'Paket berhasil diperpanjang!',
+                                          icon: 'success',
+                                          confirmButtonColor: '#06b6d4'
+                                        });
+                                      }
+                                    });
+                                  }}
+                                  className="bg-cyan-600 hover:bg-cyan-500 text-white font-black px-2.5 py-1.5 rounded-lg text-[10px] cursor-pointer"
+                                >
+                                  Perpanjang
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMember(member.id)}
+                                  className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-2 py-1.5 rounded-lg text-[10px] border border-rose-200 cursor-pointer"
+                                >
+                                  Stop
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -3094,7 +3716,7 @@ export default function AdminDashboard({
               <button
                 type="button"
                 onClick={handleOpenAddEventModal}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-cyan-600/10 cursor-pointer whitespace-nowrap"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/10 cursor-pointer whitespace-nowrap"
               >
                 <Plus className="w-4 h-4" /> Tambah Kegiatan Baru
               </button>
@@ -3127,13 +3749,13 @@ export default function AdminDashboard({
                         <div className="pt-3 flex justify-between items-center border-t border-slate-100/60 mt-3">
                           <button
                             onClick={() => handleOpenEditEventModal(event)}
-                            className="text-[10px] font-bold text-cyan-600 hover:text-cyan-500 flex items-center gap-0.5 cursor-pointer"
+                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
                           >
                             <Edit className="w-3.5 h-3.5" /> Edit
                           </button>
                           <button
                             onClick={() => handleDeleteEvent(event.id)}
-                            className="text-[10px] font-bold text-rose-600 hover:text-rose-500 flex items-center gap-0.5 cursor-pointer"
+                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
                           >
                             <Trash className="w-3.5 h-3.5" /> Hapus
                           </button>
@@ -3184,16 +3806,34 @@ export default function AdminDashboard({
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <label className="font-bold text-slate-600">Kategori Event <span className="text-rose-500">*</span></label>
-                        <select
-                          value={newEventCategory}
-                          onChange={(e: any) => setNewEventCategory(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                        >
-                          <option value="Fun Swimming">Fun Swimming</option>
-                          <option value="Lomba">Lomba</option>
-                          <option value="Latihan Bersama">Latihan Bersama</option>
-                          <option value="Pengumuman">Pengumuman</option>
-                        </select>
+                        <div className="flex gap-1.5">
+                          <select
+                            value={newEventCategory}
+                            onChange={(e: any) => setNewEventCategory(e.target.value)}
+                            className="flex-1 bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                          >
+                            {eventCategories.length > 0 ? (
+                              eventCategories.map(cat => (
+                                <option key={cat.id} value={cat.name}>{cat.name}</option>
+                              ))
+                            ) : (
+                              <>
+                                <option value="Fun Swimming">Fun Swimming</option>
+                                <option value="Lomba">Lomba</option>
+                                <option value="Latihan Bersama">Latihan Bersama</option>
+                                <option value="Pengumuman">Pengumuman</option>
+                              </>
+                            )}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={handleQuickAddCategory}
+                            className="bg-cyan-50 border border-cyan-200 hover:bg-cyan-100 text-cyan-700 font-bold px-3 py-2.5 rounded-xl text-xs flex items-center justify-center cursor-pointer transition shrink-0"
+                            title="Tambah Kategori Event Baru"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="space-y-1.5">
@@ -3279,6 +3919,247 @@ export default function AdminDashboard({
           </div>
         )}
 
+        {/* TAB: MASTER KOLAM RENANG */}
+        {activeTab === 'kolam_renang' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-cyan-600" />
+                  Master Data Kolam Renang
+                </h3>
+                <p className="text-slate-500 text-xs">Kelola tempat / lokasi kolam renang beserta pilihan hari dan jam latihan yang tersedia.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenAddPoolModal}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/10 cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" /> Tambah Kolam Renang
+              </button>
+            </div>
+
+            {/* List / Table Master Kolam Renang */}
+            <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
+              {swimmingPools.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  <MapPin className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="text-xs text-slate-400 mt-2 font-semibold">Belum ada data kolam renang yang ditambahkan.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {swimmingPools.map(pool => (
+                    <div key={pool.id} className="bg-white border border-slate-200/70 rounded-2xl p-5 shadow-xs hover:border-cyan-200 hover:shadow-md transition space-y-4 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center text-cyan-600 shrink-0">
+                              <MapPin className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h4 className="font-extrabold text-sm text-slate-800">{pool.name}</h4>
+                              <p className="text-[10px] text-slate-400 font-mono">ID: {pool.id}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        {pool.description && (
+                          <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl leading-relaxed">
+                            {pool.description}
+                          </p>
+                        )}
+
+                        {/* Training Days */}
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Hari Latihan Disediakan:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {Array.isArray(pool.training_days) && pool.training_days.length > 0 ? (
+                              pool.training_days.map(day => (
+                                <span key={day} className="bg-cyan-50 text-cyan-700 font-bold text-[9px] px-2 py-0.5 rounded-md border border-cyan-100">
+                                  {day}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Belum diatur</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Training Hours */}
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sesi Jam Latihan:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {Array.isArray(pool.training_hours) && pool.training_hours.length > 0 ? (
+                              pool.training_hours.map(hr => (
+                                <span key={hr} className="bg-amber-50 text-amber-700 font-mono font-bold text-[9px] px-2 py-0.5 rounded-md border border-amber-100">
+                                  {hr} WIB
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Belum diatur</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditPoolModal(pool)}
+                          className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold py-1.5 px-3 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition"
+                        >
+                          <Edit className="w-3.5 h-3.5 text-amber-600" /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePool(pool.id)}
+                          className="bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-600 font-bold py-1.5 px-3 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition"
+                        >
+                          <Trash className="w-3.5 h-3.5" /> Hapus
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL ADD/EDIT SWIMMING POOL */}
+        {showPoolModal && (
+          <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="relative bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div>
+                  <h4 className="font-black text-sm text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-cyan-600" />
+                    {editingPool ? 'Edit Data Kolam Renang' : 'Tambah Master Kolam Renang Baru'}
+                  </h4>
+                  <p className="text-[10px] text-slate-500">Lengkapi nama, pilihan hari, dan sesi jam latihan kolam renang.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPoolModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Form Body */}
+              <form onSubmit={handleSavePool} className="p-6 space-y-4 text-xs text-slate-700">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-600">Nama Kolam Renang <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Kolam Renang Tirta Barokah (Utama)"
+                    value={poolName}
+                    onChange={(e) => setPoolName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                    required
+                  />
+                </div>
+
+                {/* Multiple Hari Latihan */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-600 block">Pilihan Hari Latihan (Multiple):</label>
+                  <div className="flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map(day => {
+                      const isChecked = poolDays.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => handleTogglePoolDay(day)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                            isChecked
+                              ? 'bg-cyan-600 text-white shadow-xs'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {isChecked && <Check className="w-3.5 h-3.5" />}
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Multiple Jam Latihan */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-600 block">Sesi Jam Latihan (Multiple):</label>
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Contoh: 08:00 - 09:30"
+                        value={newHourInput}
+                        onChange={(e) => setNewHourInput(e.target.value)}
+                        className="flex-1 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddPoolHour}
+                        className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1 cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Tambah Jam
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {poolHours.map(hr => (
+                        <span key={hr} className="bg-white border border-slate-200 font-mono font-bold text-slate-700 text-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-2xs">
+                          {hr} WIB
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePoolHour(hr)}
+                            className="text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Deskripsi */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-600">Deskripsi / Alamat Kolam Renang</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Alamat lengkap, fasilitas, atau keterangan kolam..."
+                    value={poolDescription}
+                    onChange={(e) => setPoolDescription(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                  />
+                </div>
+
+                {/* Footer */}
+                <div className="pt-4 border-t border-slate-100 flex justify-end gap-2 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setShowPoolModal(false)}
+                    className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold py-2.5 px-4 rounded-xl transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-md shadow-cyan-600/10 cursor-pointer"
+                  >
+                    {editingPool ? 'Simpan Perubahan' : 'Tambah Kolam Renang'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* TAB 5: MANAJEMEN PELATIH & JADWAL */}
         {activeTab === 'pelatih' && (
           <div className="space-y-8">
@@ -3289,7 +4170,7 @@ export default function AdminDashboard({
               </div>
               <button
                 onClick={() => setShowAddCoachModal(true)}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1 shadow-md shadow-cyan-600/10 cursor-pointer"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1 shadow-md shadow-emerald-600/10 cursor-pointer whitespace-nowrap"
               >
                 <Plus className="w-4 h-4" /> Tambah Pelatih Baru
               </button>
@@ -3320,10 +4201,6 @@ export default function AdminDashboard({
                           <div className="flex gap-3 mt-1 text-[10px] text-slate-500">
                             <span>Siswa Aktif: <strong className="text-cyan-700">{activeCount} anak</strong></span>
                             <span>Kuota Max: <strong className="text-slate-700">{coach.maxQuota} anak</strong></span>
-                            <span className="font-mono text-cyan-800">Kode Ref: <strong>{coach.referralCode}</strong></span>
-                            {coach.referralBonus && coach.referralBonus > 0 ? (
-                              <span className="font-mono text-indigo-700">Rewards: <strong>Rp {coach.referralBonus.toLocaleString('id-ID')}</strong></span>
-                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -3346,9 +4223,9 @@ export default function AdminDashboard({
                             handleEditCoachSettings(coach.id);
                             setExpandedCoachScheduleId('');
                           }}
-                          className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1 shadow-xs cursor-pointer"
+                          className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1 shadow-xs cursor-pointer transition"
                         >
-                          <Edit className="w-3.5 h-3.5" /> Edit Profil, Kuota & Harga
+                          <Edit className="w-3.5 h-3.5 text-amber-600" /> Edit Profil, Kuota & Harga
                         </button>
                       </div>
                     </div>
@@ -3396,6 +4273,12 @@ export default function AdminDashboard({
                                           <div className="flex justify-between items-center">
                                             <div>
                                               <p className="font-mono text-xs font-bold text-slate-800">{slot.time} WIB</p>
+                                              {slot.swimmingPoolId && (
+                                                <p className="text-[9px] font-bold text-cyan-600 flex items-center gap-0.5 mt-0.5 truncate">
+                                                  <MapPin className="w-2.5 h-2.5 shrink-0" />
+                                                  <span className="truncate">{swimmingPools.find(p => p.id === slot.swimmingPoolId)?.name || 'Kolam Renang'}</span>
+                                                </p>
+                                              )}
                                               <p className={`text-[9px] font-semibold ${isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'}`}>
                                                 Slot: {usageCount} / {slot.maxSlots} {isFull ? '(PENUH)' : ''}
                                               </p>
@@ -3541,29 +4424,56 @@ export default function AdminDashboard({
                         />
                       </div>
 
-                      <div className="space-y-1.5 border-t border-slate-150 pt-3">
+                      <div className="space-y-3 border-t border-slate-150 pt-3">
                         <h5 className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Pilih Paket Latihan yang Disediakan</h5>
-                        <p className="text-[10px] text-slate-400">Pilih paket dari master pricing packages (Kelola Profil & Level):</p>
-                        <div className="grid md:grid-cols-2 gap-2 mt-1.5 max-h-32 overflow-y-auto border border-slate-200/60 p-2.5 rounded-xl bg-slate-50/50">
-                          {globalPricingPackages.map(gp => {
-                            const isChecked = newCoachPackages.includes(gp.id);
-                            return (
-                              <label key={gp.id} className="flex items-center gap-2 text-xs font-semibold text-slate-750 cursor-pointer select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={(e) => {
-                                    const updated = e.target.checked
-                                      ? [...newCoachPackages, gp.id]
-                                      : newCoachPackages.filter(id => id !== gp.id);
-                                    setNewCoachPackages(updated);
-                                  }}
-                                  className="rounded text-cyan-600 focus:ring-cyan-500/20 w-4 h-4 border-slate-300 cursor-pointer"
-                                />
-                                <span>{gp.name} (Rp {gp.price.toLocaleString('id-ID')})</span>
-                              </label>
-                            );
-                          })}
+                        
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60 space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 block">Pilih Paket:</label>
+                          <SearchableSelect
+                            placeholder="-- Pilih Paket Untuk Ditambahkan --"
+                            options={globalPricingPackages
+                              .filter(gp => !newCoachPackages.includes(gp.id))
+                              .map(gp => ({
+                                value: gp.id,
+                                label: `${gp.name} - Rp ${gp.price.toLocaleString('id-ID')} (${gp.sessions} Sesi)`
+                              }))
+                            }
+                            onSelect={(pkgId) => {
+                              if (!newCoachPackages.includes(pkgId)) {
+                                setNewCoachPackages(prev => [...prev, pkgId]);
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 block">Daftar Paket Aktif Pelatih:</label>
+                          {newCoachPackages.length === 0 ? (
+                            <p className="text-[10px] text-slate-400 italic">Belum ada paket belajar untuk pelatih ini.</p>
+                          ) : (
+                            newCoachPackages.map(pkgId => {
+                              const pkg = globalPricingPackages.find(gp => gp.id === pkgId);
+                              if (!pkg) return null;
+                              return (
+                                <div key={pkgId} className="flex justify-between items-center bg-cyan-50/20 p-2.5 rounded-xl border border-cyan-100">
+                                  <div className="text-xs">
+                                    <p className="font-bold text-slate-800">{pkg.name}</p>
+                                    <p className="text-[10px] text-cyan-700 font-semibold mt-0.5">
+                                      Rp {pkg.price.toLocaleString('id-ID')} ({pkg.sessions}x Pertemuan)
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setNewCoachPackages(prev => prev.filter(id => id !== pkgId))}
+                                    className="text-slate-400 hover:text-rose-600 transition p-1.5 hover:bg-rose-50 rounded-lg cursor-pointer border-0"
+                                    title="Hapus Paket"
+                                  >
+                                    <Trash className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              );
+                            })
+                          )}
                         </div>
                       </div>
                     </div>
@@ -3715,51 +4625,41 @@ export default function AdminDashboard({
 
                       {/* Dropdown to add package */}
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60 space-y-2">
-                        <label className="text-[10px] font-bold text-slate-500 block">Hubungkan Paket Baru (dari Kelola Profil & Level):</label>
-                        <div className="flex gap-2">
-                          <select
-                            id="global-package-select"
-                            className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-semibold"
-                            defaultValue=""
-                            onChange={(e) => {
-                              const pkgId = e.target.value;
-                              if (!pkgId) return;
-                              const selectedPkg = globalPricingPackages.find(p => p.id === pkgId);
-                              if (selectedPkg) {
-                                const alreadyAdded = editCoachPackages.some(ep => 
-                                  ep.name.toLowerCase().trim() === selectedPkg.name.toLowerCase().trim()
-                                );
-                                if (alreadyAdded) {
-                                  Swal.fire({
-                                    title: 'Sudah Ada',
-                                    text: 'Paket ini sudah terdaftar pada pelatih.',
-                                    icon: 'info',
-                                    confirmButtonColor: '#06b6d4'
-                                  });
-                                } else {
-                                  const newId = `pkg-${selectedEditCoachId}-${selectedPkg.id}`;
-                                  setEditCoachPackages(prev => [...prev, {
-                                    id: newId,
-                                    name: selectedPkg.name,
-                                    price: selectedPkg.price,
-                                    sessions: selectedPkg.sessions
-                                  }]);
-                                }
+                        <label className="text-[10px] font-bold text-slate-500 block">Pilih Paket:</label>
+                        <SearchableSelect
+                          placeholder="-- Pilih Paket Untuk Ditambahkan --"
+                          options={globalPricingPackages
+                            .filter(gp => !editCoachPackages.some(ecp => ecp.name.toLowerCase().trim() === gp.name.toLowerCase().trim()))
+                            .map(gp => ({
+                              value: gp.id,
+                              label: `${gp.name} - Rp ${gp.price.toLocaleString('id-ID')} (${gp.sessions} Sesi)`
+                            }))
+                          }
+                          onSelect={(pkgId) => {
+                            const selectedPkg = globalPricingPackages.find(p => p.id === pkgId);
+                            if (selectedPkg) {
+                              const alreadyAdded = editCoachPackages.some(ep => 
+                                ep.name.toLowerCase().trim() === selectedPkg.name.toLowerCase().trim()
+                              );
+                              if (alreadyAdded) {
+                                Swal.fire({
+                                  title: 'Sudah Ada',
+                                  text: 'Paket ini sudah terdaftar pada pelatih.',
+                                  icon: 'info',
+                                  confirmButtonColor: '#06b6d4'
+                                });
+                              } else {
+                                const newId = `pkg-${selectedEditCoachId}-${selectedPkg.id}`;
+                                setEditCoachPackages(prev => [...prev, {
+                                  id: newId,
+                                  name: selectedPkg.name,
+                                  price: selectedPkg.price,
+                                  sessions: selectedPkg.sessions
+                                }]);
                               }
-                              e.target.value = ""; // Reset
-                            }}
-                          >
-                            <option value="">-- Pilih Paket Untuk Ditambahkan --</option>
-                            {globalPricingPackages
-                              .filter(gp => !editCoachPackages.some(ecp => ecp.name.toLowerCase().trim() === gp.name.toLowerCase().trim()))
-                              .map(gp => (
-                                <option key={gp.id} value={gp.id}>
-                                  {gp.name} - Rp {gp.price.toLocaleString('id-ID')} ({gp.sessions} Sesi)
-                                </option>
-                              ))
                             }
-                          </select>
-                        </div>
+                          }}
+                        />
                       </div>
 
                       <div className="space-y-2">
@@ -3846,6 +4746,16 @@ export default function AdminDashboard({
                         autoFocus
                       />
                       <p className="text-[9px] text-slate-400">Pilih jam dan menit menggunakan pemilih waktu.</p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="font-bold text-slate-600">Pilih Kolam Renang <span className="text-rose-500">*</span></label>
+                      <SearchableSelect
+                        options={swimmingPools.map(p => ({ value: p.id, label: p.name }))}
+                        value={addSlotPoolId}
+                        onChange={(val) => setAddSlotPoolId(val)}
+                        placeholder="-- Pilih Kolam Renang --"
+                      />
                     </div>
 
                     {/* Modal Footer Actions */}
@@ -4144,10 +5054,210 @@ export default function AdminDashboard({
             settings={settings}
             levels={levels}
             coaches={coaches}
+            pricingPackages={pricingPackages}
             onUpdateSettings={onUpdateSettings}
             onUpdateLevels={onUpdateLevels}
             onReloadData={onReloadData}
           />
+        )}
+
+        {/* TAB 8: LOG AKTIVITAS / AUDIT LOGS */}
+        {activeTab === 'audit_logs' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Log Aktivitas & Audit Sistem</h3>
+                <p className="text-slate-500 text-xs">
+                  Rekaman riwayat input, edit, hapus, dan verifikasi data yang dilakukan oleh administrator atau pelatih.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onReloadData()}
+                className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-cyan-600 animate-spin-hover" /> Segarkan Log
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200/60 p-5 space-y-4 shadow-xs">
+              {/* Filter Rentang Tanggal Audit Log */}
+              <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 space-y-3 text-xs text-slate-700">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-[10px] text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-cyan-600" /> Filter Rentang Tanggal Aktivitas
+                  </span>
+                  {(auditStartDate || auditEndDate) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuditStartDate('');
+                        setAuditEndDate('');
+                      }}
+                      className="text-[10px] font-bold text-rose-600 hover:text-rose-500 underline cursor-pointer"
+                    >
+                      Reset Tanggal
+                    </button>
+                  )}
+                </div>
+                
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <div className="space-y-1 w-full sm:w-1/2 md:w-auto">
+                    <label className="text-[10px] font-bold text-slate-500 block uppercase">Dari Tanggal</label>
+                    <input
+                      type="date"
+                      value={auditStartDate}
+                      onChange={(e) => setAuditStartDate(e.target.value)}
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition text-slate-700 cursor-pointer"
+                    />
+                  </div>
+                  
+                  <span className="text-slate-400 hidden sm:inline font-bold mt-4">-</span>
+
+                  <div className="space-y-1 w-full sm:w-1/2 md:w-auto">
+                    <label className="text-[10px] font-bold text-slate-500 block uppercase">Sampai Tanggal</label>
+                    <input
+                      type="date"
+                      value={auditEndDate}
+                      onChange={(e) => setAuditEndDate(e.target.value)}
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition text-slate-700 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Search & Filter Aksi */}
+              <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                <input
+                  type="text"
+                  placeholder="Cari pelaku, deskripsi, atau tabel..."
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  className="w-full md:max-w-md bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition font-medium"
+                />
+                
+                <div className="flex gap-2 w-full md:w-auto">
+                  <select
+                    value={auditActionFilter}
+                    onChange={(e) => setAuditActionFilter(e.target.value as any)}
+                    className="w-full md:w-48 bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 text-slate-700 font-bold"
+                  >
+                    <option value="semua">Semua Tipe Aksi</option>
+                    <option value="input">Input / Tambah</option>
+                    <option value="edit">Edit / Ubah</option>
+                    <option value="hapus">Hapus</option>
+                    <option value="verifikasi">Verifikasi</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Table Container */}
+              <div className="overflow-x-auto border border-slate-150 rounded-xl">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 font-extrabold border-b border-slate-150">
+                      <th className="px-4 py-3.5">Waktu</th>
+                      <th className="px-4 py-3.5">Pengguna</th>
+                      <th className="px-4 py-3.5">Aksi</th>
+                      <th className="px-4 py-3.5">Kategori Data</th>
+                      <th className="px-4 py-3.5">Keterangan Aktivitas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-semibold">
+                    {(() => {
+                      const filteredLogs = auditLogs.filter(log => {
+                        const matchesSearch = 
+                          log.username.toLowerCase().includes(auditSearch.toLowerCase()) ||
+                          (log.user_name || '').toLowerCase().includes(auditSearch.toLowerCase()) ||
+                          log.description.toLowerCase().includes(auditSearch.toLowerCase()) ||
+                          log.table_name.toLowerCase().includes(auditSearch.toLowerCase());
+                        
+                        const matchesAction = 
+                          auditActionFilter === 'semua' || 
+                          log.action_type === auditActionFilter;
+
+                        const logDateStr = log.created_at ? log.created_at.substring(0, 10) : '';
+                        const matchesStartDate = !auditStartDate || logDateStr >= auditStartDate;
+                        const matchesEndDate = !auditEndDate || logDateStr <= auditEndDate;
+
+                        return matchesSearch && matchesAction && matchesStartDate && matchesEndDate;
+                      });
+
+                      if (filteredLogs.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-8 text-center text-slate-400 italic">
+                              Tidak ada log aktivitas yang sesuai filter.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return filteredLogs.map((log) => {
+                        let actionBadge = '';
+                        switch (log.action_type) {
+                          case 'input':
+                            actionBadge = 'bg-blue-50 border border-blue-200 text-blue-600';
+                            break;
+                          case 'edit':
+                            actionBadge = 'bg-violet-50 border border-violet-200 text-violet-600';
+                            break;
+                          case 'hapus':
+                            actionBadge = 'bg-rose-50 border border-rose-200 text-rose-600';
+                            break;
+                          case 'verifikasi':
+                            actionBadge = 'bg-emerald-50 border border-emerald-200 text-emerald-600';
+                            break;
+                        }
+
+                        // Map technical table names to friendly descriptions
+                        const friendlyTable: Record<string, string> = {
+                          'coaches': 'Profil Pelatih',
+                          'members': 'Pendaftaran/Data Siswa',
+                          'events': 'Event & Berita',
+                          'site_settings': 'Pengaturan Website',
+                          'program_levels': 'Tingkatan Level',
+                          'pricing_packages': 'Paket Harga Global'
+                        };
+
+                        return (
+                          <tr key={log.id} className="hover:bg-slate-50/50 transition">
+                            <td className="px-4 py-3.5 text-[11px] text-slate-500 font-mono">
+                              {new Date(log.created_at).toLocaleString('id-ID')}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div>
+                                <p className="font-bold text-slate-800">{log.user_name || log.username}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[9px] text-slate-400 font-mono">@{log.username}</span>
+                                  <span className={`text-[8px] px-1 rounded-sm font-bold uppercase ${
+                                    log.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-655'
+                                  }`}>
+                                    {log.role}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${actionBadge}`}>
+                                {log.action_type === 'input' ? 'tambah' : log.action_type}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 font-bold text-slate-600 text-[11px]">
+                              {friendlyTable[log.table_name] || log.table_name}
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-700 text-xs">
+                              {log.description}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         )}
 
       {/* ATTENDANCE MODAL */}
@@ -4303,6 +5413,7 @@ function SettingsAndLevelsTab({
   settings, 
   levels, 
   coaches,
+  pricingPackages,
   onUpdateSettings, 
   onUpdateLevels,
   onReloadData
@@ -4310,6 +5421,7 @@ function SettingsAndLevelsTab({
   settings: SiteSettings; 
   levels: ProgramLevel[]; 
   coaches: Coach[];
+  pricingPackages: PricingPackage[];
   onUpdateSettings: (settings: SiteSettings) => void;
   onUpdateLevels: (levels: ProgramLevel[]) => void;
   onReloadData: () => void;
@@ -4339,7 +5451,6 @@ function SettingsAndLevelsTab({
   });
 
   // Pricing packages states
-  const [pricingPackages, setPricingPackages] = useState<PricingPackage[]>([]);
   const [editingPricing, setEditingPricing] = useState<PricingPackage | null>(null);
   const [isAddingPricing, setIsAddingPricing] = useState(false);
   const [pricingForm, setPricingForm] = useState<PricingPackage>({
@@ -4351,6 +5462,60 @@ function SettingsAndLevelsTab({
     active_period: '',
     description: ''
   });
+
+  // Password change modal states
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordOld, setPasswordOld] = useState('');
+  const [passwordNew, setPasswordNew] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordOld) {
+      Swal.fire({ title: 'Gagal', text: 'Password lama wajib diisi!', icon: 'error', confirmButtonColor: '#06b6d4' });
+      return;
+    }
+    if (!passwordNew) {
+      Swal.fire({ title: 'Gagal', text: 'Password baru wajib diisi!', icon: 'error', confirmButtonColor: '#06b6d4' });
+      return;
+    }
+    if (passwordNew.length < 4) {
+      Swal.fire({ title: 'Gagal', text: 'Password minimal 4 karakter!', icon: 'error', confirmButtonColor: '#06b6d4' });
+      return;
+    }
+    if (passwordNew !== passwordConfirm) {
+      Swal.fire({ title: 'Gagal', text: 'Konfirmasi password tidak cocok!', icon: 'error', confirmButtonColor: '#06b6d4' });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const res: any = await api.changePassword({
+        oldPassword: passwordOld,
+        newPassword: passwordNew
+      });
+      Swal.fire({
+        title: 'Berhasil!',
+        text: res.message || 'Password Admin berhasil diperbarui!',
+        icon: 'success',
+        confirmButtonColor: '#06b6d4'
+      });
+      setPasswordOld('');
+      setPasswordNew('');
+      setPasswordConfirm('');
+      setShowPasswordModal(false);
+    } catch (err: any) {
+      Swal.fire({
+        title: 'Gagal!',
+        text: err.message || 'Gagal mengubah password.',
+        icon: 'error',
+        confirmButtonColor: '#06b6d4'
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   useEffect(() => {
     setLocalSettings({ ...settings });
@@ -4365,57 +5530,6 @@ function SettingsAndLevelsTab({
       } catch (e) {}
     } else {
       setBankAccounts([]);
-    }
-
-    // Load Pricing Packages
-    if (settings.pricing_packages) {
-      try {
-        const parsed = JSON.parse(settings.pricing_packages);
-        if (Array.isArray(parsed)) {
-          setPricingPackages(parsed);
-        }
-      } catch (e) {}
-    } else {
-      // Seed default packages if empty
-      const defaultPkgs: PricingPackage[] = [
-        {
-          id: 'pkg-promo',
-          category: 'PROMO',
-          name: 'Paket Reguler PROMO 5x latihan',
-          price: 220000,
-          sessions: 5,
-          active_period: '1 Bulan',
-          description: '1 pelatih mengajar 1-6 anak. Masa aktif 1 bulan, jika tidak habis maka hangus.'
-        },
-        {
-          id: 'pkg-reguler',
-          category: 'REGULER',
-          name: 'Paket Reguler 5x latihan',
-          price: 250000,
-          sessions: 5,
-          active_period: '3 Bulan',
-          description: '1 pelatih mengajar 1-6 anak. Masa aktif 3 bulan, jika tidak habis maka hangus.'
-        },
-        {
-          id: 'pkg-private-2',
-          category: 'PRIVATE',
-          name: 'Paket Private 2 anak',
-          price: 1300000,
-          sessions: 8,
-          active_period: '2 Bulan',
-          description: '1 pelatih KHUSUS mengajar 2 anak.'
-        },
-        {
-          id: 'pkg-private-3',
-          category: 'PRIVATE',
-          name: 'Paket Private 3 anak',
-          price: 1500000,
-          sessions: 8,
-          active_period: '2 Bulan',
-          description: '1 pelatih KHUSUS mengajar 3 anak.'
-        }
-      ];
-      setPricingPackages(defaultPkgs);
     }
   }, [settings]);
 
@@ -4489,51 +5603,6 @@ function SettingsAndLevelsTab({
     }
   };
 
-  const syncCoachesPackages = async (updatedPricingPackages: PricingPackage[]) => {
-    // For each coach, find the pricing packages that have their coach ID in `coachIds`
-    const newCoaches = coaches.map(coach => {
-      // Find pricing packages that are related to this coach
-      const relatedPricingPkgs = updatedPricingPackages.filter(p => (p.coachIds || []).includes(coach.id));
-      // Map to Package format
-      const coachPkgs = relatedPricingPkgs.map(p => ({
-        id: `pkg-${coach.id}-${p.id}`,
-        name: p.name,
-        price: p.price,
-        sessions: p.sessions
-      }));
-      return {
-        ...coach,
-        packages: coachPkgs
-      };
-    });
-
-    // Save each updated coach to database
-    for (const nc of newCoaches) {
-      const oldCoach = coaches.find(c => c.id === nc.id);
-      if (oldCoach && JSON.stringify(oldCoach.packages) !== JSON.stringify(nc.packages)) {
-        try {
-          await api.updateCoach({
-            id: nc.id,
-            name: nc.name,
-            experience: nc.experience,
-            photo: nc.photo,
-            maxQuota: nc.maxQuota,
-            isActive: nc.isActive,
-            packages: nc.packages,
-            schedule: nc.schedule,
-            username: nc.username,
-            password: nc.password,
-            email: nc.email,
-            phone: nc.phone
-          });
-        } catch (err) {
-          console.error("Failed to sync packages for coach", nc.name, err);
-        }
-      }
-    }
-    onReloadData();
-  };
-
   const handleDeletePricing = (id: string) => {
     Swal.fire({
       title: 'Apakah Anda yakin?',
@@ -4546,14 +5615,9 @@ function SettingsAndLevelsTab({
       cancelButtonText: 'Batal'
     }).then(async (result) => {
       if (result.isConfirmed) {
-        const updated = pricingPackages.filter(p => p.id !== id);
-        setPricingPackages(updated);
-        const updatedSettings = { ...localSettings, pricing_packages: JSON.stringify(updated) };
-        setLocalSettings(updatedSettings);
         try {
-          await api.updateSettings(updatedSettings);
-          onUpdateSettings(updatedSettings);
-          await syncCoachesPackages(updated);
+          await api.deletePricingPackage(id);
+          onReloadData();
           Swal.fire({
             title: 'Terhapus!',
             text: 'Paket harga berhasil dihapus!',
@@ -4574,22 +5638,16 @@ function SettingsAndLevelsTab({
 
   const handleSavePricing = async (e: React.FormEvent) => {
     e.preventDefault();
-    let updated: PricingPackage[];
-    if (isAddingPricing) {
-      const newPkg = { ...pricingForm, id: 'pricing-' + Date.now() };
-      updated = [...pricingPackages, newPkg];
-    } else {
-      updated = pricingPackages.map(p => p.id === pricingForm.id ? pricingForm : p);
-    }
-    setPricingPackages(updated);
-    setIsAddingPricing(false);
-    setEditingPricing(null);
-    const updatedSettings = { ...localSettings, pricing_packages: JSON.stringify(updated) };
-    setLocalSettings(updatedSettings);
     try {
-      await api.updateSettings(updatedSettings);
-      onUpdateSettings(updatedSettings);
-      await syncCoachesPackages(updated);
+      if (isAddingPricing) {
+        const newPkg = { ...pricingForm, id: 'pricing-' + Date.now() };
+        await api.addPricingPackage(newPkg);
+      } else {
+        await api.updatePricingPackage(pricingForm);
+      }
+      setIsAddingPricing(false);
+      setEditingPricing(null);
+      onReloadData();
       Swal.fire({
         title: 'Berhasil!',
         text: 'Paket harga berhasil disimpan!',
@@ -4716,11 +5774,20 @@ function SettingsAndLevelsTab({
     <div className="space-y-10">
       {/* SECTION 1: SETTINGS */}
       <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-xs space-y-6">
-        <div>
-          <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
-            <Settings className="w-5 h-5 text-cyan-600" /> Kelola Informasi Profil & Website
-          </h3>
-          <p className="text-slate-500 text-xs mt-0.5">Edit teks deskripsi profil lembaga, keunggulan why-choose, dan catatan paket di halaman depan.</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+          <div>
+            <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+              <Settings className="w-5 h-5 text-cyan-600" /> Kelola Informasi Profil & Website
+            </h3>
+            <p className="text-slate-500 text-xs mt-0.5">Edit teks deskripsi profil lembaga, keunggulan why-choose, dan catatan paket di halaman depan.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowPasswordModal(true)}
+            className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-md shadow-violet-600/10 cursor-pointer shrink-0"
+          >
+            <Key className="w-4 h-4" /> Ganti Password
+          </button>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -4914,7 +5981,7 @@ function SettingsAndLevelsTab({
               setEditingBank(null);
               setBankForm({ id: '', bank_name: '', account_number: '', account_holder: '' });
             }}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer transition shadow-md shadow-cyan-600/10"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer transition shadow-md shadow-emerald-600/10"
           >
             <Plus className="w-4 h-4" /> Tambah Rekening
           </button>
@@ -4942,18 +6009,18 @@ function SettingsAndLevelsTab({
                       setIsAddingBank(false);
                       setBankForm({ ...acc });
                     }}
-                    className="p-1 text-slate-400 hover:text-cyan-600 rounded hover:bg-slate-100 transition cursor-pointer"
+                    className="p-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition cursor-pointer"
                     title="Edit"
                   >
-                    <Edit className="w-4 h-4" />
+                    <Edit className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDeleteBank(acc.id)}
-                    className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100 transition cursor-pointer"
+                    className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer"
                     title="Hapus"
                   >
-                    <Trash className="w-4 h-4" />
+                    <Trash className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -5065,7 +6132,7 @@ function SettingsAndLevelsTab({
                 coachIds: []
               });
             }}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer transition shadow-md shadow-cyan-600/10"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer transition shadow-md shadow-emerald-600/10"
           >
             <Plus className="w-4 h-4" /> Tambah Paket Harga
           </button>
@@ -5109,18 +6176,18 @@ function SettingsAndLevelsTab({
                         coachIds: pkg.coachIds || []
                       });
                     }}
-                    className="p-1 text-slate-400 hover:text-cyan-600 rounded hover:bg-slate-100 transition cursor-pointer"
+                    className="p-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition cursor-pointer"
                     title="Edit"
                   >
-                    <Edit className="w-4 h-4" />
+                    <Edit className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDeletePricing(pkg.id)}
-                    className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100 transition cursor-pointer"
+                    className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer"
                     title="Hapus"
                   >
-                    <Trash className="w-4 h-4" />
+                    <Trash className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -5289,7 +6356,7 @@ function SettingsAndLevelsTab({
           <button
             type="button"
             onClick={handleAddNewLevelClick}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-cyan-600/5"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/10"
           >
             <Plus className="w-3.5 h-3.5" /> Tambah Level Baru
           </button>
@@ -5324,7 +6391,7 @@ function SettingsAndLevelsTab({
                       <button
                         type="button"
                         onClick={() => handleEditLevelClick(lvl)}
-                        className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-cyan-600 transition cursor-pointer"
+                        className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg transition cursor-pointer"
                         title="Edit Level"
                       >
                         <Edit className="w-3.5 h-3.5" />
@@ -5332,7 +6399,7 @@ function SettingsAndLevelsTab({
                       <button
                         type="button"
                         onClick={() => lvl.id && handleDeleteLevel(lvl.id)}
-                        className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-500 hover:text-rose-600 transition cursor-pointer"
+                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg transition cursor-pointer"
                         title="Hapus Level"
                       >
                         <Trash className="w-3.5 h-3.5" />
@@ -5453,6 +6520,92 @@ function SettingsAndLevelsTab({
                   className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition shadow-md shadow-cyan-600/10 cursor-pointer"
                 >
                   Simpan Level
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* MODAL UBAH PASSWORD ADMIN */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-100"
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div>
+                <h4 className="font-black text-sm text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                  <Key className="w-4 h-4 text-violet-600" /> Ubah Password Admin
+                </h4>
+                <p className="text-[10px] text-slate-500 mt-0.5">Masukkan password lama Anda dan tentukan password baru.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPasswordModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleChangePasswordSubmit} className="p-6 space-y-4 text-xs text-slate-700">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 block">Password Lama <span className="text-rose-500">*</span></label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Masukkan password Anda saat ini"
+                  value={passwordOld}
+                  onChange={(e) => setPasswordOld(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 block">Password Baru <span className="text-rose-500">*</span></label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Minimal 4 karakter"
+                  value={passwordNew}
+                  onChange={(e) => setPasswordNew(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 block">Konfirmasi Password Baru <span className="text-rose-500">*</span></label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Ketik ulang password baru"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
+                />
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold py-2.5 px-4 rounded-xl text-xs transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="bg-violet-600 hover:bg-violet-500 disabled:bg-slate-300 text-white font-bold py-2.5 px-5 rounded-xl text-xs transition shadow-md shadow-violet-600/10 cursor-pointer"
+                >
+                  {isChangingPassword ? 'Memproses...' : 'Simpan Password Baru'}
                 </button>
               </div>
             </form>

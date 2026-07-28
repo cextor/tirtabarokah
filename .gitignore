@@ -10,3 +10,6 @@ coverage/
 backend/vendor/
 backend/writable/*
 !backend/writable/.gitkeep
+
+# Temporary scratch folder
+scratch/

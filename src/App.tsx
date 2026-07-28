@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import { Coach, Member, EventItem, SiteSettings, ProgramLevel, CoachAbsence } from './types';
+import { Coach, Member, EventItem, SiteSettings, ProgramLevel, CoachAbsence, AuditLog, EventCategory, SwimmingPool, PricingPackage } from './types';
 import { api, API_BASE_URL } from './api';
 import MainPortal from './components/MainPortal';
 import AdminDashboard from './components/AdminDashboard';
@@ -24,6 +24,10 @@ export default function App() {
   const [settings, setSettings] = useState<SiteSettings>({});
   const [levels, setLevels] = useState<ProgramLevel[]>([]);
   const [absences, setAbsences] = useState<CoachAbsence[]>([]);
+  const [pricingPackages, setPricingPackages] = useState<PricingPackage[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
+  const [swimmingPools, setSwimmingPools] = useState<SwimmingPool[]>([]);
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
 
   const navigateTo = (path: string) => {
@@ -44,7 +48,8 @@ export default function App() {
 
   // Auth States for Admin and Coach
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('user_role') === 'admin' && !!localStorage.getItem('auth_token');
+    const role = localStorage.getItem('user_role');
+    return (role === 'admin' || role === 'operator') && !!localStorage.getItem('auth_token');
   });
   const [adminUsername, setAdminUsername] = useState<string>('');
   const [adminPassword, setAdminPassword] = useState<string>('');
@@ -85,7 +90,7 @@ export default function App() {
       });
       if (res.status === 'success' && res.token) {
         localStorage.setItem('auth_token', res.token);
-        localStorage.setItem('user_role', 'admin');
+        localStorage.setItem('user_role', res.user.role || 'admin');
         localStorage.setItem('user_name', res.user.name);
         localStorage.setItem('logged_user_id', res.user.id);
 
@@ -163,10 +168,13 @@ export default function App() {
         api.getCoaches(),
         api.getEvents(),
         api.getSettings(),
-        api.getLevels()
+        api.getLevels(),
+        api.getPricingPackages(),
+        api.getEventCategories(),
+        api.getSwimmingPools()
       ];
 
-      const canFetchMembers = token && (role === 'admin' || role === 'coach');
+      const canFetchMembers = token && (role === 'admin' || role === 'operator' || role === 'coach');
       if (canFetchMembers) {
         fetchPromises.push(api.getMembers());
         fetchPromises.push(api.getCoachAbsences());
@@ -179,13 +187,27 @@ export default function App() {
         setSettings(results[2].settings);
       }
       setLevels(results[3] || []);
+      setPricingPackages(results[4] || []);
+      setEventCategories(results[5] || []);
+      setSwimmingPools(results[6] || []);
 
       if (canFetchMembers) {
-        setMembers(results[4]);
-        setAbsences(results[5] || []);
+        setMembers(results[7]);
+        setAbsences(results[8] || []);
       } else {
         setMembers([]);
         setAbsences([]);
+      }
+
+      if (token && role === 'admin') {
+        try {
+          const logs = await api.getAuditLogs();
+          setAuditLogs(logs || []);
+        } catch (err) {
+          console.error("Failed to load audit logs:", err);
+        }
+      } else {
+        setAuditLogs([]);
       }
     } catch (e: any) {
       console.error("Failed to load data from MariaDB backend", e);
@@ -478,11 +500,11 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
           {/* Logo Brand & Navigation */}
-          <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-4">
-            <div className="flex items-center gap-2 cursor-pointer select-none" onClick={() => navigateTo('/')}>
+          <div className="flex items-center justify-between w-full gap-2">
+            <div className="flex items-center gap-2 cursor-pointer select-none shrink-0" onClick={() => navigateTo('/')}>
               <span className="text-xl">🏊‍♂️</span>
               <div>
-                <h1 className="text-sm font-black text-slate-800 tracking-tight">TIRTA BAROKAH</h1>
+                <h1 className="text-sm font-black text-slate-800 tracking-tight leading-tight">TIRTA BAROKAH</h1>
                 <p className="text-[10px] text-slate-400 font-mono flex items-center gap-1 font-semibold">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Palembang
                 </p>
@@ -494,12 +516,12 @@ export default function App() {
               currentPath === '/daftar' ? (
                 <button
                   onClick={() => navigateTo('/')}
-                  className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer border border-slate-200"
+                  className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer border border-slate-200 shrink-0"
                 >
                   ← Kembali ke Beranda
                 </button>
               ) : (
-                <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-bold text-slate-600">
+                <div className="hidden md:flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-bold text-slate-600">
                   <button 
                     onClick={() => {
                       const el = document.getElementById('program-info');
@@ -549,7 +571,7 @@ export default function App() {
             {activeRole !== 'member' && (
               <button
                 onClick={handleLogout}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1 shrink-0 ml-auto"
               >
                 🚪 Keluar Portal
               </button>
@@ -591,6 +613,7 @@ export default function App() {
                 events={events}
                 settings={settings}
                 levels={levels}
+                pricingPackages={pricingPackages}
                 onRegister={handleRegisterMember}
                 onUpdateEvents={updateEventsState}
                 view={currentPath === '/daftar' ? 'register' : 'home'}
@@ -650,6 +673,10 @@ export default function App() {
                   settings={settings}
                   levels={levels}
                   absences={absences}
+                  pricingPackages={pricingPackages}
+                  auditLogs={auditLogs}
+                  eventCategories={eventCategories}
+                  swimmingPools={swimmingPools}
                   onReloadData={loadAllData}
                   onUpdateSettings={handleUpdateSettings}
                   onUpdateLevels={handleUpdateLevels}
