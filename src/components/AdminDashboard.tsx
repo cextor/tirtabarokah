@@ -9,7 +9,7 @@ import { Coach, Member, Package, ScheduleDay, EventItem, SiteSettings, ProgramLe
 import { 
   Users, DollarSign, Award, Calendar, ShieldCheck, TrendingUp, AlertTriangle, 
   Plus, Edit, Trash, Check, X, Bell, BarChart2, PieChart as PieIcon, Settings, Phone, CheckSquare, Sparkles, Image as ImageIcon,
-  LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, Key
+  LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, Key, CreditCard
 } from 'lucide-react';
 import { api } from '../api';
 import { 
@@ -179,7 +179,7 @@ export default function AdminDashboard({
 
   useEffect(() => {
     if (userRole === 'operator') {
-      const allowedOperatorTabs = ['verifikasi', 'peserta', 'pelatih', 'absensi_coach', 'reminder', 'events'];
+      const allowedOperatorTabs = ['verifikasi', 'peserta', 'pelatih', 'absensi_coach', 'reminder', 'events', 'kolam_renang'];
       if (!allowedOperatorTabs.includes(activeTab)) {
         setActiveTab('verifikasi');
       }
@@ -292,6 +292,9 @@ export default function AdminDashboard({
   const [auditStartDate, setAuditStartDate] = useState<string>('');
   const [auditEndDate, setAuditEndDate] = useState<string>('');
   const [financeEndDate, setFinanceEndDate] = useState<string>('');
+
+  // FILTER FOR COACHES
+  const [searchCoach, setSearchCoach] = useState<string>('');
 
   // FILTERS FOR PAYMENT HISTORY TABLE
   const [historyStartDate, setHistoryStartDate] = useState<string>('');
@@ -625,67 +628,106 @@ export default function AdminDashboard({
     .filter(m => m.payment.status === 'Pembayaran Berhasil')
     .reduce((sum, m) => sum + m.payment.amount, 0);
 
-  // ACTION: VERIFY PAYMENT
+  // ACTION: VERIFY PAYMENT (WITH CONFIRMATION & NOTIF)
   const handleVerifyPayment = (memberId: string, isApproved: boolean) => {
     const memberObj = members.find(m => m.id === memberId);
     if (!memberObj) return;
 
-    const updated = members.map(m => {
-      if (m.id === memberId) {
-        const approvedStatus = isApproved ? 'Pembayaran Berhasil' : 'Pembayaran Gagal';
-        const memberStatus = isApproved ? 'Aktif' : 'Menunggu Pembayaran';
-        return {
-          ...m,
-          status: memberStatus as any,
-          payment: {
-            ...m.payment,
-            status: approvedStatus as any
-          }
-        };
-      }
-      return m;
-    });
+    const studentName = memberObj.student?.fullName || memberId;
 
-    // Check if referral was used, and trigger reward calculation
-    if (isApproved && memberObj.referralCodeUsed) {
-      const code = memberObj.referralCodeUsed.toUpperCase();
-      
-      // 1. Is it a coach referral code?
-      const targetCoach = coaches.find(c => c.referralCode && c.referralCode.toUpperCase() === code);
-      if (targetCoach) {
-        const updatedCoaches = coaches.map(c => {
-          if (c.id === targetCoach.id) {
-            return {
-              ...c,
-              referralBonus: (c.referralBonus || 0) + 50000 // Coach gets Rp 50.000 cash reward
-            };
-          }
-          return c;
-        });
-        onUpdateCoaches(updatedCoaches);
-      } else {
-        // 2. Is it a member referral?
-        const targetMemberIndex = members.findIndex(m => m.id && m.id.toUpperCase() === code);
-        if (targetMemberIndex !== -1) {
-          // Member gets 1 free session, and new registered member gets Rp 25.000 discount
-          const updatedWithReferral = updated.map(m => {
-            if (m.id && m.id.toUpperCase() === code) {
+    Swal.fire({
+      title: isApproved ? 'Setujui Pembayaran?' : 'Tolak Pembayaran?',
+      text: isApproved 
+        ? `Apakah Anda yakin ingin menyetujui & mengaktifkan pendaftaran siswa ${studentName}?`
+        : `Apakah Anda yakin ingin menolak pembayaran pendaftaran siswa ${studentName}?`,
+      icon: isApproved ? 'question' : 'warning',
+      showCancelButton: true,
+      confirmButtonColor: isApproved ? '#0891b2' : '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: isApproved ? 'Ya, Setujui & Aktifkan!' : 'Ya, Tolak',
+      cancelButtonText: 'Batal'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        try {
+          const updated = members.map(m => {
+            if (m.id === memberId) {
+              const approvedStatus = isApproved ? 'Pembayaran Berhasil' : 'Pembayaran Gagal';
+              const memberStatus = isApproved ? 'Aktif' : 'Menunggu Pembayaran';
               return {
                 ...m,
-                referralCount: (m.referralCount || 0) + 1,
-                referralBonus: (m.referralBonus || 0) + 25000, // Rp 25.000 discount
-                sessionsLeft: m.sessionsLeft + 1 // Add 1 free session reward!
+                status: memberStatus as any,
+                payment: {
+                  ...m.payment,
+                  status: approvedStatus as any
+                }
               };
             }
             return m;
           });
-          onUpdateMembers(updatedWithReferral);
-          return;
+
+          // Check if referral was used, and trigger reward calculation
+          if (isApproved && memberObj.referralCodeUsed) {
+            const code = memberObj.referralCodeUsed.toUpperCase();
+            
+            // 1. Is it a coach referral code?
+            const targetCoach = coaches.find(c => c.referralCode && c.referralCode.toUpperCase() === code);
+            if (targetCoach) {
+              const updatedCoaches = coaches.map(c => {
+                if (c.id === targetCoach.id) {
+                  return {
+                    ...c,
+                    referralBonus: (c.referralBonus || 0) + 50000
+                  };
+                }
+                return c;
+              });
+              onUpdateCoaches(updatedCoaches);
+            } else {
+              // 2. Is it a member referral?
+              const targetMemberIndex = members.findIndex(m => m.id && m.id.toUpperCase() === code);
+              if (targetMemberIndex !== -1) {
+                const updatedWithReferral = updated.map(m => {
+                  if (m.id && m.id.toUpperCase() === code) {
+                    return {
+                      ...m,
+                      referralCount: (m.referralCount || 0) + 1,
+                      referralBonus: (m.referralBonus || 0) + 25000,
+                      sessionsLeft: m.sessionsLeft + 1
+                    };
+                  }
+                  return m;
+                });
+                onUpdateMembers(updatedWithReferral);
+                Swal.fire({
+                  icon: 'success',
+                  title: isApproved ? 'Berhasil Disetujui' : 'Berhasil Ditolak',
+                  text: isApproved ? `Pendaftaran ${studentName} berhasil diaktifkan.` : `Pendaftaran ${studentName} telah ditolak.`,
+                  timer: 2000,
+                  showConfirmButton: false
+                });
+                return;
+              }
+            }
+          }
+
+          onUpdateMembers(updated);
+
+          Swal.fire({
+            icon: 'success',
+            title: isApproved ? 'Berhasil Disetujui' : 'Berhasil Ditolak',
+            text: isApproved ? `Pendaftaran ${studentName} berhasil diaktifkan!` : `Pendaftaran ${studentName} telah ditolak.`,
+            timer: 2000,
+            showConfirmButton: false
+          });
+        } catch (err: any) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Gagal Memproses',
+            text: err.message || 'Terjadi kesalahan saat memproses verifikasi.'
+          });
         }
       }
-    }
-
-    onUpdateMembers(updated);
+    });
   };
 
   // ACTION: DELETE MEMBER (STOP TRAINING / EXPEL)
@@ -1595,7 +1637,7 @@ export default function AdminDashboard({
             >
               <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
                 <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'verifikasi' ? 'bg-white/15 text-white' : 'text-amber-600 bg-amber-50'}`}>
-                  <ShieldCheck className="w-4 h-4" />
+                  <CreditCard className="w-4 h-4" />
                 </div>
                 <span className="truncate text-xs leading-tight">Verifikasi Pembayaran</span>
               </div>
@@ -1634,80 +1676,61 @@ export default function AdminDashboard({
               </span>
             </button>
 
-            {/* 4. Group: Pelatih (Submenu: Pelatih & Kuota, Izin Pelatih) */}
-            <div className="space-y-1 pt-1">
-              <button
-                type="button"
-                onClick={() => setIsPelatihGroupOpen(!isPelatihGroupOpen)}
-                className="w-full px-3 py-2 rounded-xl text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between hover:bg-slate-50 cursor-pointer select-none transition"
-              >
-                <div className="flex items-center gap-2">
-                  <Award className="w-4 h-4 text-teal-600" />
-                  <span>Pelatih</span>
+            {/* 4. Pelatih */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('pelatih');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                activeTab === 'pelatih'
+                  ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10 font-black'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'pelatih' ? 'bg-white/15 text-white' : 'text-teal-600 bg-teal-50'}`}>
+                  <Award className="w-4 h-4" />
                 </div>
-                {isPelatihGroupOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
-              </button>
+                <span className="truncate text-xs leading-tight">Pelatih</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide font-mono shrink-0 ml-1.5 ${
+                activeTab === 'pelatih' ? 'bg-white text-teal-800' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {coaches.length}
+              </span>
+            </button>
 
-              {isPelatihGroupOpen && (
-                <div className="pl-3 space-y-1 border-l-2 border-slate-100 ml-3">
-                  {/* 4a. Pelatih & Kuota */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('pelatih');
-                      setIsMobileSidebarOpen(false);
-                    }}
-                    className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
-                      activeTab === 'pelatih'
-                        ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10 font-black'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
-                      <div className={`p-1 rounded-lg shrink-0 ${activeTab === 'pelatih' ? 'bg-white/15 text-white' : 'text-teal-600 bg-teal-50'}`}>
-                        <Award className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="truncate text-xs leading-tight">Pelatih & Kuota</span>
-                    </div>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black font-mono shrink-0 ${
-                      activeTab === 'pelatih' ? 'bg-white text-teal-800' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {coaches.length}
-                    </span>
-                  </button>
-
-                  {/* 4b. Izin Pelatih */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('absensi_coach');
-                      setIsMobileSidebarOpen(false);
-                    }}
-                    className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
-                      activeTab === 'absensi_coach'
-                        ? 'bg-rose-600 text-white shadow-md shadow-rose-600/10 font-black'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
-                      <div className={`p-1 rounded-lg shrink-0 ${activeTab === 'absensi_coach' ? 'bg-white/15 text-white' : 'text-rose-600 bg-rose-50'}`}>
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="truncate text-xs leading-tight">Izin Pelatih</span>
-                    </div>
-                    {absences.filter(a => a.status === 'Menunggu').length > 0 && (
-                      <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black font-mono shrink-0 ${
-                        activeTab === 'absensi_coach' ? 'bg-white text-rose-800' : 'bg-rose-100 text-rose-800'
-                      }`}>
-                        {absences.filter(a => a.status === 'Menunggu').length}
-                      </span>
-                    )}
-                  </button>
+            {/* 5. Izin Pelatih */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('absensi_coach');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                activeTab === 'absensi_coach'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/10 font-black'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'absensi_coach' ? 'bg-white/15 text-white' : 'text-rose-600 bg-rose-50'}`}>
+                  <AlertTriangle className="w-4 h-4" />
                 </div>
+                <span className="truncate text-xs leading-tight">Izin Pelatih</span>
+              </div>
+              {absences.filter(a => a.status === 'Menunggu').length > 0 && (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide font-mono shrink-0 ml-1.5 ${
+                  activeTab === 'absensi_coach' ? 'bg-white text-rose-800' : 'bg-rose-100 text-rose-800'
+                }`}>
+                  {absences.filter(a => a.status === 'Menunggu').length}
+                </span>
               )}
-            </div>
+            </button>
 
-            {/* 5. Jadwal & Reminder (Combined Menu) */}
+            {/* 6. Jadwal & Reminder */}
             <button
               type="button"
               onClick={() => {
@@ -1728,7 +1751,7 @@ export default function AdminDashboard({
               </div>
             </button>
 
-            {/* 6. Event & Berita */}
+            {/* 7. Event & Berita */}
             <button
               type="button"
               onClick={() => {
@@ -1756,7 +1779,33 @@ export default function AdminDashboard({
               )}
             </button>
 
-            {/* 7. Laporan Keuangan (Admin Only) */}
+            {/* 8. Kolam Renang (Operator Allowed) */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('kolam_renang');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                activeTab === 'kolam_renang'
+                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'kolam_renang' ? 'bg-white/15 text-white' : 'text-cyan-600 bg-cyan-50'}`}>
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <span className="truncate text-xs leading-tight">Kolam Renang</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide font-mono shrink-0 ml-1.5 ${
+                activeTab === 'kolam_renang' ? 'bg-white text-cyan-800' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {swimmingPools.length}
+              </span>
+            </button>
+
+            {/* 9. Laporan Keuangan (Admin Only) */}
             {!isOperator && (
               <button
                 type="button"
@@ -1779,93 +1828,50 @@ export default function AdminDashboard({
               </button>
             )}
 
-            {/* 8. Group: Konfigurasi (Admin Only - Submenus: Kelola Profil & Level, Master Kolam Renang, Log Aktivitas) */}
+            {/* 10. Log Aktivitas (Admin Only) */}
             {!isOperator && (
-              <div className="space-y-1 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setIsKonfigurasiGroupOpen(!isKonfigurasiGroupOpen)}
-                  className="w-full px-3 py-2 rounded-xl text-[11px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between hover:bg-slate-50 cursor-pointer select-none transition"
-                >
-                  <div className="flex items-center gap-2">
-                    <Settings className="w-4 h-4 text-violet-600" />
-                    <span>Konfigurasi</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('audit_logs');
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                  activeTab === 'audit_logs'
+                    ? 'bg-slate-700 text-white shadow-md shadow-slate-700/10 font-black'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                  <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'audit_logs' ? 'bg-white/15 text-white' : 'text-slate-600 bg-slate-100'}`}>
+                    <List className="w-4 h-4" />
                   </div>
-                  {isKonfigurasiGroupOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
-                </button>
+                  <span className="truncate text-xs leading-tight">Log Aktivitas</span>
+                </div>
+              </button>
+            )}
 
-                {isKonfigurasiGroupOpen && (
-                  <div className="pl-3 space-y-1 border-l-2 border-slate-100 ml-3">
-                    {/* 8a. Kelola Profil & Level */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveTab('pengaturan');
-                        setIsMobileSidebarOpen(false);
-                      }}
-                      className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
-                        activeTab === 'pengaturan'
-                          ? 'bg-violet-600 text-white shadow-md shadow-violet-600/10 font-black'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
-                        <div className={`p-1 rounded-lg shrink-0 ${activeTab === 'pengaturan' ? 'bg-white/15 text-white' : 'text-violet-600 bg-violet-50'}`}>
-                          <Settings className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="truncate text-xs leading-tight">Kelola Profil & Level</span>
-                      </div>
-                    </button>
-
-                    {/* 8b. Master Kolam Renang */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveTab('kolam_renang');
-                        setIsMobileSidebarOpen(false);
-                      }}
-                      className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
-                        activeTab === 'kolam_renang'
-                          ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
-                        <div className={`p-1 rounded-lg shrink-0 ${activeTab === 'kolam_renang' ? 'bg-white/15 text-white' : 'text-cyan-600 bg-cyan-50'}`}>
-                          <MapPin className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="truncate text-xs leading-tight">Master Kolam Renang</span>
-                      </div>
-                      <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black font-mono shrink-0 ${
-                        activeTab === 'kolam_renang' ? 'bg-white text-cyan-800' : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {swimmingPools.length}
-                      </span>
-                    </button>
-
-                    {/* 8c. Log Aktivitas */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveTab('audit_logs');
-                        setIsMobileSidebarOpen(false);
-                      }}
-                      className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
-                        activeTab === 'audit_logs'
-                          ? 'bg-slate-700 text-white shadow-md shadow-slate-700/10 font-black'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
-                        <div className={`p-1 rounded-lg shrink-0 ${activeTab === 'audit_logs' ? 'bg-white/15 text-white' : 'text-slate-600 bg-slate-100'}`}>
-                          <List className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="truncate text-xs leading-tight">Log Aktivitas</span>
-                      </div>
-                    </button>
+            {/* 11. Kelola Profil & Level (Admin Only - At the very bottom) */}
+            {!isOperator && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('pengaturan');
+                  setIsMobileSidebarOpen(false);
+                }}
+                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                  activeTab === 'pengaturan'
+                    ? 'bg-violet-600 text-white shadow-md shadow-violet-600/10 font-black'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                  <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'pengaturan' ? 'bg-white/15 text-white' : 'text-violet-600 bg-violet-50'}`}>
+                    <Settings className="w-4 h-4" />
                   </div>
-                )}
-              </div>
+                  <span className="truncate text-xs leading-tight">Kelola Profil & Level</span>
+                </div>
+              </button>
             )}
           </nav>
         </div>
@@ -2180,7 +2186,7 @@ export default function AdminDashboard({
                             <span className="font-extrabold text-sm text-slate-800">{member.student.fullName}</span>
                             <span className="text-[10px] font-mono bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded font-bold">{member.id}</span>
                           </div>
-                          <div className="text-xs text-slate-500 grid grid-cols-2 gap-x-6 gap-y-1">
+                          <div className="text-xs text-slate-500 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
                             <p>📅 Tgl Daftar: <strong className="text-slate-700 font-mono">{member.registeredAt ? member.registeredAt.substring(0, 16).replace('T', ' ') : '-'}</strong></p>
                             <p>👤 Wali: <strong className="text-slate-700">{member.parent.fatherMotherName}</strong></p>
                             <p>📱 WhatsApp: <strong className="text-slate-700 font-mono">{member.parent.whatsapp}</strong></p>
@@ -4162,23 +4168,36 @@ export default function AdminDashboard({
 
         {/* TAB 5: MANAJEMEN PELATIH & JADWAL */}
         {activeTab === 'pelatih' && (
-          <div className="space-y-8">
-            <div className="flex justify-between items-center">
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">Manajemen Pelatih & Kuota Latihan</h3>
                 <p className="text-slate-500 text-xs">Ubah kuota siswa maksimal, harga paket latihan 4x/8x/12x, dan kelola jam jadwal latihan pelatih.</p>
               </div>
               <button
                 onClick={() => setShowAddCoachModal(true)}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1 shadow-md shadow-emerald-600/10 cursor-pointer whitespace-nowrap"
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1 shadow-md shadow-emerald-600/10 cursor-pointer whitespace-nowrap"
               >
                 <Plus className="w-4 h-4" /> Tambah Pelatih Baru
               </button>
             </div>
 
+            {/* Kolom Cari Nama Pelatih */}
+            <div className="relative max-w-md">
+              <input
+                type="text"
+                placeholder="Cari nama pelatih..."
+                value={searchCoach}
+                onChange={(e) => setSearchCoach(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition text-slate-800 font-medium"
+              />
+            </div>
+
             {/* List of coaches settings */}
             <div className="space-y-6">
-              {coaches.map((coach) => {
+              {coaches
+                .filter(c => c.name.toLowerCase().includes(searchCoach.toLowerCase()))
+                .map((coach) => {
                 const isEditing = selectedEditCoachId === coach.id;
                 const activeCount = members.filter(m => m.coachId === coach.id && m.status !== 'Selesai').length;
                 return (

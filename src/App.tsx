@@ -140,6 +140,8 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    const roleBeforeLogout = localStorage.getItem('user_role');
+
     try {
       await api.logout();
     } catch (e) {
@@ -153,7 +155,18 @@ export default function App() {
     setIsAdminLoggedIn(false);
     setIsCoachLoggedIn(false);
     setLoggedCoachId('');
-    navigateTo('/');
+
+    if (roleBeforeLogout === 'admin' || roleBeforeLogout === 'operator') {
+      setActiveRole('admin');
+      navigateTo('/masuk');
+    } else if (roleBeforeLogout === 'coach') {
+      setActiveRole('coach');
+      navigateTo('/masuk');
+    } else {
+      setActiveRole('admin');
+      navigateTo('/masuk');
+    }
+
     loadAllData();
   };
 
@@ -569,12 +582,22 @@ export default function App() {
             )}
 
             {activeRole !== 'member' && (
-              <button
-                onClick={handleLogout}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1 shrink-0 ml-auto"
-              >
-                🚪 Keluar Portal
-              </button>
+              <div className="flex items-center gap-2.5 ml-auto shrink-0">
+                <div className="text-right flex flex-col justify-center hidden sm:flex">
+                  <span className="text-[11px] font-black text-slate-800 leading-tight">
+                    {localStorage.getItem('user_name') || (activeRole === 'operator' ? 'Operator' : 'Admin Utama')}
+                  </span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none">
+                    {activeRole === 'operator' ? 'Operator Portal' : activeRole === 'admin' ? 'Administrator' : 'Pelatih'}
+                  </span>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1 shrink-0"
+                >
+                  🚪 Keluar Portal
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -677,6 +700,7 @@ export default function App() {
                   auditLogs={auditLogs}
                   eventCategories={eventCategories}
                   swimmingPools={swimmingPools}
+                  userRole={localStorage.getItem('user_role') || 'admin'}
                   onReloadData={loadAllData}
                   onUpdateSettings={handleUpdateSettings}
                   onUpdateLevels={handleUpdateLevels}
