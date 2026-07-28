@@ -933,8 +933,13 @@ export default function MainPortal({
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-semibold text-slate-600 block">Umur (Kalkulasi Otomatis)</label>
-                          <div className="bg-slate-100 border border-slate-200 px-4 py-3 rounded-xl text-sm font-mono text-slate-800">
-                            {studentData.age} Tahun
+                          <div className="bg-slate-100 border border-slate-200 px-4 py-3 rounded-xl text-sm font-mono text-slate-800 flex items-center justify-between">
+                            <span>{studentData.age} Tahun</span>
+                            {studentData.age < 5 && studentData.dob && (
+                              <span className="text-[10px] bg-cyan-100 text-cyan-800 font-extrabold px-2.5 py-0.5 rounded-full border border-cyan-200">
+                                👶 Program Renang Anak / Balita (&lt; 5 Tahun)
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="space-y-1 md:col-span-2">
