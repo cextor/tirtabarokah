@@ -9,7 +9,7 @@ import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleT
 import { 
   Award, Shield, Calendar, Users, CheckCircle, ArrowRight, ArrowLeft, 
   CreditCard, Clock, Phone, User, Compass, AlertCircle,
-  Gift, Sparkles, Image as ImageIcon, Plus, HeartHandshake, Eye, X
+  Gift, Sparkles, Image as ImageIcon, Plus, HeartHandshake, Eye, X, FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { checkScheduleSlotConflict } from '../utils/scheduleValidation';
@@ -677,24 +677,31 @@ export default function MainPortal({
                           </p>
                         </div>
 
-                        {/* Sertifikat Pelatih (Tampil Kecil & Bisa Diklik) */}
-                        {coach.certificateUrl ? (
-                          <div className="pt-0.5 flex justify-center">
-                            <button
-                              type="button"
-                              onClick={() => setPreviewCertUrl(coach.certificateUrl!)}
-                              className="group/cert inline-flex items-center gap-2 bg-gradient-to-r from-amber-50 to-yellow-50 hover:from-amber-100 hover:to-yellow-100 text-amber-900 border border-amber-300/80 px-3 py-1.5 rounded-xl text-[11px] font-bold shadow-2xs hover:shadow-md transition cursor-pointer"
-                              title="Klik untuk melihat Sertifikat Pelatih"
-                            >
-                              <div className="w-6 h-6 rounded-md overflow-hidden border border-amber-400 shrink-0 bg-white shadow-2xs">
-                                <img src={coach.certificateUrl} alt="Sertifikat" className="w-full h-full object-cover group-hover/cert:scale-110 transition duration-300" />
-                              </div>
-                              <span className="flex items-center gap-1">
-                                📜 Sertifikat Pelatih <span className="text-[9px] bg-amber-200/80 text-amber-900 font-extrabold px-1.5 py-0.2 rounded">Lihat</span>
-                              </span>
-                            </button>
-                          </div>
-                        ) : null}
+                        {/* Sertifikat Pelatih (Gambar / PDF - Tampil Kecil & Bisa Diklik) */}
+                        {coach.certificateUrl ? (() => {
+                          const isPdf = coach.certificateUrl.toLowerCase().includes('.pdf') || coach.certificateUrl.startsWith('data:application/pdf');
+                          return (
+                            <div className="pt-0.5 flex justify-center">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewCertUrl(coach.certificateUrl!)}
+                                className="group/cert inline-flex items-center gap-2 bg-gradient-to-r from-amber-50 to-yellow-50 hover:from-amber-100 hover:to-yellow-100 text-amber-900 border border-amber-300/80 px-3 py-1.5 rounded-xl text-[11px] font-bold shadow-2xs hover:shadow-md transition cursor-pointer"
+                                title="Klik untuk melihat Sertifikat Pelatih"
+                              >
+                                <div className="w-6 h-6 rounded-md overflow-hidden border border-amber-400 shrink-0 bg-white shadow-2xs flex items-center justify-center">
+                                  {isPdf ? (
+                                    <FileText className="w-4 h-4 text-rose-600" />
+                                  ) : (
+                                    <img src={coach.certificateUrl} alt="Sertifikat" className="w-full h-full object-cover group-hover/cert:scale-110 transition duration-300" />
+                                  )}
+                                </div>
+                                <span className="flex items-center gap-1">
+                                  {isPdf ? '📄 Sertifikat PDF' : '📜 Sertifikat Pelatih'} <span className="text-[9px] bg-amber-200/80 text-amber-900 font-extrabold px-1.5 py-0.2 rounded">Lihat</span>
+                                </span>
+                              </button>
+                            </div>
+                          );
+                        })() : null}
 
                         {/* ID Card Specs & Badges */}
                         <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 text-xs">
@@ -1821,35 +1828,58 @@ export default function MainPortal({
           </section>
         </div>
       )}
-      {/* Modal Preview Sertifikat Pelatih */}
-      {previewCertUrl && (
-        <div 
-          className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md cursor-pointer"
-          onClick={() => setPreviewCertUrl(null)}
-        >
-          <div className="relative bg-white rounded-3xl p-4 max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-3">
-              <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
-                📜 Sertifikat Pelatih
-              </h4>
-              <button
-                type="button"
-                onClick={() => setPreviewCertUrl(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="max-h-[75vh] overflow-auto flex items-center justify-center bg-slate-900/5 rounded-2xl p-2">
-              <img 
-                src={previewCertUrl} 
-                alt="Sertifikat Pelatih" 
-                className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-200" 
-              />
+      {/* Modal Preview Sertifikat Pelatih (Gambar & PDF) */}
+      {previewCertUrl && (() => {
+        const isPdf = previewCertUrl.toLowerCase().includes('.pdf') || previewCertUrl.startsWith('data:application/pdf');
+        return (
+          <div 
+            className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md cursor-pointer"
+            onClick={() => setPreviewCertUrl(null)}
+          >
+            <div className="relative bg-white rounded-3xl p-4 max-w-4xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-3 shrink-0">
+                <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                  {isPdf ? <FileText className="w-4 h-4 text-rose-600" /> : '📜'}
+                  <span>{isPdf ? 'Dokumen Sertifikat Pelatih (PDF)' : 'Sertifikat Pelatih'}</span>
+                </h4>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={previewCertUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="text-[11px] font-bold bg-cyan-50 hover:bg-cyan-100 text-cyan-700 px-3 py-1.5 rounded-xl border border-cyan-200 transition flex items-center gap-1"
+                  >
+                    ↗ Buka / Unduh
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewCertUrl(null)}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto flex items-center justify-center bg-slate-900/5 rounded-2xl p-2">
+                {isPdf ? (
+                  <iframe 
+                    src={previewCertUrl} 
+                    title="Sertifikat Pelatih PDF" 
+                    className="w-full h-[70vh] rounded-xl border border-slate-200 shadow-inner bg-white"
+                  />
+                ) : (
+                  <img 
+                    src={previewCertUrl} 
+                    alt="Sertifikat Pelatih" 
+                    className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-200" 
+                  />
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </>
   );
 }

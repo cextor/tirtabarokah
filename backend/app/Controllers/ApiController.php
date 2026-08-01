@@ -2024,6 +2024,20 @@ class ApiController extends BaseController
         if (empty($cert)) {
             return null;
         }
+        if (strpos($cert, 'data:application/pdf') === 0) {
+            preg_match('/data:application\/pdf;base64,(.*)/', $cert, $matches);
+            if (count($matches) === 2) {
+                $pdfData = base64_decode($matches[1]);
+                $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
+                $fileName = "cert_" . $slug . "_" . time() . ".pdf";
+                $publicImagesDir = FCPATH . 'images/';
+                if (!is_dir($publicImagesDir)) {
+                    @mkdir($publicImagesDir, 0777, true);
+                }
+                @file_put_contents($publicImagesDir . $fileName, $pdfData);
+                return "/images/" . $fileName;
+            }
+        }
         if (strpos($cert, 'data:image/') === 0) {
             preg_match('/data:image\/(.*?);base64,(.*)/', $cert, $matches);
             if (count($matches) === 3) {

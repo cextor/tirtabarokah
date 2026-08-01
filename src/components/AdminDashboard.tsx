@@ -9,7 +9,7 @@ import { Coach, Member, Package, ScheduleDay, EventItem, SiteSettings, ProgramLe
 import { 
   Users, DollarSign, Award, Calendar, ShieldCheck, TrendingUp, AlertTriangle, 
   Plus, Edit, Trash, Check, X, Bell, BarChart2, PieChart as PieIcon, Settings, Phone, CheckSquare, Sparkles, Image as ImageIcon,
-  LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, Key, CreditCard
+  LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, Key, CreditCard, FileText
 } from 'lucide-react';
 import { api } from '../api';
 import { 
@@ -4237,19 +4237,26 @@ export default function AdminDashboard({
                           <p className="text-[11px] text-slate-500 mt-0.5">{coach.experience}</p>
                           <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
                             <span>Kuota Max: <strong className="text-slate-700">{coach.maxQuota} anak</strong></span>
-                            {coach.certificateUrl && (
-                              <button
-                                type="button"
-                                onClick={() => setPreviewCertUrl(coach.certificateUrl!)}
-                                className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer"
-                                title="Klik untuk melihat Sertifikat Pelatih"
-                              >
-                                <div className="w-4 h-4 rounded overflow-hidden border border-amber-400 shrink-0 bg-white">
-                                  <img src={coach.certificateUrl} alt="Sertifikat" className="w-full h-full object-cover" />
-                                </div>
-                                📜 Sertifikat <span className="text-[8px] bg-amber-200 text-amber-900 px-1 rounded">Lihat</span>
-                              </button>
-                            )}
+                            {coach.certificateUrl && (() => {
+                              const isPdf = coach.certificateUrl.toLowerCase().includes('.pdf') || coach.certificateUrl.startsWith('data:application/pdf');
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewCertUrl(coach.certificateUrl!)}
+                                  className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer"
+                                  title="Klik untuk melihat Sertifikat Pelatih"
+                                >
+                                  <div className="w-4 h-4 rounded overflow-hidden border border-amber-400 shrink-0 bg-white flex items-center justify-center">
+                                    {isPdf ? (
+                                      <FileText className="w-3 h-3 text-rose-600" />
+                                    ) : (
+                                      <img src={coach.certificateUrl} alt="Sertifikat" className="w-full h-full object-cover" />
+                                    )}
+                                  </div>
+                                  <span>{isPdf ? '📄 Sertifikat PDF' : '📜 Sertifikat'}</span> <span className="text-[8px] bg-amber-200 text-amber-900 px-1 rounded">Lihat</span>
+                                </button>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -4463,24 +4470,28 @@ export default function AdminDashboard({
 
                       {/* Upload Sertifikat Pelatih */}
                       <div className="space-y-1.5">
-                        <label className="font-bold text-slate-600 block">Sertifikat Pelatih (Opsional)</label>
+                        <label className="font-bold text-slate-600 block">Sertifikat Pelatih (Gambar / PDF)</label>
                         <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-3 rounded-xl">
                           <div 
                             className="w-14 h-14 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center cursor-pointer relative group"
                             onClick={() => newCoachCertificate && setPreviewCertUrl(newCoachCertificate)}
                           >
                             {newCoachCertificate ? (
-                              <img src={newCoachCertificate} alt="Preview Sertifikat" className="w-full h-full object-cover" />
+                              newCoachCertificate.toLowerCase().includes('.pdf') || newCoachCertificate.startsWith('data:application/pdf') ? (
+                                <FileText className="w-7 h-7 text-rose-600" />
+                              ) : (
+                                <img src={newCoachCertificate} alt="Preview Sertifikat" className="w-full h-full object-cover" />
+                              )
                             ) : (
                               <Award className="w-6 h-6 text-slate-300" />
                             )}
                           </div>
                           <div className="space-y-1">
                             <label className="cursor-pointer bg-white hover:bg-slate-150 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-200 transition inline-block">
-                              📜 Upload Sertifikat Pelatih
+                              📜 Upload Sertifikat (Gambar / PDF)
                               <input 
                                 type="file" 
-                                accept="image/*"
+                                accept="image/*,.pdf,application/pdf"
                                 className="hidden"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
@@ -4496,7 +4507,7 @@ export default function AdminDashboard({
                                 }}
                               />
                             </label>
-                            <p className="text-[10px] text-slate-400 font-medium">Mendukung PNG/JPG. Tampil sebagai sertifikat resmi yang dapat diklik.</p>
+                            <p className="text-[10px] text-slate-400 font-medium">Mendukung Format PNG, JPG, dan PDF. Tampil sebagai sertifikat resmi yang dapat diklik.</p>
                           </div>
                         </div>
                       </div>
@@ -4709,24 +4720,28 @@ export default function AdminDashboard({
 
                     {/* Edit Sertifikat Pelatih */}
                     <div className="space-y-1.5">
-                      <label className="font-bold text-slate-600 block">Sertifikat Pelatih (Opsional)</label>
+                      <label className="font-bold text-slate-600 block">Sertifikat Pelatih (Gambar / PDF)</label>
                       <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-3 rounded-xl">
                         <div 
                           className="w-12 h-12 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center cursor-pointer relative group"
                           onClick={() => editCoachCertificate && setPreviewCertUrl(editCoachCertificate)}
                         >
                           {editCoachCertificate ? (
-                            <img src={editCoachCertificate} alt="Preview Sertifikat" className="w-full h-full object-cover" />
+                            editCoachCertificate.toLowerCase().includes('.pdf') || editCoachCertificate.startsWith('data:application/pdf') ? (
+                              <FileText className="w-6 h-6 text-rose-600" />
+                            ) : (
+                              <img src={editCoachCertificate} alt="Preview Sertifikat" className="w-full h-full object-cover" />
+                            )
                           ) : (
                             <Award className="w-6 h-6 text-slate-300" />
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="cursor-pointer bg-white hover:bg-slate-150 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg text-[10px] border border-slate-200 transition inline-block">
-                            📜 Upload / Ganti Sertifikat
+                            📜 Upload / Ganti Sertifikat (Gambar / PDF)
                             <input 
                               type="file" 
-                              accept="image/*"
+                              accept="image/*,.pdf,application/pdf"
                               className="hidden"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
@@ -4742,7 +4757,7 @@ export default function AdminDashboard({
                               }}
                             />
                           </label>
-                          <p className="text-[10px] text-slate-400 font-medium">Unggah sertifikat resmi pelatih yang dapat diklik oleh pengguna.</p>
+                          <p className="text-[10px] text-slate-400 font-medium">Unggah sertifikat resmi pelatih (PNG, JPG, PDF) yang dapat diklik oleh pengguna.</p>
                         </div>
                       </div>
                     </div>
@@ -5532,35 +5547,58 @@ export default function AdminDashboard({
       )}
 
 
-      {/* Modal Preview Sertifikat Pelatih */}
-      {previewCertUrl && (
-        <div 
-          className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md cursor-pointer"
-          onClick={() => setPreviewCertUrl(null)}
-        >
-          <div className="relative bg-white rounded-3xl p-4 max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-3">
-              <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
-                📜 Sertifikat Pelatih
-              </h4>
-              <button
-                type="button"
-                onClick={() => setPreviewCertUrl(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="max-h-[75vh] overflow-auto flex items-center justify-center bg-slate-900/5 rounded-2xl p-2">
-              <img 
-                src={previewCertUrl} 
-                alt="Sertifikat Pelatih" 
-                className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-200" 
-              />
+      {/* Modal Preview Sertifikat Pelatih (Gambar & PDF) */}
+      {previewCertUrl && (() => {
+        const isPdf = previewCertUrl.toLowerCase().includes('.pdf') || previewCertUrl.startsWith('data:application/pdf');
+        return (
+          <div 
+            className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md cursor-pointer"
+            onClick={() => setPreviewCertUrl(null)}
+          >
+            <div className="relative bg-white rounded-3xl p-4 max-w-4xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-3 shrink-0">
+                <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                  {isPdf ? <FileText className="w-4 h-4 text-rose-600" /> : '📜'}
+                  <span>{isPdf ? 'Dokumen Sertifikat Pelatih (PDF)' : 'Sertifikat Pelatih'}</span>
+                </h4>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={previewCertUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="text-[11px] font-bold bg-cyan-50 hover:bg-cyan-100 text-cyan-700 px-3 py-1.5 rounded-xl border border-cyan-200 transition flex items-center gap-1"
+                  >
+                    ↗ Buka / Unduh
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewCertUrl(null)}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto flex items-center justify-center bg-slate-900/5 rounded-2xl p-2">
+                {isPdf ? (
+                  <iframe 
+                    src={previewCertUrl} 
+                    title="Sertifikat Pelatih PDF" 
+                    className="w-full h-[70vh] rounded-xl border border-slate-200 shadow-inner bg-white"
+                  />
+                ) : (
+                  <img 
+                    src={previewCertUrl} 
+                    alt="Sertifikat Pelatih" 
+                    className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-200" 
+                  />
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       </div>
     </div>
