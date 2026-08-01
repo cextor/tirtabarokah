@@ -94,7 +94,17 @@ export default function MainPortal({
       if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
         calculatedAge--;
       }
-      setStudentData(prev => ({ ...prev, age: Math.max(0, calculatedAge) }));
+      const ageVal = Math.max(0, calculatedAge);
+      setStudentData(prev => ({ ...prev, age: ageVal }));
+      if (ageVal < 5) {
+        Swal.fire({
+          title: 'Usia Dibawah 5 Tahun Tidak Bisa Mendaftar',
+          text: 'Mohon maaf, usia di bawah 5 tahun tidak bisa mendaftar.',
+          icon: 'warning',
+          confirmButtonText: 'Mengerti',
+          confirmButtonColor: '#e11d48'
+        });
+      }
     }
   }, [studentData.dob]);
 
@@ -252,18 +262,17 @@ export default function MainPortal({
     setSelectedScheduleTime('');
     setSelectedScheduleDay2('');
     setSelectedScheduleTime2('');
-    setPaymentMethod('Transfer BNI');
-    setCreatedMemberId(null);
     setStep(1);
-    setCurrentView('home');
+    setCreatedMemberId(null);
+    if (navigateTo) navigateTo('/');
   };
 
   // Helper: check schedule slot availability
   const canNavigateToStep = (targetStep: number) => {
     if (targetStep === 1) return true;
     if (targetStep === 2) {
-      // Step 2: Paket Latihan (needs parent and student data filled)
-      return Boolean(parentData.fatherMotherName.trim() && parentData.whatsapp.trim() && studentData.fullName.trim() && studentData.dob);
+      // Step 2: Paket Latihan (needs parent and student data filled and age >= 5)
+      return Boolean(parentData.fatherMotherName.trim() && parentData.whatsapp.trim() && studentData.fullName.trim() && studentData.dob && studentData.age >= 5);
     }
     if (targetStep === 3) {
       // Step 3: Pilih Pelatih (needs global package selected)
@@ -499,6 +508,7 @@ export default function MainPortal({
                   // Fallback defaults
                   packagesList = [
                     {
+                      id: 'pkg-promo',
                       category: 'PROMO',
                       name: 'Paket Reguler PROMO 5x latihan',
                       price: 220000,
@@ -507,6 +517,7 @@ export default function MainPortal({
                       description: '1 pelatih mengajar 1-6 anak. Masa aktif 1 bulan, jika tidak habis maka hangus.'
                     },
                     {
+                      id: 'pkg-reguler',
                       category: 'REGULER',
                       name: 'Paket Reguler 5x latihan',
                       price: 250000,
@@ -515,6 +526,7 @@ export default function MainPortal({
                       description: '1 pelatih mengajar 1-6 anak. Masa aktif 3 bulan, jika tidak habis maka hangus.'
                     },
                     {
+                      id: 'pkg-private-2',
                       category: 'PRIVATE',
                       name: 'Paket Private 2 anak',
                       price: 1300000,
@@ -523,6 +535,7 @@ export default function MainPortal({
                       description: '1 pelatih KHUSUS mengajar 2 anak.'
                     },
                     {
+                      id: 'pkg-private-3',
                       category: 'PRIVATE',
                       name: 'Paket Private 3 anak',
                       price: 1500000,
@@ -667,7 +680,7 @@ export default function MainPortal({
                         <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 space-y-2 text-xs">
                           <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
                             <span>Siswa Aktif</span>
-                            <span className="text-slate-800 font-extrabold">{quota.currentActive} Anak</span>
+                            <span className="text-slate-800 font-extrabold">{quota.current} Anak</span>
                           </div>
                           <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             <span>Maksimal Kuota</span>
@@ -777,7 +790,7 @@ export default function MainPortal({
         /* New Page/View for Registration Form */
         <div className="max-w-4xl mx-auto space-y-6">
           <button
-            onClick={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            onClick={() => { if (navigateTo) navigateTo('/'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 font-bold text-xs mb-2 transition cursor-pointer border-0 bg-transparent"
           >
             ← Kembali ke Beranda
@@ -933,11 +946,20 @@ export default function MainPortal({
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-semibold text-slate-600 block">Umur (Kalkulasi Otomatis)</label>
-                          <div className="bg-slate-100 border border-slate-200 px-4 py-3 rounded-xl text-sm font-mono text-slate-800 flex items-center justify-between">
-                            <span>{studentData.age} Tahun</span>
-                            {studentData.age < 5 && studentData.dob && (
-                              <span className="text-[10px] bg-cyan-100 text-cyan-800 font-extrabold px-2.5 py-0.5 rounded-full border border-cyan-200">
-                                👶 Program Renang Anak / Balita (&lt; 5 Tahun)
+                          <div className={`border px-4 py-3 rounded-xl text-sm font-mono flex items-center justify-between transition ${
+                            studentData.dob && studentData.age < 5
+                              ? 'bg-rose-50 border-rose-300 text-rose-700'
+                              : 'bg-slate-100 border-slate-200 text-slate-800'
+                          }`}>
+                            <span>{studentData.dob ? `${studentData.age} Tahun` : 'Belum diisi'}</span>
+                            {studentData.dob && studentData.age < 5 && (
+                              <span className="text-[10px] bg-rose-100 text-rose-800 font-extrabold px-2.5 py-0.5 rounded-full border border-rose-300 flex items-center gap-1">
+                                ⚠️ Usia di bawah 5 tahun tidak bisa mendaftar
+                              </span>
+                            )}
+                            {studentData.dob && studentData.age >= 5 && (
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                ✅ Memenuhi syarat usia (≥ 5 Tahun)
                               </span>
                             )}
                           </div>
@@ -952,21 +974,6 @@ export default function MainPortal({
                             className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition text-sm text-slate-800"
                           />
                         </div>
-                        {/* 
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-xs font-semibold text-slate-600 block flex items-center gap-1">
-                            <Gift className="w-3.5 h-3.5 text-cyan-600" /> Kode Referral Pelatih / Teman (Opsional)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Masukkan kode referral pelatih atau teman Anda jika ada (Contoh: COACH-ARDI)"
-                            value={referralCodeUsed}
-                            onChange={(e) => setReferralCodeUsed(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition text-sm text-slate-800 uppercase font-mono"
-                          />
-                          <p className="text-[10px] text-slate-400">Masukkan kode referral jika ada: Pelatih pendamping berhak mendapat Rp 50.000, atau Teman sesama member mendapat Rp 25.000.</p>
-                        </div>
-                        */}
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-xs font-semibold text-slate-600 block">Apakah Siswa Pernah Belajar Renang Sebelumnya?</label>
                           <div className="grid grid-cols-2 gap-2">
@@ -1050,6 +1057,16 @@ export default function MainPortal({
                               icon: 'warning',
                               confirmButtonText: 'Lengkapi Data',
                               confirmButtonColor: '#0891b2'
+                            });
+                            return;
+                          }
+                          if (studentData.age < 5) {
+                            Swal.fire({
+                              title: 'Usia Dibawah 5 Tahun Tidak Bisa Mendaftar',
+                              text: 'Mohon maaf, usia di bawah 5 tahun tidak bisa mendaftar.',
+                              icon: 'warning',
+                              confirmButtonText: 'Mengerti',
+                              confirmButtonColor: '#e11d48'
                             });
                             return;
                           }
@@ -1390,7 +1407,7 @@ export default function MainPortal({
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                   {day.timeSlots.map((slot) => {
                                     const details = getSlotDetails(selectedCoach, day.day, slot.time);
-                                    const targetCoachType: 'Reguler' | 'Privat' = selectedPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
+                                    const targetCoachType: 'Reguler' | 'Privat' = selectedPricingPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
                                     const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
                                     const isSelected = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
                                     const isDisabled = details.isFull || conflictInfo.isConflict || (selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time);
@@ -1458,7 +1475,7 @@ export default function MainPortal({
                                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                     {day.timeSlots.map((slot) => {
                                       const details = getSlotDetails(selectedCoach, day.day, slot.time);
-                                      const targetCoachType: 'Reguler' | 'Privat' = selectedPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
+                                      const targetCoachType: 'Reguler' | 'Privat' = selectedPricingPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
                                       const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
                                       const isSelected = selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time;
                                       const isSameAsSesi1 = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;

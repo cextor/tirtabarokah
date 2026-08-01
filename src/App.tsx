@@ -157,14 +157,11 @@ export default function App() {
     setLoggedCoachId('');
 
     if (roleBeforeLogout === 'admin' || roleBeforeLogout === 'operator') {
-      setActiveRole('admin');
-      navigateTo('/masuk');
+      navigateTo('/belakang');
     } else if (roleBeforeLogout === 'coach') {
-      setActiveRole('coach');
-      navigateTo('/masuk');
+      navigateTo('/coachs');
     } else {
-      setActiveRole('admin');
-      navigateTo('/masuk');
+      navigateTo('/');
     }
 
     loadAllData();
@@ -585,10 +582,10 @@ export default function App() {
               <div className="flex items-center gap-2.5 ml-auto shrink-0">
                 <div className="text-right flex flex-col justify-center hidden sm:flex">
                   <span className="text-[11px] font-black text-slate-800 leading-tight">
-                    {localStorage.getItem('user_name') || (activeRole === 'operator' ? 'Operator' : 'Admin Utama')}
+                    {localStorage.getItem('user_name') || (localStorage.getItem('user_role') === 'operator' ? 'Operator' : 'Admin Utama')}
                   </span>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none">
-                    {activeRole === 'operator' ? 'Operator Portal' : activeRole === 'admin' ? 'Administrator' : 'Pelatih'}
+                    {localStorage.getItem('user_role') === 'operator' ? 'Operator Portal' : activeRole === 'admin' ? 'Administrator' : 'Pelatih'}
                   </span>
                 </div>
                 <button

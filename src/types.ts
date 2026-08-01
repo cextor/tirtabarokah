@@ -68,6 +68,7 @@ export interface Member {
     time: string;
   }[];
   isActive?: boolean;
+  isTransfer?: boolean;
 }
 
 export interface Package {

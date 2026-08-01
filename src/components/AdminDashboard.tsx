@@ -444,6 +444,17 @@ export default function AdminDashboard({
       return;
     }
 
+    const ageVal = Number(studentAge) || 0;
+    if (ageVal < 5) {
+      Swal.fire({
+        title: 'Usia Dibawah 5 Tahun Tidak Bisa Mendaftar',
+        text: 'Mohon maaf, usia di bawah 5 tahun tidak bisa mendaftar.',
+        icon: 'warning',
+        confirmButtonColor: '#e11d48'
+      });
+      return;
+    }
+
     // Validate category conflict (Reguler vs Privat) for Sesi 1
     const conflict1 = checkScheduleSlotConflict(
       members,
