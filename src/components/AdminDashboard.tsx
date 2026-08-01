@@ -4235,28 +4235,44 @@ export default function AdminDashboard({
                             )}
                           </h4>
                           <p className="text-[11px] text-slate-500 mt-0.5">{coach.experience}</p>
-                          <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
-                            <span>Kuota Max: <strong className="text-slate-700">{coach.maxQuota} anak</strong></span>
-                            {coach.certificateUrl && (() => {
+                          <div className="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-slate-100">
+                            <span className="text-[10px] font-bold text-slate-500">Kuota Max: <strong className="text-slate-800 font-extrabold">{coach.maxQuota} anak</strong></span>
+                            
+                            {/* Certificate Display Badge */}
+                            {coach.certificateUrl ? (() => {
                               const isPdf = coach.certificateUrl.toLowerCase().includes('.pdf') || coach.certificateUrl.startsWith('data:application/pdf');
                               return (
                                 <button
                                   type="button"
                                   onClick={() => setPreviewCertUrl(coach.certificateUrl!)}
-                                  className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer"
+                                  className="inline-flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-xl font-bold text-xs shadow-2xs hover:shadow-sm transition cursor-pointer"
                                   title="Klik untuk melihat Sertifikat Pelatih"
                                 >
-                                  <div className="w-4 h-4 rounded overflow-hidden border border-amber-400 shrink-0 bg-white flex items-center justify-center">
+                                  <div className="w-5 h-5 rounded-md overflow-hidden border border-amber-400 shrink-0 bg-white flex items-center justify-center">
                                     {isPdf ? (
-                                      <FileText className="w-3 h-3 text-rose-600" />
+                                      <FileText className="w-3.5 h-3.5 text-rose-600" />
                                     ) : (
                                       <img src={coach.certificateUrl} alt="Sertifikat" className="w-full h-full object-cover" />
                                     )}
                                   </div>
-                                  <span>{isPdf ? '📄 Sertifikat PDF' : '📜 Sertifikat'}</span> <span className="text-[8px] bg-amber-200 text-amber-900 px-1 rounded">Lihat</span>
+                                  <span>{isPdf ? '📄 Sertifikat PDF' : '📜 Sertifikat Pelatih'}</span>
+                                  <span className="text-[9px] bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded-md font-extrabold uppercase">Lihat</span>
                                 </button>
                               );
-                            })()}
+                            })() : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleEditCoachSettings(coach.id);
+                                  setExpandedCoachScheduleId('');
+                                }}
+                                className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-500 border border-dashed border-slate-300 px-2.5 py-1 rounded-xl text-xs font-semibold transition cursor-pointer"
+                                title="Klik untuk unggah sertifikat"
+                              >
+                                <Award className="w-3.5 h-3.5 text-slate-400" />
+                                <span>+ Unggah Sertifikat</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
