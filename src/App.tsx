@@ -285,7 +285,8 @@ export default function App() {
             username: added.username,
             password: added.password,
             email: added.email,
-            phone: added.phone
+            phone: added.phone,
+            certificateUrl: added.certificateUrl
           });
         }
       } else if (newCoaches.length < coaches.length) {
@@ -311,7 +312,8 @@ export default function App() {
             username: updated.username,
             password: updated.password,
             email: updated.email,
-            phone: updated.phone
+            phone: updated.phone,
+            certificateUrl: updated.certificateUrl
           });
         }
       }
