@@ -89,6 +89,7 @@ class ApiController extends BaseController
             $coach['maxQuota'] = (int)$coach['max_quota'];
             $coach['referralCode'] = $coach['referral_code'];
             $coach['isActive'] = isset($coach['is_active']) ? (bool)$coach['is_active'] : true;
+            $coach['certificateUrl'] = $coach['certificate_url'] ?? null;
         }
 
         return $this->respond($coaches);
@@ -124,7 +125,8 @@ class ApiController extends BaseController
             'max_quota' => (int)($json->maxQuota ?? 6),
             'is_active' => 1,
             'email' => (!empty($json->email)) ? trim($json->email) : null,
-            'phone' => (!empty($json->phone)) ? trim($json->phone) : null
+            'phone' => (!empty($json->phone)) ? trim($json->phone) : null,
+            'certificate_url' => $this->processCoachCertificate($json->certificateUrl ?? ($json->certificate_url ?? ''), $json->name)
         ];
 
         $this->db->transStart();
@@ -234,7 +236,8 @@ class ApiController extends BaseController
             'max_quota' => (int)$json->maxQuota,
             'is_active' => isset($json->isActive) ? ($json->isActive ? 1 : 0) : 1,
             'email' => (!empty($json->email)) ? trim($json->email) : null,
-            'phone' => (!empty($json->phone)) ? trim($json->phone) : null
+            'phone' => (!empty($json->phone)) ? trim($json->phone) : null,
+            'certificate_url' => $this->processCoachCertificate($json->certificateUrl ?? ($json->certificate_url ?? ''), $json->name)
         ];
 
         $this->db->transStart();
@@ -2014,5 +2017,28 @@ class ApiController extends BaseController
             }
         }
         return $photo;
+    }
+
+    private function processCoachCertificate($cert, $coachName)
+    {
+        if (empty($cert)) {
+            return null;
+        }
+        if (strpos($cert, 'data:image/') === 0) {
+            preg_match('/data:image\/(.*?);base64,(.*)/', $cert, $matches);
+            if (count($matches) === 3) {
+                $ext = $matches[1] === 'jpeg' ? 'jpg' : ($matches[1] === 'png' ? 'png' : 'jpg');
+                $imageData = base64_decode($matches[2]);
+                $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
+                $fileName = "cert_" . $slug . "_" . time() . "." . $ext;
+                $publicImagesDir = FCPATH . 'images/';
+                if (!is_dir($publicImagesDir)) {
+                    @mkdir($publicImagesDir, 0777, true);
+                }
+                @file_put_contents($publicImagesDir . $fileName, $imageData);
+                return "/images/" . $fileName;
+            }
+        }
+        return $cert;
     }
 }

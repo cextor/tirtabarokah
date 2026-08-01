@@ -236,6 +236,7 @@ export default function AdminDashboard({
   const [newCoachName, setNewCoachName] = useState<string>('');
   const [newCoachExperience, setNewCoachExperience] = useState<string>('');
   const [newCoachPhoto, setNewCoachPhoto] = useState<string>('');
+  const [newCoachCertificate, setNewCoachCertificate] = useState<string>('');
   const [newCoachQuota, setNewCoachQuota] = useState<number>(6);
   const [newCoachReferralCode, setNewCoachReferralCode] = useState<string>('');
 
@@ -260,6 +261,7 @@ export default function AdminDashboard({
   const [editCoachName, setEditCoachName] = useState<string>('');
   const [editCoachExperience, setEditCoachExperience] = useState<string>('');
   const [editCoachPhoto, setEditCoachPhoto] = useState<string>('');
+  const [editCoachCertificate, setEditCoachCertificate] = useState<string>('');
   const [editQuotaValue, setEditQuotaValue] = useState<number>(6);
   const [editPrice4, setEditPrice4] = useState<number>(250000);
   const [editPrice8, setEditPrice8] = useState<number>(450000);
@@ -267,6 +269,7 @@ export default function AdminDashboard({
   const [editCoachPackages, setEditCoachPackages] = useState<Package[]>([]);
   const [editCoachIsActive, setEditCoachIsActive] = useState<boolean>(true);
   const [editCoachReferralCode, setEditCoachReferralCode] = useState<string>('');
+  const [previewCertUrl, setPreviewCertUrl] = useState<string | null>(null);
 
   // FILTERS FOR PARTICIPANTS
   const [pesertaFilter, setPesertaFilter] = useState<'semua' | 'aktif' | 'hampir-habis' | 'menunggu-verifikasi'>('semua');
@@ -874,6 +877,7 @@ export default function AdminDashboard({
       name: newCoachName,
       status: 'Tersedia',
       photo: defaultPhoto,
+      certificateUrl: newCoachCertificate || undefined,
       experience: newCoachExperience,
       maxQuota: newCoachQuota,
       currentQuota: 0,
@@ -930,6 +934,7 @@ export default function AdminDashboard({
     setNewCoachName('');
     setNewCoachExperience('');
     setNewCoachPhoto('');
+    setNewCoachCertificate('');
     setNewCoachQuota(6);
     setNewCoachReferralCode('');
     setNewCoachPackages([]);
@@ -952,6 +957,7 @@ export default function AdminDashboard({
           name: editCoachName,
           experience: editCoachExperience,
           photo: editCoachPhoto,
+          certificateUrl: editCoachCertificate || undefined,
           maxQuota: editQuotaValue,
           packages: editCoachPackages,
           isActive: editCoachIsActive,
@@ -980,6 +986,7 @@ export default function AdminDashboard({
     setEditCoachName(coach.name);
     setEditCoachExperience(coach.experience);
     setEditCoachPhoto(coach.photo);
+    setEditCoachCertificate(coach.certificateUrl || '');
     setEditQuotaValue(coach.maxQuota);
     setEditCoachPackages(coach.packages || []);
     setEditPrice4(coach.packages.find(p => p.sessions === 4)?.price || 250000);
@@ -4228,9 +4235,21 @@ export default function AdminDashboard({
                             )}
                           </h4>
                           <p className="text-[11px] text-slate-500 mt-0.5">{coach.experience}</p>
-                          <div className="flex gap-3 mt-1 text-[10px] text-slate-500">
-                            <span>Siswa Aktif: <strong className="text-cyan-700">{activeCount} anak</strong></span>
+                          <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
                             <span>Kuota Max: <strong className="text-slate-700">{coach.maxQuota} anak</strong></span>
+                            {coach.certificateUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewCertUrl(coach.certificateUrl!)}
+                                className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-lg font-bold transition cursor-pointer"
+                                title="Klik untuk melihat Sertifikat Pelatih"
+                              >
+                                <div className="w-4 h-4 rounded overflow-hidden border border-amber-400 shrink-0 bg-white">
+                                  <img src={coach.certificateUrl} alt="Sertifikat" className="w-full h-full object-cover" />
+                                </div>
+                                📜 Sertifikat <span className="text-[8px] bg-amber-200 text-amber-900 px-1 rounded">Lihat</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -4442,6 +4461,46 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
+                      {/* Upload Sertifikat Pelatih */}
+                      <div className="space-y-1.5">
+                        <label className="font-bold text-slate-600 block">Sertifikat Pelatih (Opsional)</label>
+                        <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                          <div 
+                            className="w-14 h-14 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center cursor-pointer relative group"
+                            onClick={() => newCoachCertificate && setPreviewCertUrl(newCoachCertificate)}
+                          >
+                            {newCoachCertificate ? (
+                              <img src={newCoachCertificate} alt="Preview Sertifikat" className="w-full h-full object-cover" />
+                            ) : (
+                              <Award className="w-6 h-6 text-slate-300" />
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="cursor-pointer bg-white hover:bg-slate-150 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-200 transition inline-block">
+                              📜 Upload Sertifikat Pelatih
+                              <input 
+                                type="file" 
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      if (typeof reader.result === 'string') {
+                                        setNewCoachCertificate(reader.result);
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                            <p className="text-[10px] text-slate-400 font-medium">Mendukung PNG/JPG. Tampil sebagai sertifikat resmi yang dapat diklik.</p>
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="space-y-1.5">
                         <label className="font-bold text-slate-600">Pengalaman / Biografi Singkat</label>
                         <input
@@ -4644,6 +4703,46 @@ export default function AdminDashboard({
                             />
                           </label>
                           <p className="text-[10px] text-slate-400 font-medium">Unggah foto baru untuk mengganti foto pelatih ini.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Edit Sertifikat Pelatih */}
+                    <div className="space-y-1.5">
+                      <label className="font-bold text-slate-600 block">Sertifikat Pelatih (Opsional)</label>
+                      <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                        <div 
+                          className="w-12 h-12 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center cursor-pointer relative group"
+                          onClick={() => editCoachCertificate && setPreviewCertUrl(editCoachCertificate)}
+                        >
+                          {editCoachCertificate ? (
+                            <img src={editCoachCertificate} alt="Preview Sertifikat" className="w-full h-full object-cover" />
+                          ) : (
+                            <Award className="w-6 h-6 text-slate-300" />
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <label className="cursor-pointer bg-white hover:bg-slate-150 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg text-[10px] border border-slate-200 transition inline-block">
+                            📜 Upload / Ganti Sertifikat
+                            <input 
+                              type="file" 
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    if (typeof reader.result === 'string') {
+                                      setEditCoachCertificate(reader.result);
+                                    }
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                          </label>
+                          <p className="text-[10px] text-slate-400 font-medium">Unggah sertifikat resmi pelatih yang dapat diklik oleh pengguna.</p>
                         </div>
                       </div>
                     </div>
@@ -6643,6 +6742,35 @@ function SettingsAndLevelsTab({
         </div>
       )}
 
+      {/* Modal Preview Sertifikat Pelatih */}
+              {previewCertUrl && (
+                <div 
+                  className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md cursor-pointer"
+                  onClick={() => setPreviewCertUrl(null)}
+                >
+                  <div className="relative bg-white rounded-3xl p-4 max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-3">
+                      <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                        📜 Sertifikat Pelatih
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewCertUrl(null)}
+                        className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition cursor-pointer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="max-h-[75vh] overflow-auto flex items-center justify-center bg-slate-900/5 rounded-2xl p-2">
+                      <img 
+                        src={previewCertUrl} 
+                        alt="Sertifikat Pelatih" 
+                        className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-200" 
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
     </div>
   );
 }

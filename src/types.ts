@@ -108,6 +108,7 @@ export interface Coach {
   packages: Package[];
   schedule: ScheduleDay[];
   isActive?: boolean;
+  certificateUrl?: string;
 }
 
 export interface EventItem {

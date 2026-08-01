@@ -9,7 +9,7 @@ import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleT
 import { 
   Award, Shield, Calendar, Users, CheckCircle, ArrowRight, ArrowLeft, 
   CreditCard, Clock, Phone, User, Compass, AlertCircle,
-  Gift, Sparkles, Image as ImageIcon, Plus, HeartHandshake, Eye
+  Gift, Sparkles, Image as ImageIcon, Plus, HeartHandshake, Eye, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { checkScheduleSlotConflict } from '../utils/scheduleValidation';
@@ -52,6 +52,7 @@ export default function MainPortal({
   };
 
   const [eventCategoryFilter, setEventCategoryFilter] = useState<'Semua' | 'Fun Swimming' | 'Lomba' | 'Latihan Bersama' | 'Pengumuman'>('Semua');
+  const [previewCertUrl, setPreviewCertUrl] = useState<string | null>(null);
 
   // State for Registration Funnel
   const [step, setStep] = useState<number>(1);
@@ -676,12 +677,27 @@ export default function MainPortal({
                           </p>
                         </div>
 
-                        {/* ID Card Specs & Badges */}
-                        <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 space-y-2 text-xs">
-                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
-                            <span>Siswa Aktif</span>
-                            <span className="text-slate-800 font-extrabold">{quota.current} Anak</span>
+                        {/* Sertifikat Pelatih (Tampil Kecil & Bisa Diklik) */}
+                        {coach.certificateUrl ? (
+                          <div className="pt-0.5 flex justify-center">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewCertUrl(coach.certificateUrl!)}
+                              className="group/cert inline-flex items-center gap-2 bg-gradient-to-r from-amber-50 to-yellow-50 hover:from-amber-100 hover:to-yellow-100 text-amber-900 border border-amber-300/80 px-3 py-1.5 rounded-xl text-[11px] font-bold shadow-2xs hover:shadow-md transition cursor-pointer"
+                              title="Klik untuk melihat Sertifikat Pelatih"
+                            >
+                              <div className="w-6 h-6 rounded-md overflow-hidden border border-amber-400 shrink-0 bg-white shadow-2xs">
+                                <img src={coach.certificateUrl} alt="Sertifikat" className="w-full h-full object-cover group-hover/cert:scale-110 transition duration-300" />
+                              </div>
+                              <span className="flex items-center gap-1">
+                                📜 Sertifikat Pelatih <span className="text-[9px] bg-amber-200/80 text-amber-900 font-extrabold px-1.5 py-0.2 rounded">Lihat</span>
+                              </span>
+                            </button>
                           </div>
+                        ) : null}
+
+                        {/* ID Card Specs & Badges */}
+                        <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 text-xs">
                           <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             <span>Maksimal Kuota</span>
                             <span className="text-cyan-700 font-extrabold">{coach.maxQuota} Anak</span>
@@ -693,28 +709,6 @@ export default function MainPortal({
                             * Tidak menerima siswa baru sementara waktu
                           </p>
                         )}
-
-                        {/* Fake ID Card Barcode at Bottom */}
-                        <div className="pt-2 border-t border-slate-100 space-y-1">
-                          <div className="flex justify-center items-center gap-0.5 h-6 opacity-60">
-                            <div className="w-1 h-full bg-slate-800"></div>
-                            <div className="w-0.5 h-full bg-slate-800"></div>
-                            <div className="w-1.5 h-full bg-slate-800"></div>
-                            <div className="w-0.5 h-full bg-slate-800"></div>
-                            <div className="w-2 h-full bg-slate-800"></div>
-                            <div className="w-0.5 h-full bg-slate-800"></div>
-                            <div className="w-1 h-full bg-slate-800"></div>
-                            <div className="w-2.5 h-full bg-slate-800"></div>
-                            <div className="w-0.5 h-full bg-slate-800"></div>
-                            <div className="w-1.5 h-full bg-slate-800"></div>
-                            <div className="w-1 h-full bg-slate-800"></div>
-                            <div className="w-0.5 h-full bg-slate-800"></div>
-                            <div className="w-2 h-full bg-slate-800"></div>
-                          </div>
-                          <p className="text-[9px] font-mono text-slate-400 uppercase tracking-widest font-extrabold">
-                            ID: TB-COACH-{coach.id.replace('coach-', '').toUpperCase()}
-                          </p>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -1825,6 +1819,35 @@ export default function MainPortal({
               </AnimatePresence>
             </div>
           </section>
+        </div>
+      )}
+      {/* Modal Preview Sertifikat Pelatih */}
+      {previewCertUrl && (
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md cursor-pointer"
+          onClick={() => setPreviewCertUrl(null)}
+        >
+          <div className="relative bg-white rounded-3xl p-4 max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-3">
+              <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                📜 Sertifikat Pelatih
+              </h4>
+              <button
+                type="button"
+                onClick={() => setPreviewCertUrl(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="max-h-[75vh] overflow-auto flex items-center justify-center bg-slate-900/5 rounded-2xl p-2">
+              <img 
+                src={previewCertUrl} 
+                alt="Sertifikat Pelatih" 
+                className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-200" 
+              />
+            </div>
+          </div>
         </div>
       )}
     </>
