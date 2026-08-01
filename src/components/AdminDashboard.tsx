@@ -5566,6 +5566,24 @@ export default function AdminDashboard({
       {/* Modal Preview Sertifikat Pelatih (Gambar & PDF) */}
       {previewCertUrl && (() => {
         const isPdf = previewCertUrl.toLowerCase().includes('.pdf') || previewCertUrl.startsWith('data:application/pdf');
+        let pdfTargetUrl = previewCertUrl;
+        if (previewCertUrl.startsWith('data:application/pdf')) {
+          try {
+            const parts = previewCertUrl.split(',');
+            const mime = parts[0].match(/:(.*?);/)?.[1] || 'application/pdf';
+            const bstr = atob(parts[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+              u8arr[n] = bstr.charCodeAt(n);
+            }
+            const blob = new Blob([u8arr], { type: mime });
+            pdfTargetUrl = URL.createObjectURL(blob);
+          } catch (e) {
+            pdfTargetUrl = previewCertUrl;
+          }
+        }
+
         return (
           <div 
             className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md cursor-pointer"
@@ -5579,13 +5597,13 @@ export default function AdminDashboard({
                 </h4>
                 <div className="flex items-center gap-2">
                   <a
-                    href={previewCertUrl}
+                    href={pdfTargetUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    download
-                    className="text-[11px] font-bold bg-cyan-50 hover:bg-cyan-100 text-cyan-700 px-3 py-1.5 rounded-xl border border-cyan-200 transition flex items-center gap-1"
+                    download="sertifikat_pelatih.pdf"
+                    className="text-[11px] font-bold bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1.5 rounded-xl transition flex items-center gap-1 shadow-sm"
                   >
-                    ↗ Buka / Unduh
+                    ↗ Buka / Unduh PDF
                   </a>
                   <button
                     type="button"
@@ -5598,11 +5616,17 @@ export default function AdminDashboard({
               </div>
               <div className="flex-1 min-h-0 overflow-auto flex items-center justify-center bg-slate-900/5 rounded-2xl p-2">
                 {isPdf ? (
-                  <iframe 
-                    src={previewCertUrl} 
-                    title="Sertifikat Pelatih PDF" 
+                  <object 
+                    data={pdfTargetUrl} 
+                    type="application/pdf"
                     className="w-full h-[70vh] rounded-xl border border-slate-200 shadow-inner bg-white"
-                  />
+                  >
+                    <iframe 
+                      src={pdfTargetUrl} 
+                      title="Sertifikat Pelatih PDF" 
+                      className="w-full h-[70vh] rounded-xl border border-slate-200 shadow-inner bg-white"
+                    />
+                  </object>
                 ) : (
                   <img 
                     src={previewCertUrl} 
