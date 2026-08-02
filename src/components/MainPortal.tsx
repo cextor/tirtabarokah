@@ -694,7 +694,7 @@ export default function MainPortal({
               </span>
               <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Daftar Pelatih Profesional Kami</h2>
               <p className="text-slate-500 text-sm">
-                Setiap pelatih memiliki kartu identitas resmi dan kuota maksimal 6 siswa aktif demi efektivitas pengajaran.
+                Setiap pelatih memiliki kartu identitas resmi demi efektivitas pengajaran.
               </p>
             </div>
 
@@ -791,14 +791,6 @@ export default function MainPortal({
                             </div>
                           );
                         })() : null}
-
-                        {/* ID Card Specs & Badges */}
-                        <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 text-xs">
-                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                            <span>Maksimal Kuota</span>
-                            <span className="text-cyan-700 font-extrabold">{coach.maxQuota} Anak</span>
-                          </div>
-                        </div>
 
                         {quota.isFull && (
                           <p className="text-rose-600 text-[10px] font-bold italic bg-rose-50 p-2 rounded-xl border border-rose-100">
