@@ -29,6 +29,18 @@ export const API_BASE_URL = (() => {
   return 'https://api.tirtabarokah.id';
 })();
 
+export function getMediaUrl(url?: string | null): string {
+  if (!url) return '/images/default_coach.jpg';
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  if (API_BASE_URL) {
+    return `${API_BASE_URL}${cleanPath}`;
+  }
+  return cleanPath;
+}
+
 async function request(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
   const token = localStorage.getItem('auth_token');

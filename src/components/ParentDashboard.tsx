@@ -9,7 +9,7 @@ import {
   Phone, User, Calendar, Award, CheckCircle, Clock, BookOpen, DollarSign, 
   Download, RefreshCw, Send, AlertCircle, FileText
 } from 'lucide-react';
-import { api } from '../api';
+import { api, getMediaUrl } from '../api';
 
 interface ParentDashboardProps {
   coaches: Coach[];
@@ -228,7 +228,7 @@ export default function ParentDashboard({ coaches, members, onUpdateMembers }: P
                     <div className="grid md:grid-cols-2 gap-4 text-xs">
                       <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-100 flex gap-3">
                         <div className="w-12 h-12 rounded-lg bg-slate-200 overflow-hidden flex-shrink-0">
-                          <img src={coach?.photo} alt={coach?.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <img src={getMediaUrl(coach?.photo)} alt={coach?.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                         <div className="space-y-1">
                           <span className="text-[10px] text-slate-400 font-bold block uppercase">Pelatih Pembimbing</span>

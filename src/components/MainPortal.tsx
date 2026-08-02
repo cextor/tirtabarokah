@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleTimeSlot, EventItem, SiteSettings, ProgramLevel, PricingPackage, SwimmingPool } from '../types';
+import { getMediaUrl } from '../api';
 import { 
   Award, Shield, Calendar, Users, CheckCircle, ArrowRight, ArrowLeft, 
   CreditCard, Clock, Phone, User, Compass, AlertCircle, MapPin,
@@ -747,7 +748,7 @@ export default function MainPortal({
                         <div className="relative inline-block">
                           <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl overflow-hidden border-4 border-white shadow-xl mx-auto bg-slate-100 relative group-hover:scale-105 transition duration-300">
                             <img 
-                              src={coach.photo} 
+                              src={getMediaUrl(coach.photo)} 
                               alt={coach.name} 
                               className="w-full h-full object-cover"
                               referrerPolicy="no-referrer"
@@ -773,7 +774,7 @@ export default function MainPortal({
                             <div className="pt-0.5 flex justify-center">
                               <button
                                 type="button"
-                                onClick={() => setPreviewCertUrl(coach.certificateUrl!)}
+                                onClick={() => setPreviewCertUrl(getMediaUrl(coach.certificateUrl!))}
                                 className="group/cert inline-flex items-center gap-2 bg-gradient-to-r from-amber-50 to-yellow-50 hover:from-amber-100 hover:to-yellow-100 text-amber-900 border border-amber-300/80 px-3 py-1.5 rounded-xl text-[11px] font-bold shadow-2xs hover:shadow-md transition cursor-pointer"
                                 title="Klik untuk melihat Sertifikat Pelatih"
                               >
@@ -781,7 +782,7 @@ export default function MainPortal({
                                   {isPdf ? (
                                     <FileText className="w-4 h-4 text-rose-600" />
                                   ) : (
-                                    <img src={coach.certificateUrl} alt="Sertifikat" className="w-full h-full object-cover group-hover/cert:scale-110 transition duration-300" />
+                                    <img src={getMediaUrl(coach.certificateUrl)} alt="Sertifikat" className="w-full h-full object-cover group-hover/cert:scale-110 transition duration-300" />
                                   )}
                                 </div>
                                 <span className="flex items-center gap-1">

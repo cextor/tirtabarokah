@@ -11,7 +11,7 @@ import {
   Plus, Edit, Trash, Check, X, Bell, BarChart2, PieChart as PieIcon, Settings, Phone, CheckSquare, Sparkles, Image as ImageIcon,
   LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, Key, CreditCard, FileText
 } from 'lucide-react';
-import { api } from '../api';
+import { api, getMediaUrl } from '../api';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, AreaChart, Area
@@ -3424,7 +3424,7 @@ export default function AdminDashboard({
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-slate-200 rounded-full overflow-hidden flex-shrink-0">
-                              <img src={coach?.photo || '/images/default_coach.jpg'} alt={coach?.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              <img src={getMediaUrl(coach?.photo)} alt={coach?.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             </div>
                             <div>
                               <h5 className="font-extrabold text-sm text-slate-900">Coach {coach?.name || 'Pelatih'}</h5>
@@ -4236,7 +4236,7 @@ export default function AdminDashboard({
                     <div className="flex flex-col md:flex-row justify-between gap-4">
                       <div className="flex gap-4 items-start">
                         <div className="w-14 h-14 bg-slate-200 rounded-xl overflow-hidden flex-shrink-0">
-                          <img src={coach.photo} alt={coach.name} className="w-full h-full object-cover" />
+                          <img src={getMediaUrl(coach.photo)} alt={coach.name} className="w-full h-full object-cover" />
                         </div>
                         <div>
                           <h4 className="font-black text-slate-800 text-sm flex items-center gap-2">
@@ -4492,7 +4492,7 @@ export default function AdminDashboard({
                         <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-3 rounded-xl">
                           <div className="w-14 h-14 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center">
                             {newCoachPhoto ? (
-                              <img src={newCoachPhoto} alt="Preview" className="w-full h-full object-cover" />
+                              <img src={getMediaUrl(newCoachPhoto)} alt="Preview" className="w-full h-full object-cover" />
                             ) : (
                               <ImageIcon className="w-6 h-6 text-slate-300" />
                             )}
@@ -4768,7 +4768,7 @@ export default function AdminDashboard({
                       <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-3 rounded-xl">
                         <div className="w-12 h-12 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center">
                           {editCoachPhoto ? (
-                            <img src={editCoachPhoto} alt="Preview" className="w-full h-full object-cover" />
+                            <img src={getMediaUrl(editCoachPhoto)} alt="Preview" className="w-full h-full object-cover" />
                           ) : (
                             <ImageIcon className="w-6 h-6 text-slate-300" />
                           )}

@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
 import { Coach, Member, TrainingProgress, CoachAbsence } from '../types';
-import { api } from '../api';
+import { api, getMediaUrl } from '../api';
 import { 
   Award, Users, Calendar, CheckSquare, PlusCircle, Clock, BookOpen, AlertCircle, Phone
 } from 'lucide-react';
@@ -246,7 +246,7 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
               <div className="text-center space-y-2">
                 <div className="w-20 h-20 bg-slate-100 rounded-full overflow-hidden mx-auto border-2 border-cyan-500/30">
-                  <img src={currentCoach.photo} alt={currentCoach.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={getMediaUrl(currentCoach.photo)} alt={currentCoach.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </div>
                 <h4 className="font-bold text-base text-slate-800">{currentCoach.name}</h4>
                 <p className="text-xs text-slate-500 italic max-w-xs mx-auto">"{currentCoach.experience}"</p>

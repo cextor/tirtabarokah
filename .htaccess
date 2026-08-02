@@ -7,7 +7,11 @@ DirectoryIndex dist/index.html
     # 1. Route API requests to backend/public/index.php
     RewriteRule ^api(/.*)?$ backend/public/index.php [QSA,L]
 
-    # 2. Explicitly rewrite index.html to dist/index.html
+    # 2. Serve images and uploads directly from backend/public if they exist there
+    RewriteCond %{DOCUMENT_ROOT}/backend/public%{REQUEST_URI} -f
+    RewriteRule ^(images|uploads)(/.*)?$ backend/public/$1$2 [L]
+
+    # 3. Explicitly rewrite index.html to dist/index.html
     RewriteRule ^index\.html$ dist/index.html [L]
 
     # 3. Serve other files directly if they exist in the root (excluding index.html)

@@ -1999,28 +1999,42 @@ class ApiController extends BaseController
             return '/images/coach_rian.png';
         }
         if (strpos($photo, 'data:image/') === 0) {
-            preg_match('/data:image\/(.*?);base64,(.*)/', $photo, $matches);
-            if (count($matches) === 3) {
-                $ext = $matches[1] === 'jpeg' ? 'jpg' : ($matches[1] === 'png' ? 'png' : 'jpg');
+            if (preg_match('/^data:image\/(.*?);base64,(.*)$/s', $photo, $matches)) {
+                $rawExt = strtolower($matches[1]);
+                $ext = 'jpg';
+                if (strpos($rawExt, 'png') !== false) $ext = 'png';
+                elseif (strpos($rawExt, 'webp') !== false) $ext = 'webp';
+                elseif (strpos($rawExt, 'gif') !== false) $ext = 'gif';
+
                 $imageData = base64_decode($matches[2]);
-                $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
-                $fileName = "coach_" . $slug . "_" . time() . "." . $ext;
-                
-                $backendImagesDir = FCPATH . 'images/';
-                if (!is_dir($backendImagesDir)) {
-                    @mkdir($backendImagesDir, 0777, true);
-                }
-                @file_put_contents($backendImagesDir . $fileName, $imageData);
+                if ($imageData !== false && strlen($imageData) > 0) {
+                    $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
+                    $fileName = "coach_" . $slug . "_" . time() . "." . $ext;
+                    
+                    $dirsToTry = [
+                        FCPATH . 'images' . DIRECTORY_SEPARATOR,
+                        FCPATH . '..' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
+                        FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
+                        FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
+                        FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'dist' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR
+                    ];
 
-                $frontendImagesDir = FCPATH . '../../public/images/';
-                if (is_dir(dirname($frontendImagesDir))) {
-                    if (!is_dir($frontendImagesDir)) {
-                        @mkdir($frontendImagesDir, 0777, true);
+                    $saved = false;
+                    foreach ($dirsToTry as $dir) {
+                        if (!is_dir($dir)) {
+                            @mkdir($dir, 0777, true);
+                        }
+                        if (is_dir($dir)) {
+                            if (@file_put_contents($dir . $fileName, $imageData) !== false) {
+                                $saved = true;
+                            }
+                        }
                     }
-                    @file_put_contents($frontendImagesDir . $fileName, $imageData);
-                }
 
-                return "/images/" . $fileName;
+                    if ($saved) {
+                        return "/images/" . $fileName;
+                    }
+                }
             }
         }
         return $photo;
@@ -2031,53 +2045,67 @@ class ApiController extends BaseController
         if (empty($cert)) {
             return null;
         }
+        $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
+
+        $dirsToTry = [
+            FCPATH . 'images' . DIRECTORY_SEPARATOR,
+            FCPATH . '..' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
+            FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
+            FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
+            FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'dist' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR
+        ];
+
         if (strpos($cert, 'data:application/pdf') === 0) {
-            preg_match('/data:application\/pdf;base64,(.*)/', $cert, $matches);
-            if (count($matches) === 2) {
+            if (preg_match('/^data:application\/pdf;base64,(.*)$/s', $cert, $matches)) {
                 $pdfData = base64_decode($matches[1]);
-                $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
-                $fileName = "cert_" . $slug . "_" . time() . ".pdf";
+                if ($pdfData !== false && strlen($pdfData) > 0) {
+                    $fileName = "cert_" . $slug . "_" . time() . ".pdf";
 
-                $backendImagesDir = FCPATH . 'images/';
-                if (!is_dir($backendImagesDir)) {
-                    @mkdir($backendImagesDir, 0777, true);
-                }
-                @file_put_contents($backendImagesDir . $fileName, $pdfData);
-
-                $frontendImagesDir = FCPATH . '../../public/images/';
-                if (is_dir(dirname($frontendImagesDir))) {
-                    if (!is_dir($frontendImagesDir)) {
-                        @mkdir($frontendImagesDir, 0777, true);
+                    $saved = false;
+                    foreach ($dirsToTry as $dir) {
+                        if (!is_dir($dir)) {
+                            @mkdir($dir, 0777, true);
+                        }
+                        if (is_dir($dir)) {
+                            if (@file_put_contents($dir . $fileName, $pdfData) !== false) {
+                                $saved = true;
+                            }
+                        }
                     }
-                    @file_put_contents($frontendImagesDir . $fileName, $pdfData);
-                }
 
-                return "/images/" . $fileName;
+                    if ($saved) {
+                        return "/images/" . $fileName;
+                    }
+                }
             }
         }
         if (strpos($cert, 'data:image/') === 0) {
-            preg_match('/data:image\/(.*?);base64,(.*)/', $cert, $matches);
-            if (count($matches) === 3) {
-                $ext = $matches[1] === 'jpeg' ? 'jpg' : ($matches[1] === 'png' ? 'png' : 'jpg');
+            if (preg_match('/^data:image\/(.*?);base64,(.*)$/s', $cert, $matches)) {
+                $rawExt = strtolower($matches[1]);
+                $ext = 'jpg';
+                if (strpos($rawExt, 'png') !== false) $ext = 'png';
+                elseif (strpos($rawExt, 'webp') !== false) $ext = 'webp';
+
                 $imageData = base64_decode($matches[2]);
-                $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
-                $fileName = "cert_" . $slug . "_" . time() . "." . $ext;
+                if ($imageData !== false && strlen($imageData) > 0) {
+                    $fileName = "cert_" . $slug . "_" . time() . "." . $ext;
 
-                $backendImagesDir = FCPATH . 'images/';
-                if (!is_dir($backendImagesDir)) {
-                    @mkdir($backendImagesDir, 0777, true);
-                }
-                @file_put_contents($backendImagesDir . $fileName, $imageData);
-
-                $frontendImagesDir = FCPATH . '../../public/images/';
-                if (is_dir(dirname($frontendImagesDir))) {
-                    if (!is_dir($frontendImagesDir)) {
-                        @mkdir($frontendImagesDir, 0777, true);
+                    $saved = false;
+                    foreach ($dirsToTry as $dir) {
+                        if (!is_dir($dir)) {
+                            @mkdir($dir, 0777, true);
+                        }
+                        if (is_dir($dir)) {
+                            if (@file_put_contents($dir . $fileName, $imageData) !== false) {
+                                $saved = true;
+                            }
+                        }
                     }
-                    @file_put_contents($frontendImagesDir . $fileName, $imageData);
-                }
 
-                return "/images/" . $fileName;
+                    if ($saved) {
+                        return "/images/" . $fileName;
+                    }
+                }
             }
         }
         return $cert;
