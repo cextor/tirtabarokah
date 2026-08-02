@@ -641,6 +641,7 @@ export default function App() {
                 settings={settings}
                 levels={levels}
                 pricingPackages={pricingPackages}
+                swimmingPools={swimmingPools}
                 onRegister={handleRegisterMember}
                 onUpdateEvents={updateEventsState}
                 view={currentPath === '/daftar' ? 'register' : 'home'}

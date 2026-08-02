@@ -5,10 +5,10 @@
 
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleTimeSlot, EventItem, SiteSettings, ProgramLevel, PricingPackage } from '../types';
+import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleTimeSlot, EventItem, SiteSettings, ProgramLevel, PricingPackage, SwimmingPool } from '../types';
 import { 
   Award, Shield, Calendar, Users, CheckCircle, ArrowRight, ArrowLeft, 
-  CreditCard, Clock, Phone, User, Compass, AlertCircle,
+  CreditCard, Clock, Phone, User, Compass, AlertCircle, MapPin,
   Gift, Sparkles, Image as ImageIcon, Plus, HeartHandshake, Eye, X, FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -21,6 +21,7 @@ interface MainPortalProps {
   settings: SiteSettings;
   levels: ProgramLevel[];
   pricingPackages: PricingPackage[];
+  swimmingPools?: SwimmingPool[];
   onRegister: (newMember: Omit<Member, 'id' | 'registeredAt'>) => Promise<string | null>;
   onUpdateEvents: (events: EventItem[]) => void;
   view?: 'home' | 'register';
@@ -34,6 +35,7 @@ export default function MainPortal({
   settings = {}, 
   levels = [], 
   pricingPackages = [],
+  swimmingPools = [],
   onRegister, 
   onUpdateEvents, 
   view = 'home', 
@@ -595,6 +597,91 @@ export default function MainPortal({
                 <p>• Untuk paket private, pelatih bersifat eksklusif (khusus) mengajar jumlah anak sesuai paket pilihan Anda.</p>
               </div>
             </div>
+          {/* Swimming Pools Info Section */}
+          <section id="swimming-pools-section" className="space-y-8 pt-4">
+            <div className="text-center max-w-xl mx-auto space-y-2">
+              <span className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border border-cyan-200/60 inline-flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-cyan-600" />
+                LOKASI & LATIHAN
+              </span>
+              <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Lokasi Kolam Renang Latihan</h2>
+              <p className="text-slate-500 text-sm">
+                Informasi kolam renang mitra tempat berlangsungnya kegiatan latihan renang Tirta Barokah.
+              </p>
+            </div>
+
+            {swimmingPools && swimmingPools.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+                {swimmingPools.map((pool) => (
+                  <div 
+                    key={pool.id}
+                    className="bg-white rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-xl hover:border-cyan-300 transition-all duration-300 p-6 space-y-4 flex flex-col justify-between group"
+                  >
+                    <div className="space-y-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-cyan-50 text-cyan-600 rounded-2xl flex items-center justify-center font-bold shrink-0 border border-cyan-100 group-hover:bg-cyan-600 group-hover:text-white transition-colors duration-300">
+                          <MapPin className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-slate-800 text-base group-hover:text-cyan-700 transition">{pool.name}</h3>
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60 inline-block mt-0.5">
+                            Kolam Renang Mitra
+                          </span>
+                        </div>
+                      </div>
+
+                      {pool.description && (
+                        <p className="text-xs text-slate-600 leading-relaxed font-normal bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                          {pool.description}
+                        </p>
+                      )}
+
+                      {/* Training Days */}
+                      {pool.training_days && pool.training_days.length > 0 && (
+                        <div className="space-y-1.5 pt-1">
+                          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-cyan-600" /> Hari Latihan Tersedia:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {pool.training_days.map((day, dIdx) => (
+                              <span key={dIdx} className="bg-cyan-50/80 text-cyan-800 font-bold text-[10px] px-2.5 py-1 rounded-lg border border-cyan-100">
+                                {day}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Training Hours */}
+                      {pool.training_hours && pool.training_hours.length > 0 && (
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-cyan-600" /> Sesi Latihan:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {pool.training_hours.map((hr, hIdx) => (
+                              <span key={hIdx} className="bg-slate-100 text-slate-700 font-mono font-semibold text-[10px] px-2.5 py-1 rounded-lg border border-slate-200">
+                                {hr}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-gradient-to-r from-cyan-50/80 via-sky-50/40 to-blue-50/80 border border-cyan-100/80 p-6 rounded-3xl max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-5 text-center md:text-left shadow-xs">
+                <div className="w-14 h-14 bg-cyan-600 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-md shadow-cyan-600/20">
+                  <MapPin className="w-7 h-7" />
+                </div>
+                <div className="space-y-1 text-slate-700 text-xs leading-relaxed">
+                  <h4 className="font-extrabold text-sm text-slate-900">Lokasi Kolam Renang Mitra Fleksibel</h4>
+                  <p>Latihan renang diselenggarakan di lokasi kolam renang mitra ternama di Palembang (seperti Kolam Renang Lumban Tirta, Garuda, dll.) atau lokasi kolam yang disepakati bersama pelatih.</p>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Coaches Showcase Section (ID CARD STYLE) */}
