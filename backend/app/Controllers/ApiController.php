@@ -292,7 +292,9 @@ class ApiController extends BaseController
                 try {
                     $this->db->table('packages')->where('id', $deleteId)->delete();
                 } catch (\Exception $e) {
-                    // Ignore if in use by members
+                    // If hard delete fails due to foreign key constraints (used by members),
+                    // disassociate package from coach so it no longer reappears in coach profile
+                    $this->db->table('packages')->where('id', $deleteId)->update(['coach_id' => 'deleted_' . $id]);
                 }
             }
 
@@ -1689,6 +1691,8 @@ class ApiController extends BaseController
                 $memberCount = $this->db->table('members')->where('package_id', $legacyId)->countAllResults();
                 if ($memberCount === 0) {
                     $this->db->table('packages')->where('id', $legacyId)->delete();
+                } else {
+                    $this->db->table('packages')->where('id', $legacyId)->update(['coach_id' => 'deleted_' . $coachId]);
                 }
             }
         }
