@@ -597,6 +597,8 @@ export default function MainPortal({
                 <p>• Untuk paket private, pelatih bersifat eksklusif (khusus) mengajar jumlah anak sesuai paket pilihan Anda.</p>
               </div>
             </div>
+          </section>
+
           {/* Swimming Pools Info Section */}
           <section id="swimming-pools-section" className="space-y-8 pt-4">
             <div className="text-center max-w-xl mx-auto space-y-2">
