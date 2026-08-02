@@ -154,34 +154,6 @@ class ApiController extends BaseController
                     ]);
                 }
             }
-        } else {
-            // Default packages if empty
-            $prices = [
-                'p4' => $json->price4 ?? 250000,
-                'p8' => $json->price8 ?? 450000,
-                'p12' => $json->price12 ?? 600000
-            ];
-            $this->db->table('packages')->insert([
-                'id' => $id . '-p4',
-                'coach_id' => $id,
-                'name' => 'Paket 4x latihan',
-                'price' => $prices['p4'],
-                'sessions' => 4
-            ]);
-            $this->db->table('packages')->insert([
-                'id' => $id . '-p8',
-                'coach_id' => $id,
-                'name' => 'Paket 8x latihan',
-                'price' => $prices['p8'],
-                'sessions' => 8
-            ]);
-            $this->db->table('packages')->insert([
-                'id' => $id . '-p12',
-                'coach_id' => $id,
-                'name' => 'Paket 12x latihan',
-                'price' => $prices['p12'],
-                'sessions' => 12
-            ]);
         }
 
         // Add schedules (Dynamic only)
