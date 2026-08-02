@@ -179,9 +179,8 @@ export default function MainPortal({
   // Auto-select coach package matching selected global package
   useEffect(() => {
     if (selectedCoach && selectedPricingPackage) {
-      const matchedPkg = selectedCoach.packages.find(cp => cp.name.toLowerCase().trim() === selectedPricingPackage.name.toLowerCase().trim())
-        || selectedCoach.packages.find(cp => Number(cp.price) === Number(selectedPricingPackage.price))
-        || selectedCoach.packages.find(cp => cp.id && selectedPricingPackage.id && String(cp.id) === String(selectedPricingPackage.id))
+      const matchedPkg = selectedCoach.packages.find(cp => cp.id && selectedPricingPackage.id && (String(cp.id) === String(selectedPricingPackage.id) || cp.id.includes(selectedPricingPackage.id)))
+        || selectedCoach.packages.find(cp => cp.name.toLowerCase().trim() === selectedPricingPackage.name.toLowerCase().trim())
         || selectedCoach.packages[0];
 
       if (matchedPkg) {
@@ -1206,11 +1205,12 @@ export default function MainPortal({
                               }
                             }
 
-                            // 4. Match coach if coach has a package matching the selected pricing package by price, name, or ID
+                            // 4. Match coach if coach has a package matching the selected pricing package by Package ID or Package Name relation (NO PRICE MATCHING!)
                             return c.packages.some(cp => {
-                              if (selectedPricingPackage?.price !== undefined && Number(cp.price) === Number(selectedPricingPackage.price)) return true;
+                              if (cp.id && selectedPricingPackage?.id && (String(cp.id) === String(selectedPricingPackage.id) || cp.id.includes(selectedPricingPackage.id))) return true;
+                              if ((cp as any).packageId && selectedPricingPackage?.id && String((cp as any).packageId) === String(selectedPricingPackage.id)) return true;
+                              if ((cp as any).pricing_package_id && selectedPricingPackage?.id && String((cp as any).pricing_package_id) === String(selectedPricingPackage.id)) return true;
                               if (cp.name && selectedPricingPackage?.name && cp.name.trim().toLowerCase() === selectedPricingPackage.name.trim().toLowerCase()) return true;
-                              if (cp.id && selectedPricingPackage?.id && String(cp.id) === String(selectedPricingPackage.id)) return true;
                               return false;
                             });
                           });
