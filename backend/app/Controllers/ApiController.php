@@ -269,7 +269,26 @@ class ApiController extends BaseController
             // Sync junction table relations for this coach
             $this->db->table('coach_pricing_packages')->where('coach_id', $id)->delete();
             foreach ($json->packages as $pkg) {
-                $globalPkg = $this->db->table('pricing_packages')->where('name', $pkg->name)->get()->getRowArray();
+                $pkgIdToFind = $pkg->pricing_package_id ?? ($pkg->packageId ?? null);
+                $globalPkg = null;
+                if ($pkgIdToFind) {
+                    $globalPkg = $this->db->table('pricing_packages')->where('id', $pkgIdToFind)->get()->getRowArray();
+                }
+                if (!$globalPkg && !empty($pkg->id)) {
+                    $globalPkg = $this->db->table('pricing_packages')->where('id', $pkg->id)->get()->getRowArray();
+                    if (!$globalPkg) {
+                        $allGlobal = $this->db->table('pricing_packages')->get()->getResultArray();
+                        foreach ($allGlobal as $gp) {
+                            if (strpos($pkg->id, $gp['id']) !== false) {
+                                $globalPkg = $gp;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!$globalPkg && !empty($pkg->name)) {
+                    $globalPkg = $this->db->table('pricing_packages')->where('name', $pkg->name)->get()->getRowArray();
+                }
                 if ($globalPkg) {
                     $this->db->table('coach_pricing_packages')->insert([
                         'coach_id' => $id,

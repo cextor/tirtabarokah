@@ -1189,11 +1189,6 @@ export default function MainPortal({
                     <div className="space-y-3">
                       <div className="grid md:grid-cols-3 gap-4">
                         {(() => {
-                          const normalizePkgName = (str?: string) => {
-                            if (!str) return '';
-                            return str.toLowerCase().replace(/^paket\s+/, '').replace(/\s+/g, ' ').trim();
-                          };
-
                           const matchingCoaches = coaches.filter(c => {
                             // 1. Must be active
                             if (c.isActive === false) return false;
@@ -1203,38 +1198,26 @@ export default function MainPortal({
                               return false;
                             }
 
-                            // 3. Match coach if coach is explicitly listed in selectedPricingPackage.coachIds
+                            // 3. Relational ID Match A: Check if coach ID is listed in selectedPricingPackage.coachIds (from coach_pricing_packages table)
                             if (selectedPricingPackage?.coachIds && Array.isArray(selectedPricingPackage.coachIds) && selectedPricingPackage.coachIds.length > 0) {
                               if (selectedPricingPackage.coachIds.some(cid => String(cid) === String(c.id))) {
                                 return true;
                               }
                             }
 
-                            // 4. Match coach if any package in c.packages matches selectedPricingPackage by ID, Name (normalized), or Price
-                            return c.packages.some(cp => {
-                              // ID Relation Match
-                              if (cp.id && selectedPricingPackage?.id) {
-                                if (String(cp.id) === String(selectedPricingPackage.id) || cp.id.includes(selectedPricingPackage.id) || selectedPricingPackage.id.includes(cp.id)) {
+                            // 4. Relational ID Match B: Check if any item in c.packages matches selectedPricingPackage.id by ID relation
+                            if (selectedPricingPackage?.id) {
+                              return c.packages.some(cp => {
+                                if (cp.id && (String(cp.id) === String(selectedPricingPackage.id) || cp.id.includes(selectedPricingPackage.id) || selectedPricingPackage.id.includes(cp.id))) {
                                   return true;
                                 }
-                              }
-                              if ((cp as any).packageId && selectedPricingPackage?.id && String((cp as any).packageId) === String(selectedPricingPackage.id)) return true;
-                              if ((cp as any).pricing_package_id && selectedPricingPackage?.id && String((cp as any).pricing_package_id) === String(selectedPricingPackage.id)) return true;
+                                if ((cp as any).packageId && String((cp as any).packageId) === String(selectedPricingPackage.id)) return true;
+                                if ((cp as any).pricing_package_id && String((cp as any).pricing_package_id) === String(selectedPricingPackage.id)) return true;
+                                return false;
+                              });
+                            }
 
-                              // Name Relation Match (Normalized so "Paket Reguler 5x latihan" matches "Reguler 5x latihan")
-                              const normCp = normalizePkgName(cp.name);
-                              const normSel = normalizePkgName(selectedPricingPackage?.name);
-                              if (normCp && normSel && (normCp === normSel || normCp.includes(normSel) || normSel.includes(normCp))) {
-                                return true;
-                              }
-
-                              // Price Match Fallback
-                              if (selectedPricingPackage?.price !== undefined && Number(cp.price) === Number(selectedPricingPackage.price)) {
-                                return true;
-                              }
-
-                              return false;
-                            });
+                            return false;
                           });
 
                           if (matchingCoaches.length === 0) {
