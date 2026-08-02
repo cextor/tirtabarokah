@@ -2008,11 +2008,21 @@ class ApiController extends BaseController
                 $imageData = base64_decode($matches[2]);
                 $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
                 $fileName = "coach_" . $slug . "_" . time() . "." . $ext;
-                $publicImagesDir = FCPATH . 'images/';
-                if (!is_dir($publicImagesDir)) {
-                    @mkdir($publicImagesDir, 0777, true);
+                
+                $backendImagesDir = FCPATH . 'images/';
+                if (!is_dir($backendImagesDir)) {
+                    @mkdir($backendImagesDir, 0777, true);
                 }
-                @file_put_contents($publicImagesDir . $fileName, $imageData);
+                @file_put_contents($backendImagesDir . $fileName, $imageData);
+
+                $frontendImagesDir = FCPATH . '../../public/images/';
+                if (is_dir(dirname($frontendImagesDir))) {
+                    if (!is_dir($frontendImagesDir)) {
+                        @mkdir($frontendImagesDir, 0777, true);
+                    }
+                    @file_put_contents($frontendImagesDir . $fileName, $imageData);
+                }
+
                 return "/images/" . $fileName;
             }
         }
@@ -2030,11 +2040,21 @@ class ApiController extends BaseController
                 $pdfData = base64_decode($matches[1]);
                 $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
                 $fileName = "cert_" . $slug . "_" . time() . ".pdf";
-                $publicImagesDir = FCPATH . 'images/';
-                if (!is_dir($publicImagesDir)) {
-                    @mkdir($publicImagesDir, 0777, true);
+
+                $backendImagesDir = FCPATH . 'images/';
+                if (!is_dir($backendImagesDir)) {
+                    @mkdir($backendImagesDir, 0777, true);
                 }
-                @file_put_contents($publicImagesDir . $fileName, $pdfData);
+                @file_put_contents($backendImagesDir . $fileName, $pdfData);
+
+                $frontendImagesDir = FCPATH . '../../public/images/';
+                if (is_dir(dirname($frontendImagesDir))) {
+                    if (!is_dir($frontendImagesDir)) {
+                        @mkdir($frontendImagesDir, 0777, true);
+                    }
+                    @file_put_contents($frontendImagesDir . $fileName, $pdfData);
+                }
+
                 return "/images/" . $fileName;
             }
         }
@@ -2045,11 +2065,21 @@ class ApiController extends BaseController
                 $imageData = base64_decode($matches[2]);
                 $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
                 $fileName = "cert_" . $slug . "_" . time() . "." . $ext;
-                $publicImagesDir = FCPATH . 'images/';
-                if (!is_dir($publicImagesDir)) {
-                    @mkdir($publicImagesDir, 0777, true);
+
+                $backendImagesDir = FCPATH . 'images/';
+                if (!is_dir($backendImagesDir)) {
+                    @mkdir($backendImagesDir, 0777, true);
                 }
-                @file_put_contents($publicImagesDir . $fileName, $imageData);
+                @file_put_contents($backendImagesDir . $fileName, $imageData);
+
+                $frontendImagesDir = FCPATH . '../../public/images/';
+                if (is_dir(dirname($frontendImagesDir))) {
+                    if (!is_dir($frontendImagesDir)) {
+                        @mkdir($frontendImagesDir, 0777, true);
+                    }
+                    @file_put_contents($frontendImagesDir . $fileName, $imageData);
+                }
+
                 return "/images/" . $fileName;
             }
         }
