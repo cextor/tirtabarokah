@@ -180,7 +180,8 @@ export default function MainPortal({
   useEffect(() => {
     if (selectedCoach && selectedPricingPackage) {
       const matchedPkg = selectedCoach.packages.find(cp => cp.name.toLowerCase().trim() === selectedPricingPackage.name.toLowerCase().trim())
-        || selectedCoach.packages.find(cp => cp.price === selectedPricingPackage.price)
+        || selectedCoach.packages.find(cp => Number(cp.price) === Number(selectedPricingPackage.price))
+        || selectedCoach.packages.find(cp => cp.id && selectedPricingPackage.id && String(cp.id) === String(selectedPricingPackage.id))
         || selectedCoach.packages[0];
 
       if (matchedPkg) {
@@ -1191,21 +1192,42 @@ export default function MainPortal({
                         {(() => {
                           const matchingCoaches = coaches.filter(c => {
                             if (c.isActive === false) return false;
+
+                            // 1. If global package has explicit coachIds specified
                             if (selectedPricingPackage?.coachIds && selectedPricingPackage.coachIds.length > 0) {
-                              return selectedPricingPackage.coachIds.includes(c.id);
+                              if (selectedPricingPackage.coachIds.some(cid => String(cid) === String(c.id))) {
+                                return true;
+                              }
                             }
-                            return (c.packages || []).some(cp => cp.price === selectedPricingPackage?.price);
+
+                            // 2. Check if coach has packages matching selectedPricingPackage by ID, Name, or Price
+                            if (Array.isArray(c.packages) && c.packages.length > 0) {
+                              const hasMatchingPkg = c.packages.some(cp => {
+                                if (cp.id && selectedPricingPackage?.id && String(cp.id) === String(selectedPricingPackage.id)) return true;
+                                if (cp.name && selectedPricingPackage?.name && cp.name.trim().toLowerCase() === selectedPricingPackage.name.trim().toLowerCase()) return true;
+                                if (Number(cp.price) === Number(selectedPricingPackage?.price)) return true;
+                                return false;
+                              });
+                              if (hasMatchingPkg) return true;
+                            }
+
+                            return false;
                           });
 
-                          if (matchingCoaches.length === 0) {
+                          // Safe fallback: If no coach matched the specific price/name criteria, display active coaches so user registration is never blocked
+                          const coachesToDisplay = matchingCoaches.length > 0
+                            ? matchingCoaches
+                            : coaches.filter(c => c.isActive !== false);
+
+                          if (coachesToDisplay.length === 0) {
                             return (
                               <div className="col-span-3 text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-xs text-slate-400">
-                                Maaf, saat ini tidak ada pelatih yang tersedia untuk paket harga yang dipilih.
+                                Maaf, saat ini belum ada pelatih aktif yang tersedia.
                               </div>
                             );
                           }
 
-                          return matchingCoaches.map((coach) => {
+                          return coachesToDisplay.map((coach) => {
                             const status = getCoachOverallQuota(coach);
                             const isSelected = selectedCoachId === coach.id;
                             return (
