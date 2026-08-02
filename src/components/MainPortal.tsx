@@ -1199,22 +1199,20 @@ export default function MainPortal({
                               return false;
                             }
 
-                            // 3. If global package explicitly specified coachIds, check if coach ID is included
+                            // 3. Match coach if coach is explicitly listed in selectedPricingPackage.coachIds
                             if (selectedPricingPackage?.coachIds && selectedPricingPackage.coachIds.length > 0) {
                               if (selectedPricingPackage.coachIds.some(cid => String(cid) === String(c.id))) {
                                 return true;
                               }
                             }
 
-                            // 4. Check if coach's packages match selectedPricingPackage by ID, Name, or Price
-                            const hasMatchingPkg = c.packages.some(cp => {
-                              if (cp.id && selectedPricingPackage?.id && String(cp.id) === String(selectedPricingPackage.id)) return true;
+                            // 4. Match coach if coach has a package matching the selected pricing package by price, name, or ID
+                            return c.packages.some(cp => {
+                              if (selectedPricingPackage?.price !== undefined && Number(cp.price) === Number(selectedPricingPackage.price)) return true;
                               if (cp.name && selectedPricingPackage?.name && cp.name.trim().toLowerCase() === selectedPricingPackage.name.trim().toLowerCase()) return true;
-                              if (Number(cp.price) === Number(selectedPricingPackage?.price)) return true;
+                              if (cp.id && selectedPricingPackage?.id && String(cp.id) === String(selectedPricingPackage.id)) return true;
                               return false;
                             });
-
-                            return hasMatchingPkg;
                           });
 
                           if (matchingCoaches.length === 0) {
