@@ -1191,43 +1191,41 @@ export default function MainPortal({
                       <div className="grid md:grid-cols-3 gap-4">
                         {(() => {
                           const matchingCoaches = coaches.filter(c => {
+                            // 1. Must be active
                             if (c.isActive === false) return false;
 
-                            // 1. If global package has explicit coachIds specified
+                            // 2. Must have at least 1 package assigned in coach profile
+                            if (!Array.isArray(c.packages) || c.packages.length === 0) {
+                              return false;
+                            }
+
+                            // 3. If global package explicitly specified coachIds, check if coach ID is included
                             if (selectedPricingPackage?.coachIds && selectedPricingPackage.coachIds.length > 0) {
                               if (selectedPricingPackage.coachIds.some(cid => String(cid) === String(c.id))) {
                                 return true;
                               }
                             }
 
-                            // 2. Check if coach has packages matching selectedPricingPackage by ID, Name, or Price
-                            if (Array.isArray(c.packages) && c.packages.length > 0) {
-                              const hasMatchingPkg = c.packages.some(cp => {
-                                if (cp.id && selectedPricingPackage?.id && String(cp.id) === String(selectedPricingPackage.id)) return true;
-                                if (cp.name && selectedPricingPackage?.name && cp.name.trim().toLowerCase() === selectedPricingPackage.name.trim().toLowerCase()) return true;
-                                if (Number(cp.price) === Number(selectedPricingPackage?.price)) return true;
-                                return false;
-                              });
-                              if (hasMatchingPkg) return true;
-                            }
+                            // 4. Check if coach's packages match selectedPricingPackage by ID, Name, or Price
+                            const hasMatchingPkg = c.packages.some(cp => {
+                              if (cp.id && selectedPricingPackage?.id && String(cp.id) === String(selectedPricingPackage.id)) return true;
+                              if (cp.name && selectedPricingPackage?.name && cp.name.trim().toLowerCase() === selectedPricingPackage.name.trim().toLowerCase()) return true;
+                              if (Number(cp.price) === Number(selectedPricingPackage?.price)) return true;
+                              return false;
+                            });
 
-                            return false;
+                            return hasMatchingPkg;
                           });
 
-                          // Safe fallback: If no coach matched the specific price/name criteria, display active coaches so user registration is never blocked
-                          const coachesToDisplay = matchingCoaches.length > 0
-                            ? matchingCoaches
-                            : coaches.filter(c => c.isActive !== false);
-
-                          if (coachesToDisplay.length === 0) {
+                          if (matchingCoaches.length === 0) {
                             return (
                               <div className="col-span-3 text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-xs text-slate-400">
-                                Maaf, saat ini belum ada pelatih aktif yang tersedia.
+                                Maaf, saat ini tidak ada pelatih yang tersedia untuk paket harga yang dipilih.
                               </div>
                             );
                           }
 
-                          return coachesToDisplay.map((coach) => {
+                          return matchingCoaches.map((coach) => {
                             const status = getCoachOverallQuota(coach);
                             const isSelected = selectedCoachId === coach.id;
                             return (
