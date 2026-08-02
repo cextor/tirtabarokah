@@ -102,7 +102,12 @@ export default function App() {
       }
     } catch (err: any) {
       console.error(err);
-      setAdminLoginError('Username atau password Admin salah!');
+      const errMsg = err.message || '';
+      if (errMsg.includes('Pelatih tidak dapat login')) {
+        setAdminLoginError('Pelatih tidak dapat login di dashboard admin.');
+      } else {
+        setAdminLoginError('Username atau password Admin salah!');
+      }
     }
   };
 
@@ -716,7 +721,7 @@ export default function App() {
                       <Award className="w-6 h-6" />
                     </div>
                     <h3 className="text-xl font-bold text-slate-800">Login Portal Pelatih</h3>
-                    <p className="text-xs text-slate-505 leading-normal">Silakan pilih identitas pelatih Anda dan masukkan password untuk mengelola murid.</p>
+                    <p className="text-xs text-slate-500 leading-normal">Silakan masukkan username dan password pelatih Anda untuk mengelola murid.</p>
                   </div>
 
                   <form onSubmit={handleCoachLogin} className="space-y-4 text-xs">
@@ -724,7 +729,7 @@ export default function App() {
                       <label className="text-[10px] font-bold text-slate-500 uppercase block">Username Pelatih</label>
                       <input
                         type="text"
-                        placeholder="Username (rian, nisa, atau dika)"
+                        placeholder="Username"
                         value={coachUsername}
                         onChange={(e) => setCoachUsername(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
@@ -736,7 +741,7 @@ export default function App() {
                       <label className="text-[10px] font-bold text-slate-500 uppercase block">Password Pelatih</label>
                       <input
                         type="password"
-                        placeholder="Password (coach123)"
+                        placeholder="Password"
                         value={coachPassword}
                         onChange={(e) => setCoachPassword(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"

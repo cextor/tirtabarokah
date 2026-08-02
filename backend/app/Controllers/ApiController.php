@@ -193,9 +193,12 @@ class ApiController extends BaseController
 
         $id = $json->id;
         $userData = [
-            'name' => $json->name,
-            'username' => trim($json->username)
+            'name' => $json->name
         ];
+
+        if (!empty($json->username)) {
+            $userData['username'] = trim($json->username);
+        }
 
         if (!empty($json->password)) {
             $userData['password'] = password_hash(trim($json->password), PASSWORD_DEFAULT);
@@ -1134,6 +1137,9 @@ class ApiController extends BaseController
             if (($userRole === 'admin' || $userRole === 'operator') && ($role === 'admin' || $role === 'operator')) {
                 $role = $userRole;
             } else {
+                if ($userRole === 'coach' && ($role === 'admin' || $role === 'operator')) {
+                    return $this->failUnauthorized('Pelatih tidak dapat login di dashboard admin.');
+                }
                 return $this->failUnauthorized('Peran pengguna tidak cocok.');
             }
         }

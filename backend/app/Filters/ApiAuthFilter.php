@@ -123,7 +123,6 @@ class ApiAuthFilter implements FilterInterface
             'api/events/add',
             'api/events/update',
             'api/absences/process',
-            'api/absences/report',
         ];
 
         $isAdminOrOperator = false;
@@ -173,19 +172,20 @@ class ApiAuthFilter implements FilterInterface
             ]);
         }
 
-        // Coach-only endpoints
+        // Coach, Admin & Operator endpoints
         $coachEndpoints = [
             'api/progress/add',
             'api/progress/quick',
+            'api/absences/report',
         ];
-        $isCoachOnly = in_array($path, $coachEndpoints);
+        $isCoachEndpoint = in_array($path, $coachEndpoints);
 
-        if ($isCoachOnly && $userRole !== 'coach' && $userRole !== 'admin') {
+        if ($isCoachEndpoint && $userRole !== 'coach' && $userRole !== 'admin' && $userRole !== 'operator') {
             $response = service('response');
             $response->setStatusCode(403);
             return $response->setJSON([
                 'status' => 'error',
-                'message' => 'Akses ditolak: Hanya Pelatih atau Administrator yang diizinkan.'
+                'message' => 'Akses ditolak: Hanya Pelatih, Admin, atau Operator yang diizinkan.'
             ]);
         }
     }

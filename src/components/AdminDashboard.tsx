@@ -234,6 +234,8 @@ export default function AdminDashboard({
   // STATE FOR ADDING NEW COACH
   const [showAddCoachModal, setShowAddCoachModal] = useState<boolean>(false);
   const [newCoachName, setNewCoachName] = useState<string>('');
+  const [newCoachUsername, setNewCoachUsername] = useState<string>('');
+  const [newCoachPassword, setNewCoachPassword] = useState<string>('');
   const [newCoachExperience, setNewCoachExperience] = useState<string>('');
   const [newCoachPhoto, setNewCoachPhoto] = useState<string>('');
   const [newCoachCertificate, setNewCoachCertificate] = useState<string>('');
@@ -259,6 +261,8 @@ export default function AdminDashboard({
   const [newHourInput, setNewHourInput] = useState<string>('');
   const [poolDescription, setPoolDescription] = useState<string>('');
   const [editCoachName, setEditCoachName] = useState<string>('');
+  const [editCoachUsername, setEditCoachUsername] = useState<string>('');
+  const [editCoachPassword, setEditCoachPassword] = useState<string>('');
   const [editCoachExperience, setEditCoachExperience] = useState<string>('');
   const [editCoachPhoto, setEditCoachPhoto] = useState<string>('');
   const [editCoachCertificate, setEditCoachCertificate] = useState<string>('');
@@ -875,6 +879,8 @@ export default function AdminDashboard({
     const newCoach: Coach = {
       id: newId,
       name: newCoachName,
+      username: newCoachUsername.trim() || undefined,
+      password: newCoachPassword.trim() || 'coach123',
       status: 'Tersedia',
       photo: defaultPhoto,
       certificateUrl: newCoachCertificate || undefined,
@@ -932,6 +938,8 @@ export default function AdminDashboard({
     
     // reset form
     setNewCoachName('');
+    setNewCoachUsername('');
+    setNewCoachPassword('');
     setNewCoachExperience('');
     setNewCoachPhoto('');
     setNewCoachCertificate('');
@@ -955,6 +963,8 @@ export default function AdminDashboard({
         return {
           ...c,
           name: editCoachName,
+          username: editCoachUsername.trim() || undefined,
+          password: editCoachPassword.trim() || undefined,
           experience: editCoachExperience,
           photo: editCoachPhoto,
           certificateUrl: editCoachCertificate || undefined,
@@ -970,6 +980,7 @@ export default function AdminDashboard({
     onUpdateCoaches(updated);
 
     setSelectedEditCoachId('');
+    setEditCoachPassword('');
     Swal.fire({
       title: 'Berhasil!',
       text: 'Profil & harga paket pelatih berhasil disimpan!',
@@ -984,6 +995,8 @@ export default function AdminDashboard({
     
     setSelectedEditCoachId(coachId);
     setEditCoachName(coach.name);
+    setEditCoachUsername(coach.username || '');
+    setEditCoachPassword('');
     setEditCoachExperience(coach.experience);
     setEditCoachPhoto(coach.photo);
     setEditCoachCertificate(coach.certificateUrl || '');
@@ -4448,6 +4461,32 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
+                      {/* Username & Password Login Pelatih */}
+                      <div className="grid md:grid-cols-2 gap-4 bg-cyan-50/50 p-3.5 rounded-2xl border border-cyan-100/80">
+                        <div className="space-y-1.5">
+                          <label className="font-bold text-slate-700">Username Login Pelatih</label>
+                          <input
+                            type="text"
+                            placeholder="Username (misal: rian)"
+                            value={newCoachUsername}
+                            onChange={(e) => setNewCoachUsername(e.target.value)}
+                            className="w-full bg-white border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                          />
+                          <p className="text-[10px] text-slate-400">Digunakan pelatih untuk login di /coachs</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="font-bold text-slate-700">Password Login Pelatih</label>
+                          <input
+                            type="password"
+                            placeholder="Password (Default: coach123)"
+                            value={newCoachPassword}
+                            onChange={(e) => setNewCoachPassword(e.target.value)}
+                            className="w-full bg-white border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                          />
+                          <p className="text-[10px] text-slate-400">Jika kosong, default password: coach123</p>
+                        </div>
+                      </div>
+
                       <div className="space-y-1.5">
                         <label className="font-bold text-slate-600 block">Foto Pelatih</label>
                         <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-3 rounded-xl">
@@ -4657,6 +4696,32 @@ export default function AdminDashboard({
                           onChange={(e) => setEditCoachExperience(e.target.value)}
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition" 
                         />
+                      </div>
+                    </div>
+
+                    {/* Edit Username & Password Pelatih */}
+                    <div className="grid md:grid-cols-2 gap-4 bg-cyan-50/50 p-3.5 rounded-2xl border border-cyan-100/80">
+                      <div className="space-y-1.5">
+                        <label className="font-bold text-slate-700">Username Login Pelatih</label>
+                        <input 
+                          type="text" 
+                          placeholder="Username"
+                          value={editCoachUsername} 
+                          onChange={(e) => setEditCoachUsername(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition" 
+                        />
+                        <p className="text-[10px] text-slate-400">Username untuk login di /coachs</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="font-bold text-slate-700">Password Baru (Opsional)</label>
+                        <input 
+                          type="password" 
+                          placeholder="Biarkan kosong jika tidak diubah"
+                          value={editCoachPassword} 
+                          onChange={(e) => setEditCoachPassword(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition" 
+                        />
+                        <p className="text-[10px] text-slate-400">Isi hanya jika ingin mengganti password</p>
                       </div>
                     </div>
 
