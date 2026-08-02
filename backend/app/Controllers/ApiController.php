@@ -261,14 +261,9 @@ class ApiController extends BaseController
             // Delete packages that are no longer in the payload
             $idsToDelete = array_diff($existingIds, $keepIds);
             foreach ($idsToDelete as $deleteId) {
-                $memberUsageCount = $this->db->table('members')->where('package_id', $deleteId)->countAllResults();
-                if ($memberUsageCount === 0) {
-                    $this->db->table('packages')->where('id', $deleteId)->delete();
-                } else {
-                    // If hard delete would fail due to foreign key constraints (used by members),
-                    // disassociate package from coach so it no longer reappears in coach profile
-                    $this->db->table('packages')->where('id', $deleteId)->update(['coach_id' => 'deleted_' . $id]);
-                }
+                // Clear member foreign key reference if any, then delete package
+                $this->db->table('members')->where('package_id', $deleteId)->update(['package_id' => null]);
+                $this->db->table('packages')->where('id', $deleteId)->delete();
             }
 
             // Sync junction table relations for this coach
