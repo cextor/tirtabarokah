@@ -770,8 +770,7 @@ export default function App() {
               </div>
             )}
           </div>
-        </div>
-      </header>
+        </header>
 
       {/* Main Workspace Frame */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 md:px-8">
