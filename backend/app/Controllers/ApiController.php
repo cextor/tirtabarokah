@@ -26,62 +26,85 @@ class ApiController extends BaseController
             ->get()
             ->getResultArray();
         
-        foreach ($coaches as &$coach) {
-            unset($coach['password']);
-            // Get Packages
-            $coach['packages'] = $this->db->table('packages')
-                ->where('coach_id', $coach['id'])
-                ->get()
-                ->getResultArray();
+        if (empty($coaches)) {
+            return $this->respond([]);
+        }
 
-            // Get Schedules
-            $schedules = $this->db->table('coach_schedules')
-                ->where('coach_id', $coach['id'])
-                ->get()
-                ->getResultArray();
+        $coachIds = array_column($coaches, 'id');
 
-            // Group by day to match frontend structure
-            $groupedSchedule = [];
-            foreach ($schedules as $sched) {
-                $dayName = $sched['day'];
-                if (!isset($groupedSchedule[$dayName])) {
-                    $groupedSchedule[$dayName] = [
-                        'day' => $dayName,
-                        'timeSlots' => []
-                    ];
-                }
+        // 1. Bulk Fetch Packages for all coaches
+        $allPackages = $this->db->table('packages')
+            ->whereIn('coach_id', $coachIds)
+            ->get()
+            ->getResultArray();
 
-                // Count active students registered in this day & time slot
-                $studentsInSlot = $this->db->table('member_schedules')
-                    ->join('members', 'members.id = member_schedules.member_id')
-                    ->where('member_schedules.coach_id', $coach['id'])
-                    ->where('member_schedules.day', $dayName)
-                    ->where('member_schedules.time', $sched['time'])
-                    ->where('members.status !=', 'Selesai')
-                    ->get()
-                    ->getResultArray();
+        $packagesByCoach = [];
+        foreach ($allPackages as $pkg) {
+            $packagesByCoach[$pkg['coach_id']][] = $pkg;
+        }
 
-                $studentIds = array_column($studentsInSlot, 'member_id');
+        // 2. Bulk Fetch Schedules for all coaches
+        $allSchedules = $this->db->table('coach_schedules')
+            ->whereIn('coach_id', $coachIds)
+            ->get()
+            ->getResultArray();
 
-                $groupedSchedule[$dayName]['timeSlots'][] = [
-                    'time' => $sched['time'],
-                    'maxSlots' => (int)$sched['max_slots'],
-                    'swimmingPoolId' => $sched['swimming_pool_id'] ?? null,
-                    'currentSlots' => count($studentIds),
-                    'students' => $studentIds
+        // 3. Bulk Fetch Active Member Schedules for all coaches
+        $allMemberSchedules = $this->db->table('member_schedules')
+            ->select('member_schedules.coach_id, member_schedules.day, member_schedules.time, member_schedules.member_id')
+            ->join('members', 'members.id = member_schedules.member_id')
+            ->whereIn('member_schedules.coach_id', $coachIds)
+            ->where('members.status !=', 'Selesai')
+            ->get()
+            ->getResultArray();
+
+        // Map member schedules by coach_id -> day -> time -> array of member_ids
+        $slotStudents = [];
+        $coachActiveStudents = [];
+
+        foreach ($allMemberSchedules as $ms) {
+            $cId = $ms['coach_id'];
+            $day = $ms['day'];
+            $time = $ms['time'];
+            $mId = $ms['member_id'];
+
+            $slotStudents[$cId][$day][$time][] = $mId;
+            $coachActiveStudents[$cId][$mId] = true;
+        }
+
+        // Group schedules by coach
+        $schedulesByCoach = [];
+        foreach ($allSchedules as $sched) {
+            $cId = $sched['coach_id'];
+            $dayName = $sched['day'];
+            $time = $sched['time'];
+
+            if (!isset($schedulesByCoach[$cId][$dayName])) {
+                $schedulesByCoach[$cId][$dayName] = [
+                    'day' => $dayName,
+                    'timeSlots' => []
                 ];
             }
 
-            $coach['schedule'] = array_values($groupedSchedule);
+            $studentsInThisSlot = $slotStudents[$cId][$dayName][$time] ?? [];
 
-            // Compute current overall quota
-            $activeStudentsTotal = $this->db->table('member_schedules')
-                ->join('members', 'members.id = member_schedules.member_id')
-                ->where('member_schedules.coach_id', $coach['id'])
-                ->where('members.status !=', 'Selesai')
-                ->select('member_schedules.member_id')
-                ->distinct()
-                ->countAllResults();
+            $schedulesByCoach[$cId][$dayName]['timeSlots'][] = [
+                'time' => $time,
+                'maxSlots' => (int)$sched['max_slots'],
+                'swimmingPoolId' => $sched['swimming_pool_id'] ?? null,
+                'currentSlots' => count($studentsInThisSlot),
+                'students' => $studentsInThisSlot
+            ];
+        }
+
+        foreach ($coaches as &$coach) {
+            $cId = $coach['id'];
+            unset($coach['password']);
+
+            $coach['packages'] = $packagesByCoach[$cId] ?? [];
+            $coach['schedule'] = isset($schedulesByCoach[$cId]) ? array_values($schedulesByCoach[$cId]) : [];
+
+            $activeStudentsTotal = isset($coachActiveStudents[$cId]) ? count($coachActiveStudents[$cId]) : 0;
 
             $coach['currentQuota'] = $activeStudentsTotal;
             $coach['status'] = ($activeStudentsTotal >= $coach['max_quota']) ? 'Penuh' : 'Tersedia';

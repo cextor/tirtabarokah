@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 import { Coach, Member, TrainingProgress, CoachAbsence } from '../types';
 import { api, getMediaUrl } from '../api';
 import { 
-  Award, Users, Calendar, CheckSquare, PlusCircle, Clock, BookOpen, AlertCircle, Phone
+  Award, Users, Calendar, CheckSquare, PlusCircle, Clock, BookOpen, AlertCircle, Phone, Key, Lock
 } from 'lucide-react';
 
 interface CoachDashboardProps {
@@ -32,6 +32,57 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
   const [absenceScheduleIndex, setAbsenceScheduleIndex] = useState<string>('');
   const [absenceReason, setAbsenceReason] = useState<string>('');
   const [isSubmittingAbsence, setIsSubmittingAbsence] = useState<boolean>(false);
+
+  // State for password change
+  const [oldPassword, setOldPassword] = useState<string>('');
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      Swal.fire('Data Belum Lengkap', 'Silakan lengkapi semua bidang password.', 'warning');
+      return;
+    }
+
+    if (newPassword.length < 4) {
+      Swal.fire('Password Terlalu Pendek', 'Password baru minimal 4 karakter.', 'warning');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Swal.fire('Password Tidak Cocok', 'Konfirmasi password baru tidak cocok dengan password baru.', 'error');
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+      const res = await api.changePassword({
+        oldPassword: oldPassword.trim(),
+        newPassword: newPassword.trim()
+      });
+
+      if (res.status === 'success') {
+        Swal.fire({
+          title: 'Password Berhasil Diubah!',
+          text: 'Password login pelatih Anda telah berhasil diperbarui.',
+          icon: 'success',
+          confirmButtonColor: '#06b6d4'
+        });
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        Swal.fire('Gagal Ubah Password', res.message || 'Terjadi kesalahan.', 'error');
+      }
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire('Gagal Ubah Password', err.message || 'Password lama salah atau terjadi kesalahan server.', 'error');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   React.useEffect(() => {
     if (loggedCoachId) {
@@ -250,14 +301,6 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                 </div>
                 <h4 className="font-bold text-base text-slate-800">{currentCoach.name}</h4>
                 <p className="text-xs text-slate-500 italic max-w-xs mx-auto">"{currentCoach.experience}"</p>
-                
-                {/* Referral Info box */}
-                <div className="bg-cyan-50/50 p-2.5 rounded-xl border border-cyan-100 text-xs mt-1 space-y-1">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Kode Referral Saya:</p>
-                  <p className="font-mono font-black text-cyan-900 text-sm select-all">{currentCoach.referralCode}</p>
-                  <p className="text-[10px] text-slate-600">Total Reward Bonus: <strong className="text-emerald-700">Rp {(currentCoach.referralBonus || 0).toLocaleString('id-ID')}</strong></p>
-                  <p className="text-[9px] text-slate-400 italic">Dapatkan bonus Rp 50.000 cash dari Admin untuk setiap pendaftaran baru menggunakan kode Anda.</p>
-                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-4 text-center">
@@ -400,6 +443,63 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                   })
                 )}
               </div>
+            </div>
+
+            {/* Form Ganti Password Pelatih */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
+              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Key className="w-4 h-4 text-cyan-600" /> Ubah Password Akun
+              </h4>
+              <p className="text-[10px] text-slate-400 leading-normal">
+                Perbarui password login pelatih Anda secara berkala untuk menjaga keamanan akun.
+              </p>
+              
+              <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Password Lama</label>
+                  <input
+                    type="password"
+                    placeholder="Masukkan password lama"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Password Baru</label>
+                  <input
+                    type="password"
+                    placeholder="Minimal 4 karakter"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Konfirmasi Password Baru</label>
+                  <input
+                    type="password"
+                    placeholder="Ulangi password baru"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  {isChangingPassword ? 'Menyimpan...' : 'Simpan Password Baru'}
+                </button>
+              </form>
             </div>
           </div>
 

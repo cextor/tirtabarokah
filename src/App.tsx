@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { Coach, Member, EventItem, SiteSettings, ProgramLevel, CoachAbsence, AuditLog, EventCategory, SwimmingPool, PricingPackage } from './types';
 import { api, API_BASE_URL } from './api';
@@ -45,6 +45,10 @@ export default function App() {
     return 'member';
   })();
   const [error, setError] = useState<string | null>(null);
+  const [isDataLoading, setIsDataLoading] = useState<boolean>(false);
+  const [hasInitialLoaded, setHasInitialLoaded] = useState<boolean>(false);
+  const [isAdminLoggingIn, setIsAdminLoggingIn] = useState<boolean>(false);
+  const [isCoachLoggingIn, setIsCoachLoggingIn] = useState<boolean>(false);
 
   // Auth States for Admin and Coach
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
@@ -81,6 +85,7 @@ export default function App() {
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsAdminLoggingIn(true);
     try {
       setAdminLoginError(null);
       const res = await api.login({
@@ -96,7 +101,7 @@ export default function App() {
 
         setIsAdminLoggedIn(true);
         setAdminLoginError(null);
-        loadAllData();
+        await loadAllData();
       } else {
         setAdminLoginError('Username atau password Admin salah!');
       }
@@ -108,6 +113,8 @@ export default function App() {
       } else {
         setAdminLoginError('Username atau password Admin salah!');
       }
+    } finally {
+      setIsAdminLoggingIn(false);
     }
   };
 
@@ -117,6 +124,7 @@ export default function App() {
       setCoachLoginError('Silakan masukkan username Pelatih!');
       return;
     }
+    setIsCoachLoggingIn(true);
 
     try {
       setCoachLoginError(null);
@@ -134,13 +142,15 @@ export default function App() {
         setIsCoachLoggedIn(true);
         setLoggedCoachId(res.user.id);
         setCoachLoginError(null);
-        loadAllData();
+        await loadAllData();
       } else {
         setCoachLoginError('Username atau password Pelatih salah!');
       }
     } catch (err: any) {
       console.error(err);
       setCoachLoginError('Username atau password Pelatih salah!');
+    } finally {
+      setIsCoachLoggingIn(false);
     }
   };
 
@@ -160,6 +170,7 @@ export default function App() {
     setIsAdminLoggedIn(false);
     setIsCoachLoggedIn(false);
     setLoggedCoachId('');
+    setHasInitialLoaded(false);
 
     if (roleBeforeLogout === 'admin' || roleBeforeLogout === 'operator') {
       navigateTo('/belakang');
@@ -172,80 +183,135 @@ export default function App() {
     loadAllData();
   };
 
-  // Load from database on mount
-  const loadAllData = async () => {
-    try {
-      setError(null);
-      const token = localStorage.getItem('auth_token');
-      const role = localStorage.getItem('user_role');
+  const pendingPromiseRef = useRef<Promise<void> | null>(null);
 
-      const fetchPromises: Promise<any>[] = [
-        api.getCoaches(),
-        api.getEvents(),
-        api.getSettings(),
-        api.getLevels(),
-        api.getPricingPackages(),
-        api.getEventCategories(),
-        api.getSwimmingPools()
-      ];
+  // Load from database on mount with deduplication guard & smart route checking
+  const loadAllData = () => {
+    if (pendingPromiseRef.current) {
+      return pendingPromiseRef.current;
+    }
 
-      const canFetchMembers = token && (role === 'admin' || role === 'operator' || role === 'coach');
-      if (canFetchMembers) {
-        fetchPromises.push(api.getMembers());
-        fetchPromises.push(api.getCoachAbsences());
-      }
+    const promise = (async () => {
+      setIsDataLoading(true);
+      try {
+        setError(null);
+        const token = localStorage.getItem('auth_token');
+        const role = localStorage.getItem('user_role');
+        const path = window.location.pathname;
 
-      const results = await Promise.all(fetchPromises);
-      setCoaches(results[0]);
-      setEvents(results[1]);
-      if (results[2] && results[2].status === 'success') {
-        setSettings(results[2].settings);
-      }
-      setLevels(results[3] || []);
-      setPricingPackages(results[4] || []);
-      setEventCategories(results[5] || []);
-      setSwimmingPools(results[6] || []);
+        // Skip fetching application data if user is on login screens and not authenticated
+        const isUnauthAdmin = (path === '/belakang' || currentPath === '/belakang') && (!token || (role !== 'admin' && role !== 'operator'));
+        const isUnauthCoach = (path === '/coachs' || currentPath === '/coachs') && (!token || role !== 'coach');
 
-      if (canFetchMembers) {
-        setMembers(results[7]);
-        setAbsences(results[8] || []);
-      } else {
+        if (isUnauthAdmin || isUnauthCoach) {
+          return;
+        }
+
+        // ROLE-BASED TAILORED PARALLEL FETCHING:
+        if (token && role === 'coach') {
+          // Coach portal ONLY needs coaches, members, and absences (3 endpoints instead of 9!)
+          const [coachesData, membersData, absencesData] = await Promise.all([
+            api.getCoaches(),
+            api.getMembers(),
+            api.getCoachAbsences()
+          ]);
+
+          setCoaches(coachesData || []);
+          setMembers(membersData || []);
+          setAbsences(absencesData || []);
+          return;
+        }
+
+        if (token && (role === 'admin' || role === 'operator')) {
+          // Admin / Operator portal needs admin dashboard datasets
+          const [coachesData, eventsData, settingsData, levelsData, packagesData, categoriesData, poolsData, membersData, absencesData] = await Promise.all([
+            api.getCoaches(),
+            api.getEvents(),
+            api.getSettings(),
+            api.getLevels(),
+            api.getPricingPackages(),
+            api.getEventCategories(),
+            api.getSwimmingPools(),
+            api.getMembers(),
+            api.getCoachAbsences()
+          ]);
+
+          setCoaches(coachesData || []);
+          setEvents(eventsData || []);
+          if (settingsData && settingsData.status === 'success') {
+            setSettings(settingsData.settings);
+          }
+          setLevels(levelsData || []);
+          setPricingPackages(packagesData || []);
+          setEventCategories(categoriesData || []);
+          setSwimmingPools(poolsData || []);
+          setMembers(membersData || []);
+          setAbsences(absencesData || []);
+
+          if (role === 'admin') {
+            try {
+              const logs = await api.getAuditLogs();
+              setAuditLogs(logs || []);
+            } catch (err) {
+              console.error("Failed to load audit logs:", err);
+            }
+          }
+          return;
+        }
+
+        // Public Landing Page / Guest View (Sequential execution for rock-solid stability on single-threaded PHP CLI)
+        const fetchFns: (() => Promise<any>)[] = [
+          () => api.getCoaches(),
+          () => api.getEvents(),
+          () => api.getSettings(),
+          () => api.getLevels(),
+          () => api.getPricingPackages(),
+          () => api.getSwimmingPools()
+        ];
+
+        const results: any[] = [];
+        for (const fn of fetchFns) {
+          results.push(await fn());
+        }
+
+        setCoaches(results[0] || []);
+        setEvents(results[1] || []);
+        if (results[2] && results[2].status === 'success') {
+          setSettings(results[2].settings);
+        }
+        setLevels(results[3] || []);
+        setPricingPackages(results[4] || []);
+        setSwimmingPools(results[5] || []);
         setMembers([]);
         setAbsences([]);
-      }
-
-      if (token && role === 'admin') {
-        try {
-          const logs = await api.getAuditLogs();
-          setAuditLogs(logs || []);
-        } catch (err) {
-          console.error("Failed to load audit logs:", err);
-        }
-      } else {
         setAuditLogs([]);
-      }
-    } catch (e: any) {
-      console.error("Failed to load data from MariaDB backend", e);
+      } catch (e: any) {
+        console.error("Failed to load data from MariaDB backend", e);
 
-      const errMsg = e.message || String(e);
-      if (
-        errMsg.includes('Token tidak valid') ||
-        errMsg.includes('Token otentikasi diperlukan') ||
-        errMsg.includes('Token telah kedaluwarsa')
-      ) {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user_role');
-        localStorage.removeItem('user_name');
-        localStorage.removeItem('logged_user_id');
-        setIsAdminLoggedIn(false);
-        setIsCoachLoggedIn(false);
-        setLoggedCoachId('');
-        loadAllData();
-        return;
+        const errMsg = e.message || String(e);
+        if (
+          errMsg.includes('Token tidak valid') ||
+          errMsg.includes('Token otentikasi diperlukan') ||
+          errMsg.includes('Token telah kedaluwarsa')
+        ) {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('user_role');
+          localStorage.removeItem('user_name');
+          localStorage.removeItem('logged_user_id');
+          setIsAdminLoggedIn(false);
+          setIsCoachLoggedIn(false);
+          setLoggedCoachId('');
+        }
+        setError(errMsg);
+      } finally {
+        setIsDataLoading(false);
+        setHasInitialLoaded(true);
+        pendingPromiseRef.current = null;
       }
+    })();
 
-      setError(errMsg);
-    }
+    pendingPromiseRef.current = promise;
+    return promise;
   };
 
   const handleUpdateSettings = async (newSettings: SiteSettings) => {
@@ -518,8 +584,8 @@ export default function App() {
 
           {/* Logo Brand & Navigation */}
           <div className="flex items-center justify-between w-full gap-2">
-            <div className="flex items-center gap-2 cursor-pointer select-none shrink-0" onClick={() => navigateTo('/')}>
-              <span className="text-xl">🏊‍♂️</span>
+            <div className="flex items-center gap-2.5 cursor-pointer select-none shrink-0" onClick={() => navigateTo('/')}>
+              <img src="/images/logo.png" alt="Logo Private Renang Tirta Barokah" className="h-10 w-auto max-w-[120px] object-contain shrink-0 drop-shadow-xs" />
               <div>
                 <h1 className="text-sm font-black text-slate-800 tracking-tight leading-tight">TIRTA BAROKAH</h1>
                 <p className="text-[10px] text-slate-400 font-mono flex items-center gap-1 font-semibold">
@@ -632,7 +698,126 @@ export default function App() {
                 Coba Hubungkan Kembali
               </button>
             </div>
-          ) : coaches.length > 0 ? (
+          ) : activeRole === 'admin' && !isAdminLoggedIn ? (
+            <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-100 shadow-xl p-8 space-y-6">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 bg-cyan-50 rounded-2xl flex items-center justify-center mx-auto text-cyan-600">
+                  <Shield className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">Login Portal Administrator</h3>
+                <p className="text-xs text-slate-505 leading-normal">Gunakan kredensial admin untuk mengakses sistem manajemen privat renang.</p>
+              </div>
+
+              <form onSubmit={handleAdminLogin} className="space-y-4 text-xs">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Username</label>
+                  <input
+                    type="text"
+                    value={adminUsername}
+                    onChange={(e) => setAdminUsername(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
+                    required
+                    disabled={isAdminLoggingIn}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Password</label>
+                  <input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
+                    required
+                    disabled={isAdminLoggingIn}
+                  />
+                </div>
+
+                {adminLoginError && (
+                  <p className="text-xs text-rose-600 font-semibold text-center">{adminLoginError}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isAdminLoggingIn}
+                  className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
+                >
+                  {isAdminLoggingIn ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Memproses Login...
+                    </>
+                  ) : (
+                    'Masuk Administrator'
+                  )}
+                </button>
+              </form>
+            </div>
+          ) : activeRole === 'coach' && !isCoachLoggedIn ? (
+            <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-100 shadow-xl p-8 space-y-6">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 bg-cyan-50 rounded-2xl flex items-center justify-center mx-auto text-cyan-600">
+                  <Award className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">Login Portal Pelatih</h3>
+                <p className="text-xs text-slate-500 leading-normal">Silakan masukkan username dan password pelatih Anda untuk mengelola murid.</p>
+              </div>
+
+              <form onSubmit={handleCoachLogin} className="space-y-4 text-xs">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Username Pelatih</label>
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={coachUsername}
+                    onChange={(e) => setCoachUsername(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
+                    required
+                    disabled={isCoachLoggingIn}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Password Pelatih</label>
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={coachPassword}
+                    onChange={(e) => setCoachPassword(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
+                    required
+                    disabled={isCoachLoggingIn}
+                  />
+                </div>
+
+                {coachLoginError && (
+                  <p className="text-xs text-rose-600 font-semibold text-center">{coachLoginError}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isCoachLoggingIn}
+                  className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
+                >
+                  {isCoachLoggingIn ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Memproses Login...
+                    </>
+                  ) : (
+                    'Masuk Portal Pelatih'
+                  )}
+                </button>
+              </form>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[10px] text-slate-500 text-center">
+                Demo Login: Username (<strong className="text-slate-700">rian / nisa / dika</strong>) & Password: <strong className="text-slate-700">coach123</strong>
+              </div>
+            </div>
+          ) : isDataLoading && !hasInitialLoaded ? (
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+              <div className="w-12 h-12 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs font-bold text-slate-600 animate-pulse">Memuat data portal Tirta Barokah...</p>
+            </div>
+          ) : (
             activeRole === 'member' ? (
               <MainPortal
                 coaches={coaches}
@@ -648,134 +833,34 @@ export default function App() {
                 navigateTo={navigateTo}
               />
             ) : activeRole === 'admin' ? (
-              !isAdminLoggedIn ? (
-                <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-100 shadow-xl p-8 space-y-6">
-                  <div className="text-center space-y-2">
-                    <div className="w-12 h-12 bg-cyan-50 rounded-2xl flex items-center justify-center mx-auto text-cyan-600">
-                      <Shield className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-800">Login Portal Administrator</h3>
-                    <p className="text-xs text-slate-505 leading-normal">Gunakan kredensial admin untuk mengakses sistem manajemen privat renang.</p>
-                  </div>
-
-                  <form onSubmit={handleAdminLogin} className="space-y-4 text-xs">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Username</label>
-                      <input
-                        type="text"
-                        value={adminUsername}
-                        onChange={(e) => setAdminUsername(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Password</label>
-                      <input
-                        type="password"
-                        value={adminPassword}
-                        onChange={(e) => setAdminPassword(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
-                        required
-                      />
-                    </div>
-
-                    {adminLoginError && (
-                      <p className="text-xs text-rose-600 font-semibold text-center">{adminLoginError}</p>
-                    )}
-
-                    <button
-                      type="submit"
-                      className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition text-sm flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      Masuk Administrator
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                <AdminDashboard
-                  coaches={coaches}
-                  members={members}
-                  events={events}
-                  settings={settings}
-                  levels={levels}
-                  absences={absences}
-                  pricingPackages={pricingPackages}
-                  auditLogs={auditLogs}
-                  eventCategories={eventCategories}
-                  swimmingPools={swimmingPools}
-                  userRole={localStorage.getItem('user_role') || 'admin'}
-                  onReloadData={loadAllData}
-                  onUpdateSettings={handleUpdateSettings}
-                  onUpdateLevels={handleUpdateLevels}
-                  onUpdateCoaches={updateCoachesState}
-                  onUpdateMembers={updateMembersState}
-                  onUpdateEvents={updateEventsState}
-                />
-              )
+              <AdminDashboard
+                coaches={coaches}
+                members={members}
+                events={events}
+                settings={settings}
+                levels={levels}
+                absences={absences}
+                pricingPackages={pricingPackages}
+                auditLogs={auditLogs}
+                eventCategories={eventCategories}
+                swimmingPools={swimmingPools}
+                userRole={localStorage.getItem('user_role') || 'admin'}
+                onReloadData={loadAllData}
+                onUpdateSettings={handleUpdateSettings}
+                onUpdateLevels={handleUpdateLevels}
+                onUpdateCoaches={updateCoachesState}
+                onUpdateMembers={updateMembersState}
+                onUpdateEvents={updateEventsState}
+              />
             ) : activeRole === 'coach' ? (
-              !isCoachLoggedIn ? (
-                <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-100 shadow-xl p-8 space-y-6">
-                  <div className="text-center space-y-2">
-                    <div className="w-12 h-12 bg-cyan-50 rounded-2xl flex items-center justify-center mx-auto text-cyan-600">
-                      <Award className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-800">Login Portal Pelatih</h3>
-                    <p className="text-xs text-slate-500 leading-normal">Silakan masukkan username dan password pelatih Anda untuk mengelola murid.</p>
-                  </div>
-
-                  <form onSubmit={handleCoachLogin} className="space-y-4 text-xs">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Username Pelatih</label>
-                      <input
-                        type="text"
-                        placeholder="Username"
-                        value={coachUsername}
-                        onChange={(e) => setCoachUsername(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Password Pelatih</label>
-                      <input
-                        type="password"
-                        placeholder="Password"
-                        value={coachPassword}
-                        onChange={(e) => setCoachPassword(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white text-sm text-slate-800"
-                        required
-                      />
-                    </div>
-
-                    {coachLoginError && (
-                      <p className="text-xs text-rose-600 font-semibold text-center">{coachLoginError}</p>
-                    )}
-
-                    <button
-                      type="submit"
-                      className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition text-sm flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      Masuk Portal Pelatih
-                    </button>
-                  </form>
-
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[10px] text-slate-500 text-center">
-                    Demo Login: Username (<strong className="text-slate-700">rian / nisa / dika</strong>) & Password: <strong className="text-slate-700">coach123</strong>
-                  </div>
-                </div>
-              ) : (
-                <CoachDashboard
-                  coaches={coaches}
-                  members={members}
-                  absences={absences}
-                  onReloadData={loadAllData}
-                  onUpdateMembers={updateMembersState}
-                  loggedCoachId={loggedCoachId}
-                />
-              )
+              <CoachDashboard
+                coaches={coaches}
+                members={members}
+                absences={absences}
+                onReloadData={loadAllData}
+                onUpdateMembers={updateMembersState}
+                loggedCoachId={loggedCoachId}
+              />
             ) : (
               <ParentDashboard
                 coaches={coaches}
@@ -783,10 +868,6 @@ export default function App() {
                 onUpdateMembers={updateMembersState}
               />
             )
-          ) : (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-12 h-12 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin" />
-            </div>
           )}
         </div>
       </main>
@@ -794,7 +875,8 @@ export default function App() {
       {/* Footer information section */}
       <footer className="bg-slate-900 text-slate-400 py-6 border-t border-slate-800 text-xs mt-16">
         <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-4 text-center">
-          <div>
+          <div className="flex items-center gap-2">
+            <img src="/images/logo.png" alt="Tirta Barokah Logo" className="h-6 w-auto object-contain brightness-110" />
             <p className="font-extrabold text-slate-300 tracking-wide text-[10px] uppercase">Private Renang Tirta Barokah Palembang</p>
           </div>
           <p className="text-[10px] text-slate-500">© 2026 Tirta Barokah Academy. Semua Hak Dilindungi Undang-Undang.</p>

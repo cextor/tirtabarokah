@@ -379,12 +379,17 @@ export default function MainPortal({
         <section className="lg:col-span-3 relative bg-gradient-to-br from-cyan-900 via-blue-950 to-indigo-950 rounded-3xl overflow-hidden shadow-xl p-6 md:p-8 text-white flex flex-col justify-center">
           <div className="absolute inset-0 bg-[url('/images/hero_pool.png')] opacity-10 bg-cover bg-center pointer-events-none" />
           <div className="relative z-10 space-y-4">
-            <div className="inline-flex items-center gap-2 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
-              🏊‍♂️ Premium Private Swimming Academy
+            <div className="flex items-start gap-3">
+              <img src="/images/logo.png" alt="Logo Tirta Barokah" className="h-14 md:h-16 w-auto object-contain drop-shadow-md shrink-0 bg-white/10 p-1 rounded-xl border border-white/10" />
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-2 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                  🏊‍♂️ Premium Private Swimming Academy
+                </div>
+                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight leading-tight">
+                  Private Renang <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Tirta Barokah</span> Palembang
+                </h1>
+              </div>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight leading-tight">
-              Private Renang <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Tirta Barokah</span> Palembang
-            </h1>
             <p className="text-slate-300 text-xs md:text-sm leading-relaxed">
               Melatih anak dan dewasa belajar berenang dengan metode personal yang aman, profesional, dan menyenangkan. Pelatih bersertifikat langsung membimbing hingga mahir di kolam renang terpilih Palembang.
             </p>

@@ -46,14 +46,6 @@ class ApiAuthFilter implements FilterInterface
         $clientKey = $request->getHeaderLine('X-Client-Key');
         $expectedClientKey = 'TirtaBarokahClientSecret2026';
 
-        // DEBUG LOG FOR HEADERS
-        $headersLog = [];
-        foreach ($request->headers() as $name => $h) {
-            $headersLog[$name] = $h->getValueLine();
-        }
-        $msg = '[' . date('Y-m-d H:i:s') . '] Filter debug path: ' . $path . ' ClientKey: "' . $clientKey . '", expected: "' . $expectedClientKey . '", Headers: ' . json_encode($headersLog) . PHP_EOL;
-        file_put_contents(WRITEPATH . 'logs/frontend_debug.log', $msg, FILE_APPEND);
-
         if (!$clientKey || $clientKey !== $expectedClientKey) {
             $response = service('response');
             $response->setStatusCode(401);
