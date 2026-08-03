@@ -11,5 +11,9 @@ backend/vendor/
 backend/writable/*
 !backend/writable/.gitkeep
 
+# Ignore backend uploaded images
+backend/public/images/*
+!backend/public/images/.gitkeep
+
 # Temporary scratch folder
 scratch/
