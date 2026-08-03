@@ -583,7 +583,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
           {/* Logo Brand & Navigation */}
-          <div className="flex items-center justify-between w-full gap-2">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between w-full gap-3">
             <div className="flex items-center gap-2.5 cursor-pointer select-none shrink-0" onClick={() => navigateTo('/')}>
               <img src="/images/logo.png" alt="Logo Private Renang Tirta Barokah" className="h-10 w-auto max-w-[120px] object-contain shrink-0 drop-shadow-xs" />
               <div>
@@ -594,7 +594,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Menu in the red box: only show for member role */}
+            {/* Menu in header: shown on mobile HP and desktop */}
             {activeRole === 'member' && (
               currentPath === '/daftar' ? (
                 <button
@@ -604,13 +604,13 @@ export default function App() {
                   ← Kembali ke Beranda
                 </button>
               ) : (
-                <div className="hidden md:flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-bold text-slate-600">
+                <div className="flex flex-wrap items-center justify-start md:justify-center gap-x-3.5 md:gap-x-5 gap-y-2 text-[11px] md:text-xs font-bold text-slate-600 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 w-full md:w-auto">
                   <button 
                     onClick={() => {
                       const el = document.getElementById('program-info');
                       if (el) el.scrollIntoView({ behavior: 'smooth' });
                     }}
-                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-[11px] md:text-xs"
                   >
                     Kurikulum & Program
                   </button>
@@ -619,7 +619,7 @@ export default function App() {
                       const el = document.getElementById('pricing-section');
                       if (el) el.scrollIntoView({ behavior: 'smooth' });
                     }}
-                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-[11px] md:text-xs"
                   >
                     Paket & Biaya
                   </button>
@@ -628,7 +628,7 @@ export default function App() {
                       const el = document.getElementById('swimming-pools-section');
                       if (el) el.scrollIntoView({ behavior: 'smooth' });
                     }}
-                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-[11px] md:text-xs"
                   >
                     Kolam Renang
                   </button>
@@ -637,7 +637,7 @@ export default function App() {
                       const el = document.getElementById('coaches-section');
                       if (el) el.scrollIntoView({ behavior: 'smooth' });
                     }}
-                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-[11px] md:text-xs"
                   >
                     Daftar Pelatih
                   </button>
@@ -646,13 +646,13 @@ export default function App() {
                       const el = document.getElementById('events-section');
                       if (el) el.scrollIntoView({ behavior: 'smooth' });
                     }}
-                    className="hover:text-cyan-650 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-[11px] md:text-xs"
                   >
                     Event & Berita
                   </button>
                   <button
                     onClick={() => navigateTo('/daftar')}
-                    className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3.5 py-1.5 rounded-lg transition shadow-xs cursor-pointer border-0"
+                    className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3 py-1.5 md:px-3.5 md:py-1.5 rounded-lg transition shadow-xs cursor-pointer border-0 text-[11px] md:text-xs"
                   >
                     Daftar Sekarang
                   </button>
