@@ -13,7 +13,7 @@ import CoachDashboard from './components/CoachDashboard';
 import ParentDashboard from './components/ParentDashboard';
 import {
   Users, Shield, Award, UserCheck, RefreshCw,
-  MapPin, Clock, Compass, BookOpen, Volume2, ShieldAlert
+  MapPin, Clock, Compass, BookOpen, Volume2, ShieldAlert, Menu, X
 } from 'lucide-react';
 
 export default function App() {
@@ -29,8 +29,10 @@ export default function App() {
   const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
   const [swimmingPools, setSwimmingPools] = useState<SwimmingPool[]>([]);
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   const navigateTo = (path: string) => {
+    setIsMobileMenuOpen(false);
     if (window.location.pathname !== path) {
       window.history.pushState(null, '', path);
     }
@@ -582,83 +584,172 @@ export default function App() {
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-xs px-4 py-3 md:px-8">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
-          {/* Logo Brand & Navigation */}
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between w-full gap-3">
+          {/* Logo Brand & Mobile Header Row */}
+          <div className="flex items-center justify-between w-full gap-2">
             <div className="flex items-center gap-2.5 cursor-pointer select-none shrink-0" onClick={() => navigateTo('/')}>
-              <img src="/images/logo.png" alt="Logo Private Renang Tirta Barokah" className="h-10 w-auto max-w-[120px] object-contain shrink-0 drop-shadow-xs" />
+              <img src="/images/logo.png" alt="Logo Private Renang Tirta Barokah" className="h-9 md:h-10 w-auto max-w-[110px] md:max-w-[120px] object-contain shrink-0 drop-shadow-xs" />
               <div>
-                <h1 className="text-sm font-black text-slate-800 tracking-tight leading-tight">TIRTA BAROKAH</h1>
-                <p className="text-[10px] text-slate-400 font-mono flex items-center gap-1 font-semibold">
+                <h1 className="text-xs md:text-sm font-black text-slate-800 tracking-tight leading-tight">TIRTA BAROKAH</h1>
+                <p className="text-[9px] md:text-[10px] text-slate-400 font-mono flex items-center gap-1 font-semibold">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Palembang
                 </p>
               </div>
             </div>
 
-            {/* Menu in header: shown on mobile HP and desktop */}
+            {/* Member Navigation: Mobile button beside logo + Desktop full navbar */}
             {activeRole === 'member' && (
-              currentPath === '/daftar' ? (
-                <button
-                  onClick={() => navigateTo('/')}
-                  className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer border border-slate-200 shrink-0"
-                >
-                  ← Kembali ke Beranda
-                </button>
-              ) : (
-                <div className="flex flex-wrap items-center justify-start md:justify-center gap-x-3.5 md:gap-x-5 gap-y-2 text-[11px] md:text-xs font-bold text-slate-600 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 w-full md:w-auto">
-                  <button 
-                    onClick={() => {
-                      const el = document.getElementById('program-info');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-[11px] md:text-xs"
-                  >
-                    Kurikulum & Program
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const el = document.getElementById('pricing-section');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-[11px] md:text-xs"
-                  >
-                    Paket & Biaya
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const el = document.getElementById('swimming-pools-section');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-[11px] md:text-xs"
-                  >
-                    Kolam Renang
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const el = document.getElementById('coaches-section');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-[11px] md:text-xs"
-                  >
-                    Daftar Pelatih
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const el = document.getElementById('events-section');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-[11px] md:text-xs"
-                  >
-                    Event & Berita
-                  </button>
-                  <button
-                    onClick={() => navigateTo('/daftar')}
-                    className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3 py-1.5 md:px-3.5 md:py-1.5 rounded-lg transition shadow-xs cursor-pointer border-0 text-[11px] md:text-xs"
-                  >
-                    Daftar Sekarang
-                  </button>
+              <div className="flex items-center gap-2">
+                {/* Mobile View: Button beside logo + Hamburger Menu toggle */}
+                <div className="md:hidden flex items-center gap-2">
+                  {currentPath === '/daftar' ? (
+                    <button
+                      onClick={() => navigateTo('/')}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer border border-slate-200 shrink-0"
+                    >
+                      ← Beranda
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => navigateTo('/daftar')}
+                      className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3 py-1.5 rounded-lg transition shadow-xs cursor-pointer border-0 text-xs shrink-0"
+                    >
+                      Daftar Sekarang
+                    </button>
+                  )}
+
+                  {currentPath !== '/daftar' && (
+                    <button
+                      onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                      className="p-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition border border-slate-200"
+                      aria-label="Toggle menu"
+                    >
+                      {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                    </button>
+                  )}
                 </div>
-              )
+
+                {/* Desktop View: Full Horizontal Navbar */}
+                {currentPath === '/daftar' ? (
+                  <button
+                    onClick={() => navigateTo('/')}
+                    className="hidden md:flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3.5 py-1.5 rounded-lg text-xs transition cursor-pointer border border-slate-200 shrink-0"
+                  >
+                    ← Kembali ke Beranda
+                  </button>
+                ) : (
+                  <div className="hidden md:flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-bold text-slate-600">
+                    <button 
+                      onClick={() => {
+                        const el = document.getElementById('program-info');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                    >
+                      Kurikulum & Program
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const el = document.getElementById('pricing-section');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                    >
+                      Paket & Biaya
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const el = document.getElementById('swimming-pools-section');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                    >
+                      Kolam Renang
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const el = document.getElementById('coaches-section');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                    >
+                      Daftar Pelatih
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const el = document.getElementById('events-section');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                    >
+                      Event & Berita
+                    </button>
+                    <button
+                      onClick={() => navigateTo('/daftar')}
+                      className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3.5 py-1.5 rounded-lg transition shadow-xs cursor-pointer border-0 text-xs"
+                    >
+                      Daftar Sekarang
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
+          </div>
+
+          {/* Collapsible Mobile Menu Drawer (shown when toggled on mobile HP) */}
+          {activeRole === 'member' && currentPath !== '/daftar' && isMobileMenuOpen && (
+            <div className="md:hidden flex flex-col gap-2 pt-3 pb-2 border-t border-slate-100 text-xs font-bold text-slate-700">
+              <button 
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  const el = document.getElementById('program-info');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="text-left px-3 py-2 rounded-lg bg-slate-50 hover:bg-cyan-50 hover:text-cyan-600 transition"
+              >
+                📘 Kurikulum & Program
+              </button>
+              <button 
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  const el = document.getElementById('pricing-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="text-left px-3 py-2 rounded-lg bg-slate-50 hover:bg-cyan-50 hover:text-cyan-600 transition"
+              >
+                🏷️ Paket & Biaya
+              </button>
+              <button 
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  const el = document.getElementById('swimming-pools-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="text-left px-3 py-2 rounded-lg bg-slate-50 hover:bg-cyan-50 hover:text-cyan-600 transition"
+              >
+                🏊‍♂️ Kolam Renang
+              </button>
+              <button 
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  const el = document.getElementById('coaches-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="text-left px-3 py-2 rounded-lg bg-slate-50 hover:bg-cyan-50 hover:text-cyan-600 transition"
+              >
+                🏅 Daftar Pelatih
+              </button>
+              <button 
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  const el = document.getElementById('events-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="text-left px-3 py-2 rounded-lg bg-slate-50 hover:bg-cyan-50 hover:text-cyan-600 transition"
+              >
+                🎉 Event & Berita
+              </button>
+            </div>
+          )}
 
             {activeRole !== 'member' && (
               <div className="flex items-center gap-2.5 ml-auto shrink-0">
