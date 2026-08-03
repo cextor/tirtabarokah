@@ -625,6 +625,15 @@ export default function App() {
                   </button>
                   <button 
                     onClick={() => {
+                      const el = document.getElementById('swimming-pools-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
+                  >
+                    Lokasi Kolam Renang
+                  </button>
+                  <button 
+                    onClick={() => {
                       const el = document.getElementById('coaches-section');
                       if (el) el.scrollIntoView({ behavior: 'smooth' });
                     }}
