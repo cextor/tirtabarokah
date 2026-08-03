@@ -630,7 +630,7 @@ export default function App() {
                     }}
                     className="hover:text-cyan-600 transition cursor-pointer bg-transparent border-0 p-0 font-bold text-xs"
                   >
-                    Lokasi Kolam Renang
+                    Kolam Renang
                   </button>
                   <button 
                     onClick={() => {
