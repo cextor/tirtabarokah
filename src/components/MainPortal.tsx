@@ -1893,7 +1893,23 @@ export default function MainPortal({
                         <span className="text-slate-500">Tipe Latihan:</span>
                         <span className="font-bold text-slate-800">{coachType}</span>
                       </div>
-                      <div className="flex justify-between">
+                      {selectedScheduleDay && selectedScheduleTime && (
+                        <div className="flex justify-between items-start gap-2 border-t border-slate-100 pt-1.5">
+                          <span className="text-slate-500 shrink-0">Jadwal Sesi 1:</span>
+                          <span className="font-bold text-slate-800 text-right">
+                            Hari {selectedScheduleDay} ({selectedScheduleDay === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}) @ Pukul {selectedScheduleTime} WIB
+                          </span>
+                        </div>
+                      )}
+                      {scheduleFrequency === '2x Seminggu' && selectedScheduleDay2 && selectedScheduleTime2 && (
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-slate-500 shrink-0">Jadwal Sesi 2:</span>
+                          <span className="font-bold text-slate-800 text-right">
+                            Hari {selectedScheduleDay2} ({selectedScheduleDay2 === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}) @ Pukul {selectedScheduleTime2} WIB
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between border-t border-slate-100 pt-1.5">
                         <span className="text-slate-500">Frekuensi:</span>
                         <span className="font-bold text-slate-800">{scheduleFrequency}</span>
                       </div>
