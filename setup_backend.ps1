@@ -52,7 +52,7 @@ Write-Host "1. Buat database baru bernama 'tirtabarokah' di phpMyAdmin Anda."
 Write-Host "2. Import file 'backend/db_schema.sql' ke database 'tirtabarokah'."
 Write-Host "3. Jalankan server backend (CodeIgniter):" -ForegroundColor Yellow
 Write-Host "   cd backend"
-Write-Host "   php spark serve"
+Write-Host "   php spark serve --host 0.0.0.0 --port 8081"
 Write-Host "4. Jalankan frontend React di terminal terpisah:" -ForegroundColor Yellow
 Write-Host "   npm run dev"
 Write-Host "=========================================" -ForegroundColor Cyan

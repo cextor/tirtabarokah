@@ -951,6 +951,19 @@ class ApiController extends BaseController
             return $this->fail('ID Siswa dan catatan harus dilampirkan.');
         }
 
+        $targetDate = $json->date ?? date('Y-m-d');
+
+        // Check if attendance already recorded for this member on this date
+        $existing = $this->db->table('training_progress')
+            ->where('member_id', $json->memberId)
+            ->where('date', $targetDate)
+            ->get()
+            ->getRowArray();
+
+        if ($existing) {
+            return $this->fail('Siswa ini sudah diabsen pada tanggal ' . $targetDate . '. Presensi hanya dapat diisi 1 kali dalam sehari.', 400);
+        }
+
         $this->db->transStart();
 
         $member = $this->db->table('members')->where('id', $json->memberId)->get()->getRowArray();
@@ -978,7 +991,7 @@ class ApiController extends BaseController
         $this->db->table('training_progress')->insert([
             'id' => $progressId,
             'member_id' => $json->memberId,
-            'date' => $json->date ?? date('Y-m-d'),
+            'date' => $targetDate,
             'attendance' => $json->attendance,
             'note' => $json->note
         ]);
@@ -997,6 +1010,19 @@ class ApiController extends BaseController
         $json = $this->request->getJSON();
         if (!$json || empty($json->memberId) || empty($json->attendance)) {
             return $this->fail('ID Siswa dan status kehadiran harus dilampirkan.');
+        }
+
+        $targetDate = date('Y-m-d');
+
+        // Check if attendance already recorded for this member today
+        $existing = $this->db->table('training_progress')
+            ->where('member_id', $json->memberId)
+            ->where('date', $targetDate)
+            ->get()
+            ->getRowArray();
+
+        if ($existing) {
+            return $this->fail('Siswa ini sudah diabsen pada hari ini (' . $targetDate . '). Presensi hanya dapat diisi 1 kali dalam sehari.', 400);
         }
 
         $this->db->transStart();
@@ -1031,7 +1057,7 @@ class ApiController extends BaseController
         $this->db->table('training_progress')->insert([
             'id' => $progressId,
             'member_id' => $json->memberId,
-            'date' => date('Y-m-d'),
+            'date' => $targetDate,
             'attendance' => $json->attendance,
             'note' => $defaultNotes[$json->attendance]
         ]);
@@ -1298,7 +1324,7 @@ class ApiController extends BaseController
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
 
-        $this->logAudit('Ubah Password', "Password untuk pengguna '{$user['username']}' ({$user['role']}) berhasil diperbarui.");
+        $this->logAction('Ubah Password', 'users', $user['id'], "Password untuk pengguna '{$user['username']}' ({$user['role']}) berhasil diperbarui.");
 
         return $this->respond([
             'status' => 'success',
@@ -1670,6 +1696,11 @@ class ApiController extends BaseController
             'record_id' => $recordId,
             'description' => $description
         ]);
+    }
+
+    private function logAudit($action, $description)
+    {
+        $this->logAction($action, 'system', null, $description);
     }
 
     private function syncCoachLegacyPackages($packageId, $packageName, $packagePrice, $packageSessions, $coachIds)

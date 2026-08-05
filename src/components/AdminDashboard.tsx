@@ -793,6 +793,19 @@ export default function AdminDashboard({
     if (!attendanceMember) return;
 
     const member = attendanceMember;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isAlreadyAttendedToday = member.progress.some(p => p.date === todayStr);
+
+    if (isAlreadyAttendedToday) {
+      Swal.fire({
+        title: 'Presensi Sudah Ada',
+        text: `Siswa ${member.student.fullName} sudah melakukan presensi/absen pada hari ini (${todayStr}). Presensi hanya dapat diisi 1 kali dalam sehari.`,
+        icon: 'warning',
+        confirmButtonColor: '#06b6d4'
+      });
+      setShowAttendanceModal(false);
+      return;
+    }
 
     // sessionsLeft reduction happens for all presence statuses (Hadir, Absen, Izin)
     const newSessionsLeft = Math.max(0, member.sessionsLeft - 1);
@@ -5569,11 +5582,23 @@ export default function AdminDashboard({
                       />
                     </div>
 
+                    {attendanceMember.progress.some(p => p.date === new Date().toISOString().split('T')[0]) && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-[11px] font-semibold">
+                        ⚠️ Presensi hari ini sudah dicatat. Presensi hanya dapat diisi 1 kali per hari.
+                      </div>
+                    )}
+
                     <button
                       type="submit"
-                      className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-cyan-600/10 cursor-pointer"
+                      disabled={attendanceMember.progress.some(p => p.date === new Date().toISOString().split('T')[0])}
+                      className={`w-full font-bold py-3.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 transition ${
+                        attendanceMember.progress.some(p => p.date === new Date().toISOString().split('T')[0])
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                          : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-600/10 cursor-pointer'
+                      }`}
                     >
-                      <CheckSquare className="w-4 h-4" /> Simpan Presensi Baru
+                      <CheckSquare className="w-4 h-4" /> 
+                      {attendanceMember.progress.some(p => p.date === new Date().toISOString().split('T')[0]) ? 'Sudah Diabsen Hari Ini' : 'Simpan Presensi Baru'}
                     </button>
                   </form>
                 </div>

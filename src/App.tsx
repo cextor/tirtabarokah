@@ -6,14 +6,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { Coach, Member, EventItem, SiteSettings, ProgramLevel, CoachAbsence, AuditLog, EventCategory, SwimmingPool, PricingPackage } from './types';
-import { api, API_BASE_URL } from './api';
+import { api, API_BASE_URL, getMediaUrl } from './api';
 import MainPortal from './components/MainPortal';
 import AdminDashboard from './components/AdminDashboard';
 import CoachDashboard from './components/CoachDashboard';
 import ParentDashboard from './components/ParentDashboard';
 import {
   Users, Shield, Award, UserCheck, RefreshCw,
-  MapPin, Clock, Compass, BookOpen, Volume2, ShieldAlert, Menu, X
+  MapPin, Clock, Compass, BookOpen, Volume2, ShieldAlert, Menu, X,
+  Key, LogOut, ChevronDown, Eye, EyeOff, User, Mail, Phone, ShieldCheck, ExternalLink
 } from 'lucide-react';
 
 export default function App() {
@@ -70,6 +71,74 @@ export default function App() {
   const [coachUsername, setCoachUsername] = useState<string>('');
   const [coachPassword, setCoachPassword] = useState<string>('');
   const [coachLoginError, setCoachLoginError] = useState<string | null>(null);
+
+  // Profile Dropdown Menu & Change Password States
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState<boolean>(false);
+  const [showProfileCardModal, setShowProfileCardModal] = useState<boolean>(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState<boolean>(false);
+  const [oldPassword, setOldPassword] = useState<string>('');
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [showOldPassword, setShowOldPassword] = useState<boolean>(false);
+  const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close profile dropdown menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePasswordError(null);
+
+    if (!newPassword || newPassword.length < 4) {
+      setChangePasswordError('Password baru minimal 4 karakter!');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setChangePasswordError('Konfirmasi password baru tidak cocok!');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const res = await api.changePassword({
+        oldPassword,
+        newPassword
+      });
+
+      if (res.status === 'success' || res.message) {
+        Swal.fire({
+          title: 'Password Diperbarui!',
+          text: 'Password akun Anda telah berhasil diubah. Gunakan password baru untuk login berikutnya.',
+          icon: 'success',
+          confirmButtonColor: '#06b6d4'
+        });
+        setShowChangePasswordModal(false);
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setChangePasswordError(res.message || 'Gagal mengubah password.');
+      }
+    } catch (err: any) {
+      console.error('Failed to change password:', err);
+      setChangePasswordError(err.message || 'Password lama salah atau terjadi kesalahan.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   // Reset login input fields when switching roles
   useEffect(() => {
@@ -751,24 +820,108 @@ export default function App() {
             </div>
           )}
 
-            {activeRole !== 'member' && (
-              <div className="flex items-center gap-2.5 ml-auto shrink-0">
-                <div className="text-right flex flex-col justify-center hidden sm:flex">
-                  <span className="text-[11px] font-black text-slate-800 leading-tight">
-                    {localStorage.getItem('user_name') || (localStorage.getItem('user_role') === 'operator' ? 'Operator' : 'Admin Utama')}
-                  </span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none">
-                    {localStorage.getItem('user_role') === 'operator' ? 'Operator Portal' : activeRole === 'admin' ? 'Administrator' : 'Pelatih'}
-                  </span>
+            {activeRole !== 'member' && ((activeRole === 'admin' && isAdminLoggedIn) || (activeRole === 'coach' && isCoachLoggedIn)) && (() => {
+              const currentLoggedCoach = coaches.find(c => c.id === loggedCoachId);
+              const userName = localStorage.getItem('user_name') || (localStorage.getItem('user_role') === 'operator' ? 'Operator' : activeRole === 'admin' ? 'Admin Utama' : 'Pelatih');
+              const userRoleLabel = localStorage.getItem('user_role') === 'operator' ? 'Operator Portal' : activeRole === 'admin' ? 'Administrator' : 'Pelatih Renang';
+
+              return (
+                <div className="relative ml-auto shrink-0 z-50" ref={profileMenuRef}>
+                  <button
+                    onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                    className="flex items-center gap-2.5 p-1.5 pr-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 transition cursor-pointer shadow-2xs"
+                  >
+                    {/* User Avatar */}
+                    <div className="w-8 h-8 rounded-lg bg-cyan-600 text-white font-bold flex items-center justify-center overflow-hidden shrink-0 shadow-xs border border-cyan-500/30">
+                      {activeRole === 'coach' && currentLoggedCoach?.photo ? (
+                        <img src={getMediaUrl(currentLoggedCoach.photo)} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xs font-black">
+                          {userName.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-left flex flex-col justify-center hidden sm:flex">
+                      <span className="text-[11px] font-black text-slate-800 leading-tight">
+                        {userName}
+                      </span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none">
+                        {userRoleLabel}
+                      </span>
+                    </div>
+
+                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180 text-cyan-600' : ''}`} />
+                  </button>
+
+                  {/* Profile Dropdown Menu */}
+                  {isProfileMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200/90 rounded-2xl shadow-xl z-50 py-2 text-xs text-slate-700 animate-in fade-in slide-in-from-top-2 duration-150">
+                      {/* User Profile Card Header */}
+                      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3 bg-slate-50/70 rounded-t-2xl">
+                        <div className="w-10 h-10 rounded-xl bg-cyan-600 text-white font-bold flex items-center justify-center overflow-hidden shrink-0 shadow-xs border border-cyan-500/30">
+                          {activeRole === 'coach' && currentLoggedCoach?.photo ? (
+                            <img src={getMediaUrl(currentLoggedCoach.photo)} alt="Profile" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-sm font-black">
+                              {userName.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="overflow-hidden">
+                          <h4 className="font-extrabold text-slate-800 text-xs truncate">
+                            {userName}
+                          </h4>
+                          <p className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider">
+                            {userRoleLabel}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Menu Options */}
+                      <div className="p-1.5 space-y-1">
+                        <button
+                          onClick={() => {
+                            setIsProfileMenuOpen(false);
+                            setShowProfileCardModal(true);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:bg-cyan-50 hover:text-cyan-700 font-bold transition text-left cursor-pointer"
+                        >
+                          <User className="w-4 h-4 text-cyan-600" />
+                          <span>Profil Saya</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setIsProfileMenuOpen(false);
+                            setChangePasswordError(null);
+                            setOldPassword('');
+                            setNewPassword('');
+                            setConfirmPassword('');
+                            setShowChangePasswordModal(true);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:bg-cyan-50 hover:text-cyan-700 font-bold transition text-left cursor-pointer"
+                        >
+                          <Key className="w-4 h-4 text-cyan-600" />
+                          <span>Ganti Password</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setIsProfileMenuOpen(false);
+                            handleLogout();
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 font-bold transition text-left cursor-pointer border-t border-slate-100 mt-1 pt-2"
+                        >
+                          <LogOut className="w-4 h-4 text-rose-500" />
+                          <span>Keluar Portal</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1 shrink-0"
-                >
-                  🚪 Keluar Portal
-                </button>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </header>
 
@@ -972,16 +1125,360 @@ export default function App() {
       </main>
 
       {/* Footer information section */}
-      <footer className="bg-slate-900 text-slate-400 py-6 border-t border-slate-800 text-xs mt-16">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-4 text-center">
-          <div className="flex items-center gap-2">
-            <img src="/images/logo.png" alt="Tirta Barokah Logo" className="h-6 w-auto object-contain brightness-110" />
-            <p className="font-extrabold text-slate-300 tracking-wide text-[10px] uppercase">Private Renang Tirta Barokah Palembang</p>
+      <footer className="bg-slate-900 text-slate-300 pt-12 pb-6 border-t border-slate-800 text-xs mt-16">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-10">
+          
+          {/* Main Location & Contact Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            {/* Left: Brand info & Contact details */}
+            <div className="lg:col-span-5 space-y-5">
+              <div className="flex items-center gap-3">
+                <img src="/images/logo.png" alt="Tirta Barokah Logo" className="h-10 w-auto object-contain brightness-110" />
+                <div>
+                  <h3 className="font-extrabold text-white text-base tracking-wide uppercase">Private Renang Tirta Barokah</h3>
+                  <p className="text-[11px] text-cyan-400 font-bold">Palembang, Sumatera Selatan</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Lembaga pelatihan les renang privat profesional di Palembang untuk anak-anak hingga dewasa dengan metode pelatihan yang ramah, aman, dan teruji.
+              </p>
+
+              <div className="space-y-3 pt-2 text-xs">
+                <div className="flex items-start gap-3 bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
+                  <MapPin className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-white block mb-0.5">Alamat Kolam / Lokasi:</span>
+                    <p className="text-slate-300 leading-normal">
+                      Kompleks grand garden, Bukit Sangkal, Kec. Kalidoni, Kota Palembang, Sumatera Selatan 30163
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
+                  <Phone className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <div className="flex-1">
+                    <span className="font-bold text-white block mb-0.5">No HP / WhatsApp:</span>
+                    <a
+                      href="https://wa.me/6282137161188"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-400 font-bold hover:underline inline-flex items-center gap-1"
+                    >
+                      0821-3716-1188
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Interactive Google Maps Embed */}
+            <div className="lg:col-span-7 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-extrabold text-white text-xs uppercase tracking-wider flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-cyan-400" /> Peta Lokasi Google Maps
+                </h4>
+                <a
+                  href="https://www.google.com/maps/place/Privat+Renang+Tirta+Barokah+Palembang/@-2.945846,104.7868604,17z/data=!4m6!3m5!1s0x2e3b770d40744b59:0x53f9800cee282555!8m2!3d-2.9458411!4d104.7868668!16s%2Fg%2F11l2lj4bt_?hl=en&entry=ttu&g_ep=EgoyMDI2MDgwMi4wIKXMDSoASAFQAw%3D%3D"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1 bg-cyan-950/60 border border-cyan-800/60 px-3 py-1 rounded-xl transition"
+                >
+                  Buka Aplikasi Maps <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+
+              <div className="w-full h-64 md:h-72 rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl bg-slate-800 relative">
+                <iframe
+                  title="Lokasi Privat Renang Tirta Barokah Palembang"
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3984.4485579979774!2d104.7868668!3d-2.9458411!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e3b770d40744b59%3A0x53f9800cee282555!2sPrivat%20Renang%20Tirta%20Barokah%20Palembang!5e0!3m2!1sid!2sid!4v1710000000000!5m2!1sid!2sid"
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  allowFullScreen={true}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  className="w-full h-full"
+                ></iframe>
+              </div>
+            </div>
+
           </div>
-          <p className="text-[10px] text-slate-500">© 2026 Tirta Barokah Academy. Semua Hak Dilindungi Undang-Undang.</p>
+
+          {/* Bottom Copyright */}
+          <div className="border-t border-slate-800/80 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-center">
+            <p className="text-[11px] text-slate-400 font-medium">
+              © 2026 Tirta Barokah Academy. Semua Hak Dilindungi Undang-Undang.
+            </p>
+            <p className="text-[10px] text-slate-500 font-mono">
+              Kompleks Grand Garden, Bukit Sangkal, Kec. Kalidoni, Kota Palembang
+            </p>
+          </div>
+
         </div>
       </footer>
 
+      {/* User Profile Card Modal */}
+      {showProfileCardModal && (() => {
+        const currentLoggedCoach = coaches.find(c => c.id === loggedCoachId);
+        const userRole = localStorage.getItem('user_role');
+        const userName = localStorage.getItem('user_name') || (userRole === 'operator' ? 'Operator' : activeRole === 'admin' ? 'Admin Utama' : 'Pelatih');
+        const userRoleLabel = userRole === 'operator' ? 'Operator Portal' : activeRole === 'admin' ? 'Administrator' : 'Pelatih Renang';
+        const userEmail = currentLoggedCoach?.email || (userRole === 'coach' ? `${loggedCoachId}@tirtabarokah.com` : 'admin@tirtabarokah.com');
+        const userPhone = currentLoggedCoach?.phone || '0812-3456-7890';
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+              
+              {/* Header Banner */}
+              <div className="relative h-28 bg-gradient-to-r from-cyan-600 via-teal-600 to-blue-700 p-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowProfileCardModal(false)}
+                  className="w-8 h-8 bg-black/20 hover:bg-black/40 text-white rounded-full flex items-center justify-center transition backdrop-blur-xs cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Profile Card Body */}
+              <div className="px-6 pb-6 pt-0 relative">
+                {/* Avatar Badge */}
+                <div className="relative -mt-14 mb-4 flex justify-between items-end">
+                  <div className="w-24 h-24 rounded-2xl bg-white p-1.5 shadow-xl ring-4 ring-cyan-500/20 overflow-hidden shrink-0">
+                    <div className="w-full h-full rounded-xl bg-cyan-600 text-white font-bold flex items-center justify-center overflow-hidden">
+                      {activeRole === 'coach' && currentLoggedCoach?.photo ? (
+                        <img src={getMediaUrl(currentLoggedCoach.photo)} alt={userName} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-3xl font-black">{userName.charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold rounded-full flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Akun Aktif
+                  </span>
+                </div>
+
+                {/* Name & Role */}
+                <div className="space-y-1 mb-5">
+                  <h3 className="text-lg font-black text-slate-800 tracking-tight leading-tight">{userName}</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-cyan-700 bg-cyan-50 px-2.5 py-0.5 rounded-md border border-cyan-100">
+                      {userRoleLabel}
+                    </span>
+                    {activeRole === 'coach' && currentLoggedCoach?.referralCode && (
+                      <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                        Kode: {currentLoggedCoach.referralCode}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Profile Details List */}
+                <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs">
+                  <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                    <span className="text-slate-500 flex items-center gap-1.5 font-medium">
+                      <Mail className="w-3.5 h-3.5 text-cyan-600" /> Email Akun
+                    </span>
+                    <span className="font-bold text-slate-800">{userEmail}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                    <span className="text-slate-500 flex items-center gap-1.5 font-medium">
+                      <Phone className="w-3.5 h-3.5 text-cyan-600" /> No. Telepon / WA
+                    </span>
+                    <span className="font-bold text-slate-800">{userPhone}</span>
+                  </div>
+
+                  {activeRole === 'coach' && currentLoggedCoach && (
+                    <>
+                      <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                        <span className="text-slate-500 flex items-center gap-1.5 font-medium">
+                          <Users className="w-3.5 h-3.5 text-cyan-600" /> Kuota Siswa Active
+                        </span>
+                        <span className="font-bold text-slate-800">
+                          {currentLoggedCoach.currentQuota} / {currentLoggedCoach.maxQuota} Kuota Siswa
+                        </span>
+                      </div>
+
+                      <div className="py-1">
+                        <span className="text-slate-500 flex items-center gap-1.5 font-medium mb-1">
+                          <Award className="w-3.5 h-3.5 text-cyan-600" /> Pengalaman & Lisensi
+                        </span>
+                        <p className="text-[11px] text-slate-700 font-medium italic bg-white p-2.5 rounded-xl border border-slate-200">
+                          "{currentLoggedCoach.experience || 'Pelatih Renang Profesional'}"
+                        </p>
+                      </div>
+
+                      {currentLoggedCoach.certificateUrl && (
+                        <div className="pt-1">
+                          <a
+                            href={getMediaUrl(currentLoggedCoach.certificateUrl)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-[11px] font-bold text-cyan-700 hover:text-cyan-800 bg-cyan-50 hover:bg-cyan-100 px-3 py-1.5 rounded-xl transition border border-cyan-200"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" /> Lihat Sertifikat Pelatih
+                          </a>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Card Actions */}
+                <div className="flex gap-2 mt-5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileCardModal(false);
+                      setChangePasswordError(null);
+                      setOldPassword('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                      setShowChangePasswordModal(true);
+                    }}
+                    className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-md shadow-cyan-600/10 cursor-pointer"
+                  >
+                    <Key className="w-3.5 h-3.5" /> Ganti Password
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileCardModal(false);
+                      handleLogout();
+                    }}
+                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" /> Keluar
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Change Password Modal */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-cyan-100 text-cyan-700 flex items-center justify-center">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm">Ganti Password Profil</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">Ubah kata sandi akun Anda demi keamanan</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChangePasswordModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {changePasswordError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>{changePasswordError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePasswordSubmit} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase block">Password Saat Ini (Lama)</label>
+                <div className="relative">
+                  <input
+                    type={showOldPassword ? 'text' : 'password'}
+                    required
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    placeholder="Masukkan password saat ini"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 pr-9 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:outline-hidden transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOldPassword(!showOldPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase block">Password Baru</label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    minLength={4}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Minimal 4 karakter"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 pr-9 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:outline-hidden transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase block">Konfirmasi Password Baru</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    minLength={4}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Ulangi password baru"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 pr-9 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:outline-hidden transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowChangePasswordModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-cyan-600/10 cursor-pointer disabled:opacity-50"
+                >
+                  {isChangingPassword ? 'Menyimpan...' : 'Simpan Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

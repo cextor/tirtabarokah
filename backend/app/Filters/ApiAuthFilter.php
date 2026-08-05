@@ -43,7 +43,18 @@ class ApiAuthFilter implements FilterInterface
         ];
 
         // 1. Enforce Client Key for ALL API requests
-        $clientKey = $request->getHeaderLine('X-Client-Key');
+        $clientHeader = $request->header('X-Client-Key') ?? $request->header('x-client-key');
+        $clientKey = $clientHeader ? trim($clientHeader->getValue()) : '';
+        if (!$clientKey) {
+            $clientKey = trim($request->getHeaderLine('X-Client-Key'));
+            if (str_starts_with(strtolower($clientKey), 'x-client-key:')) {
+                $clientKey = trim(substr($clientKey, 13));
+            }
+        }
+        if (!$clientKey && isset($_SERVER['HTTP_X_CLIENT_KEY'])) {
+            $clientKey = trim($_SERVER['HTTP_X_CLIENT_KEY']);
+        }
+
         $expectedClientKey = 'TirtaBarokahClientSecret2026';
 
         if (!$clientKey || $clientKey !== $expectedClientKey) {
@@ -61,7 +72,15 @@ class ApiAuthFilter implements FilterInterface
         }
 
         // 2. Enforce User Authorization Token for protected endpoints
-        $authHeader = $request->getHeaderLine('Authorization');
+        $authHeaderObj = $request->header('Authorization') ?? $request->header('authorization');
+        $authHeader = $authHeaderObj ? trim($authHeaderObj->getValue()) : trim($request->getHeaderLine('Authorization'));
+        if (str_starts_with(strtolower($authHeader), 'authorization:')) {
+            $authHeader = trim(substr($authHeader, 14));
+        }
+        if (!$authHeader && isset($_SERVER['HTTP_AUTHORIZATION'])) {
+            $authHeader = trim($_SERVER['HTTP_AUTHORIZATION']);
+        }
+
         if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
             $response = service('response');
             $response->setStatusCode(401);
