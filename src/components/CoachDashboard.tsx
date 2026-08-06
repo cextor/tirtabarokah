@@ -8,8 +8,9 @@ import Swal from 'sweetalert2';
 import { Coach, Member, TrainingProgress, CoachAbsence } from '../types';
 import { api, getMediaUrl } from '../api';
 import { 
-  Award, Users, Calendar, CheckSquare, PlusCircle, Clock, BookOpen, AlertCircle, Phone, UserCheck, Filter
+  Award, Users, Calendar, CheckSquare, PlusCircle, Clock, BookOpen, AlertCircle, Phone, UserCheck, Filter, FileSpreadsheet
 } from 'lucide-react';
+import { exportCoachScheduleToExcel } from '../utils/excelExport';
 
 interface CoachDashboardProps {
   coaches: Coach[];
@@ -20,7 +21,7 @@ interface CoachDashboardProps {
   loggedCoachId?: string;
 }
 
-type CoachTab = 'students' | 'add_progress' | 'schedule' | 'report_absence' | 'absence_history';
+type CoachTab = 'students' | 'add_progress' | 'schedule' | 'laporan_coachs' | 'report_absence' | 'absence_history';
 
 // Helper to get Indonesian Day name from date string (YYYY-MM-DD)
 const getIndonesianDay = (dateStr?: string): string => {
@@ -260,12 +261,30 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
     });
   };
 
+  const [laporanStartDate, setLaporanStartDate] = useState<string>(() => {
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    startOfWeek.setDate(diff);
+    return startOfWeek.toISOString().split('T')[0];
+  });
+  const [laporanEndDate, setLaporanEndDate] = useState<string>(() => {
+    const today = new Date();
+    const endOfWeek = new Date(today);
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? 0 : 7);
+    endOfWeek.setDate(diff);
+    return endOfWeek.toISOString().split('T')[0];
+  });
+
   const sidebarTabs: { id: CoachTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'students', label: 'Siswa', icon: <Users className="w-4 h-4" />, badge: filteredStudents.length },
     { id: 'add_progress', label: 'Catat Perkembangan', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'schedule', label: 'Jadwal Mengajar', icon: <Calendar className="w-4 h-4" />, badge: coachSlots.length },
     { id: 'report_absence', label: 'Lapor Absen Mengajar', icon: <AlertCircle className="w-4 h-4" /> },
     { id: 'absence_history', label: 'Riwayat Absen Saya', icon: <Clock className="w-4 h-4" />, badge: coachAbsencesList.length },
+    { id: 'laporan_coachs', label: 'Laporan Coachs', icon: <FileSpreadsheet className="w-4 h-4" /> },
   ];
 
   return (
@@ -340,6 +359,17 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                   </button>
                 );
               })}
+
+              <div className="pt-2 border-t border-slate-100 mt-2">
+                <button
+                  onClick={() => exportCoachScheduleToExcel(coaches, members, currentCoach.id)}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/70 transition cursor-pointer"
+                  title="Download Rekapan Excel Seminggu"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span>Export Excel Seminggu</span>
+                </button>
+              </div>
             </div>
           </aside>
 
@@ -602,11 +632,20 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
             {/* TAB 3: TEACHING SCHEDULE WITH STUDENT LIST PER SLOT */}
             {activeTab === 'schedule' && (
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-5">
-                <div className="border-b border-slate-100 pb-3">
-                  <h3 className="font-extrabold text-base text-slate-800 flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-cyan-600" /> Jadwal Mengajar Rutin {currentCoach.name}
-                  </h3>
-                  <p className="text-xs text-slate-500">Rincian hari, slot jam mengajar, dan daftar siswa terdaftar di setiap jadwal.</p>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-800 flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-cyan-600" /> Jadwal Mengajar Rutin {currentCoach.name}
+                    </h3>
+                    <p className="text-xs text-slate-500">Rincian hari, slot jam mengajar, dan daftar siswa terdaftar di setiap jadwal.</p>
+                  </div>
+                  <button
+                    onClick={() => exportCoachScheduleToExcel(coaches, members, currentCoach.id)}
+                    className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-700/10 cursor-pointer whitespace-nowrap"
+                    title="Download Rekapan Excel Seminggu"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" /> Export Rekapan Excel
+                  </button>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4">
@@ -674,6 +713,215 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: LAPORAN COACHS */}
+            {activeTab === 'laporan_coachs' && (
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="font-black text-base text-slate-800 flex items-center gap-2">
+                      <FileSpreadsheet className="w-5 h-5 text-emerald-600" /> Laporan Coachs - Rekapan Mengajar Saya
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Unduh rekapan jadwal mengajar Anda ({currentCoach.name}) berdasarkan rentang tanggal tertentu beserta daftar nama siswa ke berkas Excel (.csv).</p>
+                  </div>
+                  <button
+                    onClick={() => exportCoachScheduleToExcel(coaches, members, currentCoach.id, laporanStartDate, laporanEndDate)}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition cursor-pointer whitespace-nowrap"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" /> Download Excel (.csv)
+                  </button>
+                </div>
+
+                {/* Filter Date Range Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Tanggal Mulai</label>
+                    <input
+                      type="date"
+                      value={laporanStartDate}
+                      onChange={(e) => setLaporanStartDate(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs font-bold rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Tanggal Selesai</label>
+                    <input
+                      type="date"
+                      value={laporanEndDate}
+                      onChange={(e) => setLaporanEndDate(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs font-bold rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Preset Buttons */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-extrabold text-slate-500">Preset Tanggal:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = new Date();
+                      const startOfWeek = new Date(today);
+                      const day = today.getDay();
+                      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+                      startOfWeek.setDate(diff);
+                      const endOfWeek = new Date(today);
+                      endOfWeek.setDate(today.getDate() - day + (day === 0 ? 0 : 7));
+                      setLaporanStartDate(startOfWeek.toISOString().split('T')[0]);
+                      setLaporanEndDate(endOfWeek.toISOString().split('T')[0]);
+                    }}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1 rounded-lg text-[11px] transition cursor-pointer border border-slate-200"
+                  >
+                    Minggu Ini
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = new Date();
+                      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                      setLaporanStartDate(firstDay.toISOString().split('T')[0]);
+                      setLaporanEndDate(lastDay.toISOString().split('T')[0]);
+                    }}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1 rounded-lg text-[11px] transition cursor-pointer border border-slate-200"
+                  >
+                    Bulan Ini
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const end = new Date();
+                      const start = new Date();
+                      start.setDate(end.getDate() - 30);
+                      setLaporanStartDate(start.toISOString().split('T')[0]);
+                      setLaporanEndDate(end.toISOString().split('T')[0]);
+                    }}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1 rounded-lg text-[11px] transition cursor-pointer border border-slate-200"
+                  >
+                    30 Hari Terakhir
+                  </button>
+                </div>
+
+                {/* Table Preview */}
+                <div className="border border-slate-200/80 rounded-2xl overflow-hidden">
+                  <div className="bg-slate-50 px-5 py-3 border-b border-slate-200/80 flex justify-between items-center">
+                    <span className="font-extrabold text-xs text-slate-800">Preview Data Excel</span>
+                    <span className="text-[10px] font-bold text-slate-500">Periode: {laporanStartDate} s/d {laporanEndDate}</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100/60 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                        <tr>
+                          <th className="px-5 py-3">No</th>
+                          <th className="px-5 py-3">Nama Pelatih</th>
+                          <th className="px-5 py-3">Total Mengajar Periode Ini</th>
+                          <th className="px-5 py-3">Tanggal & Hari</th>
+                          <th className="px-5 py-3">Jam Latihan</th>
+                          <th className="px-5 py-3">Nama Siswa</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {(() => {
+                          const DAYS_INDO = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                          const dateList: { dateStr: string; dayName: string; displayDate: string }[] = [];
+                          if (laporanStartDate && laporanEndDate) {
+                            let curr = new Date(laporanStartDate + 'T00:00:00');
+                            const end = new Date(laporanEndDate + 'T00:00:00');
+                            while (curr <= end) {
+                              const year = curr.getFullYear();
+                              const month = String(curr.getMonth() + 1).padStart(2, '0');
+                              const dayNum = String(curr.getDate()).padStart(2, '0');
+                              const dateStr = `${year}-${month}-${dayNum}`;
+                              const dayName = DAYS_INDO[curr.getDay()];
+                              const displayDate = `${dayNum}/${month}/${year} (${dayName})`;
+                              dateList.push({ dateStr, dayName, displayDate });
+                              curr.setDate(curr.getDate() + 1);
+                            }
+                          }
+
+                          let count = 0;
+                          let coachTotalSessionsInRange = 0;
+                          const coachRows: any[] = [];
+
+                          dateList.forEach(dateObj => {
+                            const dayName = dateObj.dayName;
+                            const displayDate = dateObj.displayDate;
+
+                            const daySched = currentCoach.schedule ? currentCoach.schedule.find(d => d.day === dayName) : null;
+                            const timeSlots = daySched ? daySched.timeSlots || [] : [];
+
+                            timeSlots.forEach(slot => {
+                              coachTotalSessionsInRange++;
+                              const time = slot.time;
+
+                              const slotStudents = members.filter(m => 
+                                m.coachId === currentCoach.id &&
+                                m.isActive !== false &&
+                                (m.status === 'Aktif' || m.status === 'Paket Hampir Habis') &&
+                                (
+                                  (m.scheduleDay === dayName && m.scheduleTime === time) ||
+                                  (m.scheduleDay2 === dayName && m.scheduleTime2 === time) ||
+                                  (m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.day === dayName && s.time === time)) ||
+                                  (slot.students && slot.students.includes(m.id))
+                                )
+                              );
+
+                              if (slotStudents.length > 0) {
+                                slotStudents.forEach(st => {
+                                  count++;
+                                  coachRows.push({
+                                    no: count,
+                                    coachName: currentCoach.name,
+                                    displayDate,
+                                    scheduleTime: time,
+                                    studentName: st.student.fullName
+                                  });
+                                });
+                              } else {
+                                count++;
+                                coachRows.push({
+                                  no: count,
+                                  coachName: currentCoach.name,
+                                  displayDate,
+                                  scheduleTime: time,
+                                  studentName: '- (Kosong)'
+                                });
+                              }
+                            });
+                          });
+
+                          const totalStr = `${coachTotalSessionsInRange} Sesi`;
+
+                          if (coachRows.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan={6} className="text-center py-6 text-slate-400 italic">Belum ada jadwal mengajar rutin pada rentang tanggal ini.</td>
+                              </tr>
+                            );
+                          }
+
+                          return coachRows.map((r) => (
+                            <tr key={r.no} className="hover:bg-slate-50/80 transition">
+                              <td className="px-5 py-2.5 font-mono font-bold text-slate-400">{r.no}</td>
+                              <td className="px-5 py-2.5 font-extrabold text-slate-800">{r.coachName}</td>
+                              <td className="px-5 py-2.5 font-bold text-emerald-700">
+                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full text-[11px] font-black">
+                                  {totalStr}
+                                </span>
+                              </td>
+                              <td className="px-5 py-2.5 font-bold text-slate-700">{r.displayDate}</td>
+                              <td className="px-5 py-2.5 font-bold text-cyan-700 bg-cyan-50/50 rounded-lg">{r.scheduleTime}</td>
+                              <td className="px-5 py-2.5 font-bold text-slate-700">{r.studentName}</td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}

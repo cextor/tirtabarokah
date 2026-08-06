@@ -1213,7 +1213,7 @@ class ApiController extends BaseController
         }
 
         $token = bin2hex(random_bytes(32));
-        $expiresAt = date('Y-m-d H:i:s', strtotime('+2 hours'));
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+30 days'));
 
         $this->db->table('user_tokens')->insert([
             'user_id' => $user['id'],

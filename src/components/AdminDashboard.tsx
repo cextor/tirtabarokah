@@ -9,7 +9,7 @@ import { Coach, Member, Package, ScheduleDay, EventItem, SiteSettings, ProgramLe
 import { 
   Users, DollarSign, Award, Calendar, ShieldCheck, TrendingUp, AlertTriangle, 
   Plus, Edit, Trash, Check, X, Bell, BarChart2, PieChart as PieIcon, Settings, Phone, CheckSquare, Sparkles, Image as ImageIcon,
-  LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, Key, CreditCard, FileText
+  LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, Key, CreditCard, FileText, FileSpreadsheet
 } from 'lucide-react';
 import { api, getMediaUrl } from '../api';
 import { 
@@ -18,6 +18,7 @@ import {
 } from 'recharts';
 import { motion } from 'motion/react';
 import { checkScheduleSlotConflict } from '../utils/scheduleValidation';
+import { exportCoachScheduleToExcel } from '../utils/excelExport';
 
 interface SearchableSelectProps {
   options: { value: string; label: string }[];
@@ -160,16 +161,33 @@ export default function AdminDashboard({
 
   const isOperator = userRole === 'operator';
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'verifikasi' | 'peserta' | 'pelatih' | 'reminder' | 'events' | 'laporan' | 'pengaturan' | 'absensi_coach' | 'referral' | 'jadwal_hari_ini' | 'audit_logs' | 'kolam_renang'>(() => {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'verifikasi' | 'peserta' | 'pelatih' | 'laporan_coachs' | 'reminder' | 'events' | 'laporan' | 'pengaturan' | 'absensi_coach' | 'referral' | 'jadwal_hari_ini' | 'audit_logs' | 'kolam_renang'>(() => {
     return userRole === 'operator' ? 'verifikasi' : 'dashboard';
   });
 
   const [reminderSubTab, setReminderSubTab] = useState<'today' | 'tomorrow'>('today');
+  const [laporanCoachId, setLaporanCoachId] = useState<string>('all');
+  const [laporanStartDate, setLaporanStartDate] = useState<string>(() => {
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+    startOfWeek.setDate(diff);
+    return startOfWeek.toISOString().split('T')[0];
+  });
+  const [laporanEndDate, setLaporanEndDate] = useState<string>(() => {
+    const today = new Date();
+    const endOfWeek = new Date(today);
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? 0 : 7);
+    endOfWeek.setDate(diff);
+    return endOfWeek.toISOString().split('T')[0];
+  });
   const [isPelatihGroupOpen, setIsPelatihGroupOpen] = useState<boolean>(false);
   const [isKonfigurasiGroupOpen, setIsKonfigurasiGroupOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    if (activeTab === 'pelatih' || activeTab === 'absensi_coach') {
+    if (activeTab === 'pelatih' || activeTab === 'absensi_coach' || activeTab === 'laporan_coachs') {
       setIsPelatihGroupOpen(true);
     }
     if (activeTab === 'pengaturan' || activeTab === 'kolam_renang' || activeTab === 'audit_logs') {
@@ -1872,6 +1890,32 @@ export default function AdminDashboard({
               </button>
             )}
 
+            {/* Laporan Coachs (Rekapan Excel) */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('laporan_coachs');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                activeTab === 'laporan_coachs'
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/10 font-black'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'laporan_coachs' ? 'bg-white/15 text-white' : 'text-emerald-600 bg-emerald-50'}`}>
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <span className="truncate text-xs leading-tight">Laporan Coachs</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase shrink-0 ml-1.5 ${
+                activeTab === 'laporan_coachs' ? 'bg-white text-emerald-800' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                Excel
+              </span>
+            </button>
+
             {/* 10. Log Aktivitas (Admin Only) */}
             {!isOperator && (
               <button
@@ -3393,6 +3437,289 @@ export default function AdminDashboard({
           </div>
         )}
 
+        {/* TAB: LAPORAN COACHS (REKAPAN EXCEL) */}
+        {activeTab === 'laporan_coachs' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+              <div>
+                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-600" /> Laporan Coachs & Rekapan Jadwal Mengajar
+                </h3>
+                <p className="text-slate-500 text-xs mt-1">Unduh dan pantau rekapan jadwal mengajar pelatih berdasarkan rentang tanggal tertentu beserta daftar siswa binaannya ke file Excel (.csv).</p>
+              </div>
+              <button
+                onClick={() => exportCoachScheduleToExcel(coaches, members, laporanCoachId === 'all' ? undefined : laporanCoachId, laporanStartDate, laporanEndDate)}
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4 h-4" /> Download Excel (.csv)
+              </button>
+            </div>
+
+            {/* Filter & Stat Bar */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-1.5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Filter Pelatih</label>
+                <select
+                  value={laporanCoachId}
+                  onChange={(e) => setLaporanCoachId(e.target.value)}
+                  className="w-full bg-white border border-slate-200 text-xs font-bold rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                >
+                  <option value="all">Semua Pelatih ({coaches.length} Coach)</option>
+                  {coaches.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-1.5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Tanggal Mulai</label>
+                <input
+                  type="date"
+                  value={laporanStartDate}
+                  onChange={(e) => setLaporanStartDate(e.target.value)}
+                  className="w-full bg-white border border-slate-200 text-xs font-bold rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                />
+              </div>
+
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-1.5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Tanggal Selesai</label>
+                <input
+                  type="date"
+                  value={laporanEndDate}
+                  onChange={(e) => setLaporanEndDate(e.target.value)}
+                  className="w-full bg-white border border-slate-200 text-xs font-bold rounded-xl px-3 py-2 text-slate-800 focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                />
+              </div>
+
+              <div className="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-100 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-wider block">Pelatih Terpilih</span>
+                  <span className="text-xs font-black text-emerald-950 truncate block max-w-[140px]">
+                    {laporanCoachId === 'all' ? 'Semua Pelatih' : coaches.find(c => c.id === laporanCoachId)?.name || '-'}
+                  </span>
+                </div>
+                <Users className="w-5 h-5 text-emerald-600" />
+              </div>
+            </div>
+
+            {/* Quick Preset Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-extrabold text-slate-500">Preset Tanggal:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const today = new Date();
+                  const startOfWeek = new Date(today);
+                  const day = today.getDay();
+                  const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+                  startOfWeek.setDate(diff);
+                  const endOfWeek = new Date(today);
+                  endOfWeek.setDate(today.getDate() - day + (day === 0 ? 0 : 7));
+                  setLaporanStartDate(startOfWeek.toISOString().split('T')[0]);
+                  setLaporanEndDate(endOfWeek.toISOString().split('T')[0]);
+                }}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1 rounded-lg text-[11px] transition cursor-pointer border border-slate-200"
+              >
+                Minggu Ini
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const today = new Date();
+                  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                  setLaporanStartDate(firstDay.toISOString().split('T')[0]);
+                  setLaporanEndDate(lastDay.toISOString().split('T')[0]);
+                }}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1 rounded-lg text-[11px] transition cursor-pointer border border-slate-200"
+              >
+                Bulan Ini
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const end = new Date();
+                  const start = new Date();
+                  start.setDate(end.getDate() - 30);
+                  setLaporanStartDate(start.toISOString().split('T')[0]);
+                  setLaporanEndDate(end.toISOString().split('T')[0]);
+                }}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1 rounded-lg text-[11px] transition cursor-pointer border border-slate-200"
+              >
+                30 Hari Terakhir
+              </button>
+            </div>
+
+            {/* Preview Table */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <h4 className="font-extrabold text-sm text-slate-800">Preview Data Rekapan Jadwal</h4>
+                <span className="text-xs text-slate-500 font-medium">Periode: {laporanStartDate} s/d {laporanEndDate}</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="px-5 py-3.5">No</th>
+                      <th className="px-5 py-3.5">Nama Pelatih</th>
+                      <th className="px-5 py-3.5">Total Mengajar Periode Ini</th>
+                      <th className="px-5 py-3.5">Tanggal & Hari</th>
+                      <th className="px-5 py-3.5">Jam Latihan</th>
+                      <th className="px-5 py-3.5">Nama Siswa</th>
+                      <th className="px-5 py-3.5">Status Siswa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(() => {
+                      const targetCoaches = laporanCoachId === 'all' ? coaches : coaches.filter(c => c.id === laporanCoachId);
+                      const DAYS_INDO = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+                      // Calculate date list
+                      const dateList: { dateStr: string; dayName: string; displayDate: string }[] = [];
+                      if (laporanStartDate && laporanEndDate) {
+                        let curr = new Date(laporanStartDate + 'T00:00:00');
+                        const end = new Date(laporanEndDate + 'T00:00:00');
+                        while (curr <= end) {
+                          const year = curr.getFullYear();
+                          const month = String(curr.getMonth() + 1).padStart(2, '0');
+                          const dayNum = String(curr.getDate()).padStart(2, '0');
+                          const dateStr = `${year}-${month}-${dayNum}`;
+                          const dayName = DAYS_INDO[curr.getDay()];
+                          const displayDate = `${dayNum}/${month}/${year} (${dayName})`;
+                          dateList.push({ dateStr, dayName, displayDate });
+                          curr.setDate(curr.getDate() + 1);
+                        }
+                      }
+
+                      let rowCount = 0;
+                      const previewRows: any[] = [];
+
+                      targetCoaches.forEach(coach => {
+                        let coachTotalSessionsInRange = 0;
+                        const coachRows: any[] = [];
+
+                        dateList.forEach(dateObj => {
+                          const dayName = dateObj.dayName;
+                          const displayDate = dateObj.displayDate;
+
+                          const daySched = coach.schedule ? coach.schedule.find(d => d.day === dayName) : null;
+                          const timeSlots = daySched ? daySched.timeSlots || [] : [];
+
+                          timeSlots.forEach(slot => {
+                            coachTotalSessionsInRange++;
+                            const time = slot.time;
+
+                            const studentsInSlot = (slot.students || [])
+                              .map(mId => members.find(m => m.id === mId))
+                              .filter(Boolean) as Member[];
+
+                            const studentsFromMembers = members.filter(m => {
+                              if (m.coachId !== coach.id) return false;
+                              if (m.isActive === false) return false;
+                              if (m.status !== 'Aktif' && m.status !== 'Paket Hampir Habis') return false;
+
+                              const m1 = m.scheduleDay === dayName && m.scheduleTime === time;
+                              const m2 = m.scheduleDay2 === dayName && m.scheduleTime2 === time;
+                              const m3 = m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.day === dayName && s.time === time);
+                              return m1 || m2 || m3;
+                            });
+
+                            const studentMap = new Map<string, Member>();
+                            studentsInSlot.forEach(s => studentMap.set(s.id, s));
+                            studentsFromMembers.forEach(s => studentMap.set(s.id, s));
+
+                            const allMatched = Array.from(studentMap.values());
+
+                            if (allMatched.length > 0) {
+                              allMatched.forEach(st => {
+                                coachRows.push({
+                                  displayDate,
+                                  scheduleTime: time,
+                                  studentName: st.student.fullName,
+                                  status: st.status
+                                });
+                              });
+                            } else {
+                              coachRows.push({
+                                displayDate,
+                                scheduleTime: time,
+                                studentName: '- (Kosong)',
+                                status: '-'
+                              });
+                            }
+                          });
+                        });
+
+                        const totalStr = `${coachTotalSessionsInRange} Sesi`;
+
+                        if (coachRows.length === 0) {
+                          rowCount++;
+                          previewRows.push({
+                            no: rowCount,
+                            coachName: coach.name,
+                            totalTeachingCount: '0 Sesi',
+                            dateDisplay: '-',
+                            scheduleTime: 'Belum Ada Jadwal',
+                            studentName: '-',
+                            status: '-'
+                          });
+                        } else {
+                          coachRows.forEach(r => {
+                            rowCount++;
+                            previewRows.push({
+                              no: rowCount,
+                              coachName: coach.name,
+                              totalTeachingCount: totalStr,
+                              dateDisplay: r.displayDate,
+                              scheduleTime: r.scheduleTime,
+                              studentName: r.studentName,
+                              status: r.status
+                            });
+                          });
+                        }
+                      });
+
+                      if (previewRows.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={7} className="text-center py-8 text-slate-400 italic">
+                              Tidak ada data jadwal ditemukan untuk rentang tanggal terpilih.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return previewRows.map((r) => (
+                        <tr key={r.no} className="hover:bg-slate-50/80 transition">
+                          <td className="px-5 py-3 font-mono font-bold text-slate-400">{r.no}</td>
+                          <td className="px-5 py-3 font-extrabold text-slate-800">{r.coachName}</td>
+                          <td className="px-5 py-3 font-bold text-emerald-700">
+                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full text-[11px] font-black">
+                              {r.totalTeachingCount}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 font-bold text-slate-700">{r.dateDisplay}</td>
+                          <td className="px-5 py-3 font-bold text-cyan-700 bg-cyan-50/50 rounded-lg">{r.scheduleTime}</td>
+                          <td className="px-5 py-3 font-bold text-slate-700">{r.studentName}</td>
+                          <td className="px-5 py-3">
+                            {r.status === 'Aktif' ? (
+                              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md font-extrabold text-[10px]">Aktif</span>
+                            ) : r.status === 'Paket Hampir Habis' ? (
+                              <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md font-extrabold text-[10px]">Paket Hampir Habis</span>
+                            ) : (
+                              <span className="text-slate-400">{r.status}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TAB: KETIDAKHADIRAN PELATIH */}
         {activeTab === 'absensi_coach' && (
           <div className="space-y-6">
@@ -4218,12 +4545,21 @@ export default function AdminDashboard({
                 <h3 className="text-lg font-bold text-slate-800">Manajemen Pelatih & Kuota Latihan</h3>
                 <p className="text-slate-500 text-xs">Ubah kuota siswa maksimal, harga paket latihan 4x/8x/12x, dan kelola jam jadwal latihan pelatih.</p>
               </div>
-              <button
-                onClick={() => setShowAddCoachModal(true)}
-                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1 shadow-md shadow-emerald-600/10 cursor-pointer whitespace-nowrap"
-              >
-                <Plus className="w-4 h-4" /> Tambah Pelatih Baru
-              </button>
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => exportCoachScheduleToExcel(coaches, members)}
+                  className="w-full sm:w-auto bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-700/10 cursor-pointer whitespace-nowrap"
+                  title="Export Rekapan Excel Seminggu (Semua Pelatih)"
+                >
+                  <FileSpreadsheet className="w-4 h-4" /> Export Rekapan Excel Seminggu
+                </button>
+                <button
+                  onClick={() => setShowAddCoachModal(true)}
+                  className="w-full sm:w-auto bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1 shadow-md shadow-cyan-600/10 cursor-pointer whitespace-nowrap"
+                >
+                  <Plus className="w-4 h-4" /> Tambah Pelatih Baru
+                </button>
+              </div>
             </div>
 
             {/* Kolom Cari Nama Pelatih */}
@@ -4303,7 +4639,14 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => exportCoachScheduleToExcel(coaches, members, coach.id)}
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1 shadow-2xs cursor-pointer transition"
+                          title={`Export Rekapan Excel Seminggu ${coach.name}`}
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Excel
+                        </button>
                         {!isEditing && (
                           <button
                             onClick={() => setExpandedCoachScheduleId(prev => prev === coach.id ? '' : coach.id)}

@@ -63,7 +63,16 @@ async function request(endpoint: string, options: RequestInit = {}) {
     const response = await fetch(url, config);
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(errorText || `HTTP Error ${response.status}`);
+      let errorMsg = errorText || `HTTP Error ${response.status}`;
+      try {
+        const parsed = JSON.parse(errorText);
+        if (parsed && parsed.message) {
+          errorMsg = parsed.message;
+        }
+      } catch {}
+      const err: any = new Error(errorMsg);
+      err.status = response.status;
+      throw err;
     }
     // Handle empty response
     const text = await response.text();

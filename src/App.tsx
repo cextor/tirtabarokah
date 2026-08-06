@@ -275,6 +275,7 @@ export default function App() {
         const isUnauthCoach = (path === '/coachs' || currentPath === '/coachs') && (!token || role !== 'coach');
 
         if (isUnauthAdmin || isUnauthCoach) {
+          setError(null);
           return;
         }
 
@@ -360,11 +361,14 @@ export default function App() {
         console.error("Failed to load data from MariaDB backend", e);
 
         const errMsg = e.message || String(e);
-        if (
+        const isAuthError =
           errMsg.includes('Token tidak valid') ||
           errMsg.includes('Token otentikasi diperlukan') ||
-          errMsg.includes('Token telah kedaluwarsa')
-        ) {
+          errMsg.includes('Token telah kedaluwarsa') ||
+          errMsg.includes('Akses ditolak') ||
+          e.status === 401;
+
+        if (isAuthError) {
           localStorage.removeItem('auth_token');
           localStorage.removeItem('user_role');
           localStorage.removeItem('user_name');
@@ -372,8 +376,43 @@ export default function App() {
           setIsAdminLoggedIn(false);
           setIsCoachLoggedIn(false);
           setLoggedCoachId('');
+          setError(null);
+
+          const currentP = window.location.pathname;
+          if (currentP === '/belakang' || currentP === '/coachs') {
+            return;
+          }
+
+          try {
+            const fetchFns: (() => Promise<any>)[] = [
+              () => api.getCoaches(),
+              () => api.getEvents(),
+              () => api.getSettings(),
+              () => api.getLevels(),
+              () => api.getPricingPackages(),
+              () => api.getSwimmingPools()
+            ];
+            const results: any[] = [];
+            for (const fn of fetchFns) {
+              results.push(await fn());
+            }
+            setCoaches(results[0] || []);
+            setEvents(results[1] || []);
+            if (results[2] && results[2].status === 'success') {
+              setSettings(results[2].settings);
+            }
+            setLevels(results[3] || []);
+            setPricingPackages(results[4] || []);
+            setSwimmingPools(results[5] || []);
+            setMembers([]);
+            setAbsences([]);
+            setAuditLogs([]);
+          } catch (guestErr: any) {
+            setError(guestErr.message || String(guestErr));
+          }
+        } else {
+          setError(errMsg);
         }
-        setError(errMsg);
       } finally {
         setIsDataLoading(false);
         setHasInitialLoaded(true);
