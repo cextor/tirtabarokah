@@ -444,8 +444,42 @@ export default function App() {
           setCoaches(coachesData || []);
           break;
         }
+        case 'public': {
+          const fetchFns: (() => Promise<any>)[] = [
+            () => api.getCoaches(),
+            () => api.getEvents(),
+            () => api.getSettings(),
+            () => api.getLevels(),
+            () => api.getPricingPackages(),
+            () => api.getSwimmingPools()
+          ];
+          const results: any[] = [];
+          for (const fn of fetchFns) {
+            results.push(await fn());
+          }
+          setCoaches(results[0] || []);
+          setEvents(results[1] || []);
+          if (results[2] && results[2].status === 'success') {
+            setSettings(results[2].settings);
+          }
+          setLevels(results[3] || []);
+          setPricingPackages(results[4] || []);
+          setSwimmingPools(results[5] || []);
+          setMembers([]);
+          setAbsences([]);
+          setAuditLogs([]);
+          break;
+        }
+        case 'dashboard':
         default: {
-          await loadTabData('dashboard');
+          const [membersData, coachesData, packagesData] = await Promise.all([
+            api.getMembers(),
+            api.getCoaches(),
+            api.getPricingPackages()
+          ]);
+          setMembers(membersData || []);
+          setCoaches(coachesData || []);
+          setPricingPackages(packagesData || []);
           break;
         }
       }
