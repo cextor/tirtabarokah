@@ -161,7 +161,7 @@ export default function AdminDashboard({
 
   const isOperator = userRole === 'operator';
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'verifikasi' | 'peserta' | 'pelatih' | 'laporan_coachs' | 'reminder' | 'events' | 'laporan' | 'pengaturan' | 'absensi_coach' | 'referral' | 'jadwal_hari_ini' | 'audit_logs' | 'kolam_renang'>(() => {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'verifikasi' | 'peserta' | 'pelatih' | 'laporan_coachs' | 'reminder' | 'events' | 'laporan' | 'pengaturan' | 'absensi_coach' | 'referral' | 'jadwal_hari_ini' | 'audit_logs' | 'kolam_renang' | 'paket_harga'>(() => {
     return userRole === 'operator' ? 'verifikasi' : 'dashboard';
   });
 
@@ -184,16 +184,65 @@ export default function AdminDashboard({
     return endOfWeek.toISOString().split('T')[0];
   });
   const [isPelatihGroupOpen, setIsPelatihGroupOpen] = useState<boolean>(false);
+  const [isLaporanGroupOpen, setIsLaporanGroupOpen] = useState<boolean>(false);
   const [isKonfigurasiGroupOpen, setIsKonfigurasiGroupOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    if (activeTab === 'pelatih' || activeTab === 'absensi_coach' || activeTab === 'laporan_coachs') {
+    if (activeTab === 'pelatih' || activeTab === 'absensi_coach') {
       setIsPelatihGroupOpen(true);
     }
-    if (activeTab === 'pengaturan' || activeTab === 'kolam_renang' || activeTab === 'audit_logs') {
+    if (activeTab === 'laporan' || activeTab === 'laporan_coachs') {
+      setIsLaporanGroupOpen(true);
+    }
+    if (activeTab === 'pengaturan' || activeTab === 'audit_logs' || activeTab === 'paket_harga') {
       setIsKonfigurasiGroupOpen(true);
     }
+    if (activeTab === 'pelatih' && onReloadData) {
+      onReloadData();
+    }
   }, [activeTab]);
+
+  const handleFileInputValidation = (
+    file: File | undefined,
+    category: 'image' | 'certificate',
+    onSuccess: (base64Result: string) => void
+  ) => {
+    if (!file) return;
+
+    const fileName = file.name.toLowerCase();
+    const allowedExtensions = category === 'certificate' 
+      ? ['.pdf', '.jpg', '.jpeg', '.png', '.webp'] 
+      : ['.jpg', '.jpeg', '.png', '.webp'];
+
+    const ext = fileName.substring(fileName.lastIndexOf('.'));
+    if (!allowedExtensions.includes(ext)) {
+      Swal.fire({
+        title: 'Format File Tidak Didukung!',
+        text: `File "${file.name}" tidak diizinkan. Harap unggah berkas dengan format: ${allowedExtensions.join(', ')}`,
+        icon: 'warning',
+        confirmButtonColor: '#06b6d4'
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      Swal.fire({
+        title: 'Ukuran File Terlalu Besar!',
+        text: `Ukuran file maksimal adalah 10 MB.`,
+        icon: 'warning',
+        confirmButtonColor: '#06b6d4'
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        onSuccess(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     if (userRole === 'operator') {
@@ -1867,99 +1916,138 @@ export default function AdminDashboard({
               </span>
             </button>
 
-            {/* 9. Laporan Keuangan (Admin Only) */}
+            {/* MENU LAPORAN (ACCORDION GROUP) */}
             {!isOperator && (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('laporan');
-                  setIsMobileSidebarOpen(false);
-                }}
-                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
-                  activeTab === 'laporan'
-                    ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
-                  <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'laporan' ? 'bg-white/15 text-white' : 'text-emerald-600 bg-emerald-50'}`}>
-                    <BarChart2 className="w-4 h-4" />
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setIsLaporanGroupOpen(!isLaporanGroupOpen)}
+                  className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                    activeTab === 'laporan' || activeTab === 'laporan_coachs'
+                      ? 'bg-emerald-50 text-emerald-800 font-extrabold border border-emerald-200/60'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                    <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'laporan' || activeTab === 'laporan_coachs' ? 'bg-emerald-600 text-white' : 'text-emerald-600 bg-emerald-50'}`}>
+                      <BarChart2 className="w-4 h-4" />
+                    </div>
+                    <span className="truncate text-xs leading-tight">Laporan</span>
                   </div>
-                  <span className="truncate text-xs leading-tight">Laporan Keuangan</span>
-                </div>
-              </button>
-            )}
+                  <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${isLaporanGroupOpen ? 'rotate-90 text-emerald-600' : ''}`} />
+                </button>
 
-            {/* Laporan Coachs (Rekapan Excel) */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('laporan_coachs');
-                setIsMobileSidebarOpen(false);
-              }}
-              className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
-                activeTab === 'laporan_coachs'
-                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/10 font-black'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
-                <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'laporan_coachs' ? 'bg-white/15 text-white' : 'text-emerald-600 bg-emerald-50'}`}>
-                  <FileSpreadsheet className="w-4 h-4" />
-                </div>
-                <span className="truncate text-xs leading-tight">Laporan Coachs</span>
+                {isLaporanGroupOpen && (
+                  <div className="pl-4 pr-1 space-y-1 py-1 border-l-2 border-emerald-200/60 ml-3.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('laporan');
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 rounded-lg text-[11px] font-bold transition flex items-center gap-2 text-left cursor-pointer ${
+                        activeTab === 'laporan'
+                          ? 'bg-emerald-600 text-white font-black shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
+                    >
+                      <BarChart2 className="w-3.5 h-3.5" />
+                      <span>Laporan Keuangan</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('laporan_coachs');
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 rounded-lg text-[11px] font-bold transition flex items-center gap-2 text-left cursor-pointer ${
+                        activeTab === 'laporan_coachs'
+                          ? 'bg-emerald-600 text-white font-black shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>Laporan Coachs</span>
+                    </button>
+                  </div>
+                )}
               </div>
-              <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase shrink-0 ml-1.5 ${
-                activeTab === 'laporan_coachs' ? 'bg-white text-emerald-800' : 'bg-emerald-100 text-emerald-800'
-              }`}>
-                Excel
-              </span>
-            </button>
-
-            {/* 10. Log Aktivitas (Admin Only) */}
-            {!isOperator && (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('audit_logs');
-                  setIsMobileSidebarOpen(false);
-                }}
-                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
-                  activeTab === 'audit_logs'
-                    ? 'bg-slate-700 text-white shadow-md shadow-slate-700/10 font-black'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
-                  <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'audit_logs' ? 'bg-white/15 text-white' : 'text-slate-600 bg-slate-100'}`}>
-                    <List className="w-4 h-4" />
-                  </div>
-                  <span className="truncate text-xs leading-tight">Log Aktivitas</span>
-                </div>
-              </button>
             )}
 
-            {/* 11. Kelola Profil & Level (Admin Only - At the very bottom) */}
+            {/* MENU KONFIGURASI (ACCORDION GROUP) */}
             {!isOperator && (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('pengaturan');
-                  setIsMobileSidebarOpen(false);
-                }}
-                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
-                  activeTab === 'pengaturan'
-                    ? 'bg-violet-600 text-white shadow-md shadow-violet-600/10 font-black'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
-                  <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'pengaturan' ? 'bg-white/15 text-white' : 'text-violet-600 bg-violet-50'}`}>
-                    <Settings className="w-4 h-4" />
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setIsKonfigurasiGroupOpen(!isKonfigurasiGroupOpen)}
+                  className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                    activeTab === 'audit_logs' || activeTab === 'pengaturan' || activeTab === 'paket_harga'
+                      ? 'bg-violet-50 text-violet-800 font-extrabold border border-violet-200/60'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-1.5">
+                    <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${activeTab === 'audit_logs' || activeTab === 'pengaturan' || activeTab === 'paket_harga' ? 'bg-violet-600 text-white' : 'text-violet-600 bg-violet-50'}`}>
+                      <Settings className="w-4 h-4" />
+                    </div>
+                    <span className="truncate text-xs leading-tight">Konfigurasi</span>
                   </div>
-                  <span className="truncate text-xs leading-tight">Kelola Profil & Level</span>
-                </div>
-              </button>
+                  <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${isKonfigurasiGroupOpen ? 'rotate-90 text-violet-600' : ''}`} />
+                </button>
+
+                {isKonfigurasiGroupOpen && (
+                  <div className="pl-4 pr-1 space-y-1 py-1 border-l-2 border-violet-200/60 ml-3.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('audit_logs');
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 rounded-lg text-[11px] font-bold transition flex items-center gap-2 text-left cursor-pointer ${
+                        activeTab === 'audit_logs'
+                          ? 'bg-violet-600 text-white font-black shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span>Log Aktivitas</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('pengaturan');
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 rounded-lg text-[11px] font-bold transition flex items-center gap-2 text-left cursor-pointer ${
+                        activeTab === 'pengaturan'
+                          ? 'bg-violet-600 text-white font-black shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                      <span>Kelola Profil & Level</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('paket_harga');
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 rounded-lg text-[11px] font-bold transition flex items-center gap-2 text-left cursor-pointer ${
+                        activeTab === 'paket_harga'
+                          ? 'bg-violet-600 text-white font-black shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>Paket Harga</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </nav>
         </div>
@@ -4244,15 +4332,7 @@ export default function AdminDashboard({
                               className="hidden"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) {
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    if (typeof reader.result === 'string') {
-                                      setNewEventImageUrl(reader.result);
-                                    }
-                                  };
-                                  reader.readAsDataURL(file);
-                                }
+                                handleFileInputValidation(file, 'image', setNewEventImageUrl);
                               }}
                             />
                           </label>
@@ -4546,13 +4626,6 @@ export default function AdminDashboard({
                 <p className="text-slate-500 text-xs">Ubah kuota siswa maksimal, harga paket latihan 4x/8x/12x, dan kelola jam jadwal latihan pelatih.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                <button
-                  onClick={() => exportCoachScheduleToExcel(coaches, members)}
-                  className="w-full sm:w-auto bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-700/10 cursor-pointer whitespace-nowrap"
-                  title="Export Rekapan Excel Seminggu (Semua Pelatih)"
-                >
-                  <FileSpreadsheet className="w-4 h-4" /> Export Rekapan Excel Seminggu
-                </button>
                 <button
                   onClick={() => setShowAddCoachModal(true)}
                   className="w-full sm:w-auto bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1 shadow-md shadow-cyan-600/10 cursor-pointer whitespace-nowrap"
@@ -4862,19 +4935,11 @@ export default function AdminDashboard({
                                 className="hidden"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
-                                  if (file) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                      if (typeof reader.result === 'string') {
-                                        setNewCoachPhoto(reader.result);
-                                      }
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
+                                  handleFileInputValidation(file, 'image', setNewCoachPhoto);
                                 }}
                               />
                             </label>
-                            <p className="text-[10px] text-slate-400 font-medium">Mendukung format PNG, JPG. Foto disimpan lokal.</p>
+                            <p className="text-[10px] text-slate-400 font-medium">Mendukung format PNG, JPG, WEBP. Foto disimpan lokal.</p>
                           </div>
                         </div>
                       </div>
@@ -4906,15 +4971,7 @@ export default function AdminDashboard({
                                 className="hidden"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
-                                  if (file) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                      if (typeof reader.result === 'string') {
-                                        setNewCoachCertificate(reader.result);
-                                      }
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
+                                  handleFileInputValidation(file, 'certificate', setNewCoachCertificate);
                                 }}
                               />
                             </label>
@@ -5138,15 +5195,7 @@ export default function AdminDashboard({
                               className="hidden"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) {
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    if (typeof reader.result === 'string') {
-                                      setEditCoachPhoto(reader.result);
-                                    }
-                                  };
-                                  reader.readAsDataURL(file);
-                                }
+                                handleFileInputValidation(file, 'image', setEditCoachPhoto);
                               }}
                             />
                           </label>
@@ -5182,15 +5231,7 @@ export default function AdminDashboard({
                               className="hidden"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) {
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    if (typeof reader.result === 'string') {
-                                      setEditCoachCertificate(reader.result);
-                                    }
-                                  };
-                                  reader.readAsDataURL(file);
-                                }
+                                handleFileInputValidation(file, 'certificate', setEditCoachCertificate);
                               }}
                             />
                           </label>
@@ -5640,6 +5681,246 @@ export default function AdminDashboard({
             onUpdateLevels={onUpdateLevels}
             onReloadData={onReloadData}
           />
+        )}
+
+        {/* TAB 7.5: PAKET HARGA (MENU KONFIGURASI) */}
+        {activeTab === 'paket_harga' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
+              <div>
+                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-violet-600" /> Kelola Informasi Paket & Harga Latihan (Homepage)
+                </h3>
+                <p className="text-slate-500 text-xs mt-1">
+                  Kelola paket latihan global (PROMO, REGULER, PRIVATE) beserta jumlah sesi, harga, dan alokasi pelatih yang tampil di halaman utama.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingPricing(true);
+                  setEditingPricing(null);
+                  setPricingForm({
+                    id: '',
+                    category: 'REGULER',
+                    name: '',
+                    price: 0,
+                    sessions: 5,
+                    active_period: '',
+                    description: '',
+                    coachIds: []
+                  });
+                }}
+                className="w-full sm:w-auto bg-violet-600 hover:bg-violet-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-violet-600/10 cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" /> Tambah Paket Harga Baru
+              </button>
+            </div>
+
+            {/* Pricing packages list */}
+            {pricingPackages.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
+                Belum ada paket harga yang dibuat. Klik tombol di atas untuk menambahkan paket harga pertama.
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {pricingPackages.map((pkg) => (
+                  <div key={pkg.id} className="bg-white border border-slate-200/80 p-5 rounded-2xl flex flex-col justify-between hover:border-violet-300 hover:shadow-md transition">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className={`font-extrabold text-[10px] px-2.5 py-0.5 rounded-md uppercase tracking-wider ${
+                          pkg.category === 'PROMO' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                          pkg.category === 'PRIVATE' ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' :
+                          'bg-cyan-100 text-cyan-800 border border-cyan-200'
+                        }`}>
+                          {pkg.category}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold">{pkg.active_period}</span>
+                      </div>
+                      <h4 className="font-extrabold text-slate-800 text-base">{pkg.name}</h4>
+                      <p className="font-mono text-xl font-black text-violet-700">Rp {pkg.price.toLocaleString('id-ID')}</p>
+                      <div className="space-y-1.5 text-slate-600 text-xs leading-relaxed border-t border-slate-100 pt-3">
+                        <p>• <strong>{pkg.sessions}x</strong> Pertemuan Latihan</p>
+                        {pkg.description && <p>• {pkg.description}</p>}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 mt-5 pt-3 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingPricing(pkg);
+                          setIsAddingPricing(false);
+                          setPricingForm({
+                            ...pkg,
+                            coachIds: pkg.coachIds || []
+                          });
+                        }}
+                        className="p-2 text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-bold"
+                        title="Edit Paket"
+                      >
+                        <Edit className="w-3.5 h-3.5" /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePricing(pkg.id)}
+                        className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-bold"
+                        title="Hapus Paket"
+                      >
+                        <Trash className="w-3.5 h-3.5" /> Hapus
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Pricing Modal Form */}
+            {(isAddingPricing || editingPricing) && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+                <div className="relative bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-md max-h-[85vh] md:max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                    <h4 className="font-black text-sm text-slate-800 uppercase tracking-wide">
+                      {isAddingPricing ? 'Tambah Paket Baru' : 'Edit Paket Harga'}
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingPricing(false);
+                        setEditingPricing(null);
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-650 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  
+                  <form onSubmit={handleSavePricing} className="flex flex-col flex-1 overflow-hidden">
+                    <div className="p-6 overflow-y-auto space-y-4 flex-1 text-xs text-slate-700 pr-4">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-600 block">Kategori Paket</label>
+                        <select
+                          value={pricingForm.category}
+                          onChange={(e) => setPricingForm({ ...pricingForm, category: e.target.value as any })}
+                          className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
+                        >
+                          <option value="PROMO">PROMO</option>
+                          <option value="REGULER">REGULER</option>
+                          <option value="PRIVATE">PRIVATE</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-600 block">Nama Paket (Contoh: Paket Reguler PROMO 5x latihan)</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Nama paket"
+                          value={pricingForm.name}
+                          onChange={(e) => setPricingForm({ ...pricingForm, name: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-600 block">Harga (Rp)</label>
+                          <input
+                            type="number"
+                            required
+                            placeholder="Harga paket"
+                            value={pricingForm.price || ''}
+                            onChange={(e) => setPricingForm({ ...pricingForm, price: parseInt(e.target.value) || 0 })}
+                            className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-600 block">Jumlah Sesi Latihan</label>
+                          <input
+                            type="number"
+                            required
+                            placeholder="Jumlah sesi"
+                            value={pricingForm.sessions || ''}
+                            onChange={(e) => setPricingForm({ ...pricingForm, sessions: parseInt(e.target.value) || 0 })}
+                            className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-600 block">Masa Aktif (Contoh: 1 Bulan, 3 Bulan, 2 Bulan)</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Masa aktif"
+                          value={pricingForm.active_period}
+                          onChange={(e) => setPricingForm({ ...pricingForm, active_period: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-600 block">Deskripsi Paket / Aturan Main</label>
+                        <textarea
+                          placeholder="Contoh: 1 pelatih mengajar 1-6 anak. Jika tidak habis maka hangus."
+                          value={pricingForm.description}
+                          onChange={(e) => setPricingForm({ ...pricingForm, description: e.target.value })}
+                          rows={2}
+                          className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                        <label className="text-[11px] font-extrabold text-slate-700 block uppercase tracking-wider">Hubungkan dengan Pelatih</label>
+                        <p className="text-[10px] text-slate-400 mb-2">Pilih pelatih yang melayani paket latihan ini:</p>
+                        <div className="max-h-32 overflow-y-auto space-y-2 border border-slate-200/60 p-2.5 rounded-xl bg-slate-50/50">
+                          {coaches.map(coach => {
+                            const coachIds = pricingForm.coachIds || [];
+                            const isChecked = coachIds.includes(coach.id);
+                            return (
+                              <label key={coach.id} className="flex items-center gap-2 text-xs font-semibold text-slate-750 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    const updatedCoachIds = e.target.checked
+                                      ? [...coachIds, coach.id]
+                                      : coachIds.filter(id => id !== coach.id);
+                                    setPricingForm({ ...pricingForm, coachIds: updatedCoachIds });
+                                  }}
+                                  className="rounded text-violet-600 focus:ring-violet-500/20 w-4 h-4 border-slate-300 cursor-pointer"
+                                />
+                                <span>{coach.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingPricing(false);
+                          setEditingPricing(null);
+                        }}
+                        className="border border-slate-300 hover:bg-slate-50 text-slate-650 font-bold px-4 py-2 rounded-xl text-xs cursor-pointer transition"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-5 py-2 rounded-xl text-xs cursor-pointer transition shadow-md shadow-violet-600/10"
+                      >
+                        Simpan Paket
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* TAB 8: LOG AKTIVITAS / AUDIT LOGS */}
@@ -6777,242 +7058,6 @@ function SettingsAndLevelsTab({
         )}
       </div>
 
-      {/* SECTION 1.6: PRICING PACKAGES CRUD */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-xs space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-cyan-650" /> Kelola Informasi Paket & Harga Latihan (Homepage)
-            </h3>
-            <p className="text-slate-500 text-xs mt-0.5">Kelola paket latihan (PROMO, REGULER, PRIVATE) yang tampil di bagian informasi harga halaman depan.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setIsAddingPricing(true);
-              setEditingPricing(null);
-              setPricingForm({
-                id: '',
-                category: 'REGULER',
-                name: '',
-                price: 0,
-                sessions: 5,
-                active_period: '',
-                description: '',
-                coachIds: []
-              });
-            }}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer transition shadow-md shadow-emerald-600/10"
-          >
-            <Plus className="w-4 h-4" /> Tambah Paket Harga
-          </button>
-        </div>
-
-        {/* Pricing packages list */}
-        {pricingPackages.length === 0 ? (
-          <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
-            Belum ada paket harga yang dibuat.
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {pricingPackages.map((pkg) => (
-              <div key={pkg.id} className="border border-slate-200/70 p-4 rounded-xl bg-slate-50/30 flex flex-col justify-between hover:border-cyan-200 transition">
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className={`font-extrabold text-[9px] px-2 py-0.5 rounded uppercase tracking-wider ${
-                      pkg.category === 'PROMO' ? 'bg-rose-100 text-rose-800' :
-                      pkg.category === 'PRIVATE' ? 'bg-indigo-100 text-indigo-800' :
-                      'bg-cyan-100 text-cyan-800'
-                    }`}>
-                      {pkg.category}
-                    </span>
-                    <span className="text-[10px] text-slate-450 font-bold">{pkg.active_period}</span>
-                  </div>
-                  <h4 className="font-extrabold text-slate-800 text-sm">{pkg.name}</h4>
-                  <p className="font-mono text-base font-black text-cyan-755">Rp {pkg.price.toLocaleString('id-ID')}</p>
-                  <div className="space-y-1 text-slate-500 text-[11px] leading-relaxed">
-                    <p>• <strong>{pkg.sessions}x</strong> Pertemuan Latihan</p>
-                    {pkg.description && <p>• {pkg.description}</p>}
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingPricing(pkg);
-                      setIsAddingPricing(false);
-                      setPricingForm({
-                        ...pkg,
-                        coachIds: pkg.coachIds || []
-                      });
-                    }}
-                    className="p-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition cursor-pointer"
-                    title="Edit"
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeletePricing(pkg.id)}
-                    className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer"
-                    title="Hapus"
-                  >
-                    <Trash className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Pricing Modal Form */}
-        {(isAddingPricing || editingPricing) && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <div className="relative bg-white rounded-2xl border border-slate-100 shadow-2xl w-full max-w-md max-h-[85vh] md:max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
-                <h4 className="font-black text-sm text-slate-800 uppercase tracking-wide">
-                  {isAddingPricing ? 'Tambah Paket Baru' : 'Edit Paket Harga'}
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddingPricing(false);
-                    setEditingPricing(null);
-                  }}
-                  className="p-1 text-slate-400 hover:text-slate-650 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <form onSubmit={handleSavePricing} className="flex flex-col flex-1 overflow-hidden">
-                {/* Scrollable form body */}
-                <div className="p-6 overflow-y-auto space-y-4 flex-1 text-xs text-slate-700 pr-4">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-600 block">Kategori Paket</label>
-                    <select
-                      value={pricingForm.category}
-                      onChange={(e) => setPricingForm({ ...pricingForm, category: e.target.value as any })}
-                      className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                    >
-                      <option value="PROMO">PROMO</option>
-                      <option value="REGULER">REGULER</option>
-                      <option value="PRIVATE">PRIVATE</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-600 block">Nama Paket (Contoh: Paket Reguler PROMO 5x latihan)</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Nama paket"
-                      value={pricingForm.name}
-                      onChange={(e) => setPricingForm({ ...pricingForm, name: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-slate-600 block">Harga (Rp)</label>
-                      <input
-                        type="number"
-                        required
-                        placeholder="Harga paket"
-                        value={pricingForm.price || ''}
-                        onChange={(e) => setPricingForm({ ...pricingForm, price: parseInt(e.target.value) || 0 })}
-                        className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-slate-600 block">Jumlah Sesi Latihan</label>
-                      <input
-                        type="number"
-                        required
-                        placeholder="Jumlah sesi"
-                        value={pricingForm.sessions || ''}
-                        onChange={(e) => setPricingForm({ ...pricingForm, sessions: parseInt(e.target.value) || 0 })}
-                        className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-600 block">Masa Aktif (Contoh: 1 Bulan, 3 Bulan, 2 Bulan)</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Masa aktif"
-                      value={pricingForm.active_period}
-                      onChange={(e) => setPricingForm({ ...pricingForm, active_period: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-600 block">Deskripsi Paket / Aturan Main</label>
-                    <textarea
-                      placeholder="Contoh: 1 pelatih mengajar 1-6 anak. Jika tidak habis maka hangus."
-                      value={pricingForm.description}
-                      onChange={(e) => setPricingForm({ ...pricingForm, description: e.target.value })}
-                      rows={2}
-                      className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5 border-t border-slate-100 pt-3">
-                    <label className="text-[11px] font-extrabold text-slate-700 block uppercase tracking-wider">Hubungkan dengan Pelatih</label>
-                    <p className="text-[10px] text-slate-400 mb-2">Pilih pelatih yang melayani paket latihan ini:</p>
-                    <div className="max-h-32 overflow-y-auto space-y-2 border border-slate-200/60 p-2.5 rounded-xl bg-slate-50/50">
-                      {coaches.map(coach => {
-                        const coachIds = pricingForm.coachIds || [];
-                        const isChecked = coachIds.includes(coach.id);
-                        return (
-                          <label key={coach.id} className="flex items-center gap-2 text-xs font-semibold text-slate-750 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                const updatedCoachIds = e.target.checked
-                                  ? [...coachIds, coach.id]
-                                  : coachIds.filter(id => id !== coach.id);
-                                setPricingForm({ ...pricingForm, coachIds: updatedCoachIds });
-                              }}
-                              className="rounded text-cyan-600 focus:ring-cyan-500/20 w-4 h-4 border-slate-300 cursor-pointer"
-                            />
-                            <span>{coach.name}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sticky action footer */}
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingPricing(false);
-                      setEditingPricing(null);
-                    }}
-                    className="border border-slate-300 hover:bg-slate-50 text-slate-650 font-bold px-4 py-2 rounded-xl text-xs cursor-pointer transition"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-5 py-2 rounded-xl text-xs cursor-pointer transition shadow-md shadow-cyan-600/10"
-                  >
-                    Simpan
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* SECTION 2: LEVELS CRUD */}
       <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-xs space-y-6">

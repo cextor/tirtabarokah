@@ -172,6 +172,7 @@ export default function App() {
 
         setIsAdminLoggedIn(true);
         setAdminLoginError(null);
+        pendingPromiseRef.current = null;
         await loadAllData();
       } else {
         setAdminLoginError('Username atau password Admin salah!');
