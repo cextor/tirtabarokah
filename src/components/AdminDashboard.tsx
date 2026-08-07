@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import { Coach, Member, Package, ScheduleDay, EventItem, SiteSettings, ProgramLevel, CoachAbsence, BankAccount, PricingPackage, AuditLog, EventCategory, SwimmingPool } from '../types';
 import { 
@@ -1554,15 +1554,31 @@ export default function AdminDashboard({
     };
   });
 
-  const memberGrowthData = [
-    { bulan: 'Jan', member: 4 },
-    { bulan: 'Feb', member: 6 },
-    { bulan: 'Mar', member: 9 },
-    { bulan: 'Apr', member: 11 },
-    { bulan: 'Mei', member: 14 },
-    { bulan: 'Jun', member: members.length + 3 },
-    { bulan: 'Jul', member: members.length + 8 }
-  ];
+  // DYNAMIC MEMBER GROWTH DATA: Computed real-time from database members table (registeredAt)
+  const memberGrowthData = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const now = new Date();
+    const result: { bulan: string; member: number }[] = [];
+
+    // Calculate cumulative active/registered members for the last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthIndex = d.getMonth();
+      const year = d.getFullYear();
+      const label = `${monthNames[monthIndex]} ${year !== now.getFullYear() ? "'" + String(year).slice(2) : ''}`;
+
+      const endOfMonth = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+      const count = members.filter(m => {
+        if (!m.registeredAt) return true;
+        const regDate = new Date(m.registeredAt.replace(' ', 'T'));
+        return isNaN(regDate.getTime()) || regDate <= endOfMonth;
+      }).length;
+
+      result.push({ bulan: label.trim(), member: count });
+    }
+
+    return result;
+  }, [members]);
 
   // DATE FILTER UTILITY
   const isWithinDateFilter = (dateStr: string) => {
