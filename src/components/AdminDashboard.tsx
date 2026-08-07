@@ -2202,42 +2202,143 @@ export default function AdminDashboard({
               </div>
             </div>
 
-            {/* Quick overview of charts */}
-            <div className="grid md:grid-cols-2 gap-6 mt-6">
-              {/* Box 1: Revenue per coach */}
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/60">
-                <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-1">
-                  <PieIcon className="w-4 h-4 text-cyan-600" /> Distribusi Pendapatan per Pelatih
-                </h4>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={revenueByCoachDataFiltered}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip formatter={(v: any) => `Rp ${v.toLocaleString('id-ID')}`} />
-                      <Bar dataKey="pendapatan" fill="#06b6d4" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+            {/* Presensi & Jadwal Latihan Hari Ini Widget */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                    <Calendar className="w-4.5 h-4.5 text-amber-500" />
+                    Presensi & Jadwal Latihan Hari Ini ({selectedScheduleDayFilter || getIndonesianDayName(new Date())})
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Daftar murid aktif yang memiliki jadwal latihan renang pada hari terpilih. Admin & Operator dapat langsung mengecek dan melakukan presensi di sini.</p>
+                </div>
+                
+                {/* Day Selector */}
+                <div className="flex items-center gap-2 text-xs self-start sm:self-auto">
+                  <span className="font-bold text-slate-600">Pilih Hari:</span>
+                  <select
+                    value={selectedScheduleDayFilter || getIndonesianDayName(new Date())}
+                    onChange={(e) => setSelectedScheduleDayFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 cursor-pointer"
+                  >
+                    {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map(day => (
+                      <option key={day} value={day}>{day} {day === getIndonesianDayName(new Date()) ? '(Hari Ini)' : ''}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              {/* Box 2: Member Growth */}
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/60">
-                <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-1">
-                  <TrendingUp className="w-4 h-4 text-cyan-600" /> Tren Pertumbuhan Member Baru
-                </h4>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={memberGrowthData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="bulan" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip />
-                      <Area type="monotone" dataKey="member" stroke="#4f46e5" fill="#e0e7ff" strokeWidth={2} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+              {/* Schedule List Table */}
+              {(() => {
+                const targetDay = selectedScheduleDayFilter || getIndonesianDayName(new Date());
+                const scheduledToday = members.filter(m => {
+                  if (m.isActive === false || m.sessionsLeft <= 0 || m.status === 'Selesai' || m.status === 'Menunggu Verifikasi') {
+                    return false;
+                  }
+                  const mSchedules = m.schedules && m.schedules.length > 0
+                    ? m.schedules
+                    : [{ coachId: m.coachId, day: m.scheduleDay, time: m.scheduleTime }];
+                  
+                  return mSchedules.some(s => s.day === targetDay);
+                });
+
+                if (scheduledToday.length === 0) {
+                  return (
+                    <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <Calendar className="w-8 h-8 text-slate-300 mx-auto" />
+                      <p className="text-xs text-slate-400 mt-2 font-semibold">Tidak ada jadwal latihan renang pada hari {targetDay}.</p>
+                    </div>
+                  );
+                }
+
+                const sortedScheduled = scheduledToday.sort((a, b) => {
+                  const getFirstTime = (m: Member) => {
+                    const mSchedules = m.schedules && m.schedules.length > 0 ? m.schedules : [{ time: m.scheduleTime }];
+                    const sched = mSchedules.find(s => s.day === targetDay);
+                    return sched ? sched.time : '24:00';
+                  };
+                  return getFirstTime(a).localeCompare(getFirstTime(b));
+                });
+
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200/80 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider">
+                            <th className="p-3">Waktu Latihan</th>
+                            <th className="p-3">Siswa (ID)</th>
+                            <th className="p-3">Nama Orang Tua</th>
+                            <th className="p-3">Pelatih / Coach</th>
+                            <th className="p-3 text-center">Sisa Paket</th>
+                            <th className="p-3 text-right">Aksi Presensi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {sortedScheduled.map(member => {
+                            const mSchedules = member.schedules && member.schedules.length > 0
+                              ? member.schedules
+                              : [{ coachId: member.coachId, day: member.scheduleDay, time: member.scheduleTime }];
+                            const currentSched = mSchedules.find(s => s.day === targetDay);
+                            const coach = coaches.find(c => c.id === currentSched?.coachId);
+
+                            return (
+                              <tr key={member.id} className="text-slate-700 hover:bg-slate-50/50 transition">
+                                <td className="p-3 font-bold font-mono text-cyan-700 text-sm">
+                                  {currentSched?.time || member.scheduleTime} WIB
+                                </td>
+                                <td className="p-3">
+                                  <span className="font-extrabold block text-slate-800">{member.student.fullName}</span>
+                                  <span className="text-[10px] text-slate-400 font-mono">ID: {member.id}</span>
+                                </td>
+                                <td className="p-3 font-medium">
+                                  <div className="font-bold text-slate-700">{member.parent.fatherMotherName}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">{member.parent.whatsapp}</div>
+                                </td>
+                                <td className="p-3">
+                                  <span className="font-bold text-slate-800 bg-cyan-50/50 border border-cyan-100 text-cyan-800 px-2.5 py-1 rounded-lg">
+                                    {coach ? coach.name : 'Belum Ditentukan'}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-center">
+                                  <span className="font-bold text-slate-800 block">{member.sessionsLeft} Sesi</span>
+                                  <span className="text-[9px] text-slate-400 block mt-0.5">dari {member.sessionsTotal} total</span>
+                                </td>
+                                <td className="p-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleLogAttendance(member.id)}
+                                    className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl border border-transparent flex items-center gap-1 transition ml-auto shadow-xs cursor-pointer text-xs"
+                                  >
+                                    <CheckSquare className="w-3.5 h-3.5" /> Absen Sesi
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Member Growth Chart */}
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/60 mt-6">
+              <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-1">
+                <TrendingUp className="w-4 h-4 text-cyan-600" /> Tren Pertumbuhan Member Baru
+              </h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={memberGrowthData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="bulan" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Area type="monotone" dataKey="member" stroke="#4f46e5" fill="#e0e7ff" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
             
