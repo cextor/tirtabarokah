@@ -33,18 +33,10 @@ public/uploads/*
 !public/uploads/.gitkeep
 
 # Categorized User Upload Folders
-backend/public/images/coaches/*
-!backend/public/images/coaches/.gitkeep
-
-backend/public/images/certificates/*
-!backend/public/images/certificates/.gitkeep
-
-backend/public/images/events/*
-!backend/public/images/events/.gitkeep
-
-backend/public/images/pools/*
-!backend/public/images/pools/.gitkeep
-
+# backend/public/images/coaches/*
+# backend/public/images/certificates/*
+# backend/public/images/events/*
+# backend/public/images/pools/*
 backend/public/images/payments/*
 !backend/public/images/payments/.gitkeep
 
