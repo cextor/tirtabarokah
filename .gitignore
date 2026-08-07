@@ -24,7 +24,7 @@ backend/vendor/
 backend/writable/*
 !backend/writable/.gitkeep
 
-# User Uploaded Files & Dynamic Media
+# User Uploaded Files & Dynamic Media Folders
 backend/public/uploads/*
 !backend/public/uploads/.gitkeep
 backend/writable/uploads/*
@@ -32,26 +32,21 @@ backend/writable/uploads/*
 public/uploads/*
 !public/uploads/.gitkeep
 
-# Ignore user uploads in images directory (PDF certificates & custom uploaded photos)
-backend/public/images/*
-!backend/public/images/.gitkeep
-!backend/public/images/logo.*
-!backend/public/images/hero_pool.*
-!backend/public/images/event_*
-!backend/public/images/default_*
-!backend/public/images/coach_amel.jpg
-!backend/public/images/coach_ardi.jpg
-!backend/public/images/coach_ari.jpg
-!backend/public/images/coach_asty.jpg
-!backend/public/images/coach_dika.png
-!backend/public/images/coach_hakim.jpg
-!backend/public/images/coach_nisa.png
-!backend/public/images/coach_rahmat.jpg
-!backend/public/images/coach_rama.jpg
-!backend/public/images/coach_rian.png
-!backend/public/images/coach_ridho.jpg
-!backend/public/images/coach_riyadz.jpg
-!backend/public/images/coach_yudi.jpg
+# Categorized User Upload Folders
+backend/public/images/coaches/*
+!backend/public/images/coaches/.gitkeep
+
+backend/public/images/certificates/*
+!backend/public/images/certificates/.gitkeep
+
+backend/public/images/events/*
+!backend/public/images/events/.gitkeep
+
+backend/public/images/pools/*
+!backend/public/images/pools/.gitkeep
+
+backend/public/images/payments/*
+!backend/public/images/payments/.gitkeep
 
 # Temporary & Local Developer Scratch Folders
 scratch/

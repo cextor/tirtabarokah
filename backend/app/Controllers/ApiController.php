@@ -895,13 +895,15 @@ class ApiController extends BaseController
         }
 
         $id = 'event-' . rand(1000, 9999);
+        $imageUrl = $this->saveUploadedFile($json->imageUrl ?? '', 'events', 'event', $json->title) ?? ($json->imageUrl ?? '/images/event_fun.png');
+
         $eventData = [
             'id' => $id,
             'title' => $json->title,
             'category' => $json->category,
             'date' => $json->date,
             'description' => $json->description ?? '',
-            'image_url' => $json->imageUrl ?? '/images/event_fun.png'
+            'image_url' => $imageUrl
         ];
 
         $this->db->table('events')->insert($eventData);
@@ -916,12 +918,14 @@ class ApiController extends BaseController
             return $this->fail('ID Kegiatan harus dilampirkan.');
         }
 
+        $imageUrl = $this->saveUploadedFile($json->imageUrl ?? '', 'events', 'event', $json->title) ?? $json->imageUrl;
+
         $eventData = [
             'title' => $json->title,
             'category' => $json->category,
             'date' => $json->date,
             'description' => $json->description,
-            'image_url' => $json->imageUrl
+            'image_url' => $imageUrl
         ];
 
         $this->db->table('events')->where('id', $json->id)->update($eventData);
@@ -2047,121 +2051,71 @@ class ApiController extends BaseController
         return $this->respondDeleted(['status' => 'success']);
     }
 
-    private function processCoachPhoto($photo, $coachName)
+    private function saveUploadedFile($dataUri, $subfolder, $prefix, $nameSlug = '')
     {
-        if (empty($photo)) {
-            return '/images/coach_rian.png';
+        if (empty($dataUri)) {
+            return null;
         }
-        if (strpos($photo, 'data:image/') === 0) {
-            if (preg_match('/^data:image\/(.*?);base64,(.*)$/s', $photo, $matches)) {
+
+        // If it's already a saved static/relative path or HTTP URL, return as is
+        if (strpos($dataUri, 'data:') !== 0) {
+            return $dataUri;
+        }
+
+        $ext = 'jpg';
+        $data = null;
+
+        if (strpos($dataUri, 'data:application/pdf') === 0) {
+            if (preg_match('/^data:application\/pdf;base64,(.*)$/s', $dataUri, $matches)) {
+                $ext = 'pdf';
+                $data = base64_decode($matches[1]);
+            }
+        } elseif (strpos($dataUri, 'data:image/') === 0) {
+            if (preg_match('/^data:image\/(.*?);base64,(.*)$/s', $dataUri, $matches)) {
                 $rawExt = strtolower($matches[1]);
-                $ext = 'jpg';
                 if (strpos($rawExt, 'png') !== false) $ext = 'png';
                 elseif (strpos($rawExt, 'webp') !== false) $ext = 'webp';
                 elseif (strpos($rawExt, 'gif') !== false) $ext = 'gif';
+                $data = base64_decode($matches[2]);
+            }
+        }
 
-                $imageData = base64_decode($matches[2]);
-                if ($imageData !== false && strlen($imageData) > 0) {
-                    $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
-                    $fileName = "coach_" . $slug . "_" . time() . "." . $ext;
-                    
-                    $dirsToTry = [
-                        FCPATH . 'images' . DIRECTORY_SEPARATOR,
-                        FCPATH . '..' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
-                        FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
-                        FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
-                        FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'dist' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR
-                    ];
+        if ($data === false || $data === null || strlen($data) === 0) {
+            return null;
+        }
 
-                    $saved = false;
-                    foreach ($dirsToTry as $dir) {
-                        if (!is_dir($dir)) {
-                            @mkdir($dir, 0777, true);
-                        }
-                        if (is_dir($dir)) {
-                            if (@file_put_contents($dir . $fileName, $imageData) !== false) {
-                                $saved = true;
-                            }
-                        }
-                    }
+        $slug = !empty($nameSlug) ? strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($nameSlug))) : 'file';
+        $fileName = "{$prefix}_{$slug}_" . time() . ".{$ext}";
 
-                    if ($saved) {
-                        return "/images/" . $fileName;
-                    }
+        $dirsToTry = [
+            FCPATH . 'images' . DIRECTORY_SEPARATOR . $subfolder . DIRECTORY_SEPARATOR,
+            FCPATH . '..' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR . $subfolder . DIRECTORY_SEPARATOR,
+            FCPATH . '..' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR . $subfolder . DIRECTORY_SEPARATOR
+        ];
+
+        foreach ($dirsToTry as $dir) {
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0777, true);
+            }
+            if (is_dir($dir)) {
+                if (@file_put_contents($dir . $fileName, $data) !== false) {
+                    return "/images/{$subfolder}/" . $fileName;
                 }
             }
         }
-        return $photo;
+
+        return null;
+    }
+
+    private function processCoachPhoto($photo, $coachName)
+    {
+        $saved = $this->saveUploadedFile($photo, 'coaches', 'coach', $coachName);
+        return $saved ?? (!empty($photo) && strpos($photo, 'data:') !== 0 ? $photo : '/images/coach_rian.png');
     }
 
     private function processCoachCertificate($cert, $coachName)
     {
-        if (empty($cert)) {
-            return null;
-        }
-        $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($coachName)));
-
-        $dirsToTry = [
-            FCPATH . 'images' . DIRECTORY_SEPARATOR,
-            FCPATH . '..' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
-            FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
-            FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR,
-            FCPATH . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'dist' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR
-        ];
-
-        if (strpos($cert, 'data:application/pdf') === 0) {
-            if (preg_match('/^data:application\/pdf;base64,(.*)$/s', $cert, $matches)) {
-                $pdfData = base64_decode($matches[1]);
-                if ($pdfData !== false && strlen($pdfData) > 0) {
-                    $fileName = "cert_" . $slug . "_" . time() . ".pdf";
-
-                    $saved = false;
-                    foreach ($dirsToTry as $dir) {
-                        if (!is_dir($dir)) {
-                            @mkdir($dir, 0777, true);
-                        }
-                        if (is_dir($dir)) {
-                            if (@file_put_contents($dir . $fileName, $pdfData) !== false) {
-                                $saved = true;
-                            }
-                        }
-                    }
-
-                    if ($saved) {
-                        return "/images/" . $fileName;
-                    }
-                }
-            }
-        }
-        if (strpos($cert, 'data:image/') === 0) {
-            if (preg_match('/^data:image\/(.*?);base64,(.*)$/s', $cert, $matches)) {
-                $rawExt = strtolower($matches[1]);
-                $ext = 'jpg';
-                if (strpos($rawExt, 'png') !== false) $ext = 'png';
-                elseif (strpos($rawExt, 'webp') !== false) $ext = 'webp';
-
-                $imageData = base64_decode($matches[2]);
-                if ($imageData !== false && strlen($imageData) > 0) {
-                    $fileName = "cert_" . $slug . "_" . time() . "." . $ext;
-
-                    $saved = false;
-                    foreach ($dirsToTry as $dir) {
-                        if (!is_dir($dir)) {
-                            @mkdir($dir, 0777, true);
-                        }
-                        if (is_dir($dir)) {
-                            if (@file_put_contents($dir . $fileName, $imageData) !== false) {
-                                $saved = true;
-                            }
-                        }
-                    }
-
-                    if ($saved) {
-                        return "/images/" . $fileName;
-                    }
-                }
-            }
-        }
-        return $cert;
+        $saved = $this->saveUploadedFile($cert, 'certificates', 'cert', $coachName);
+        return $saved ?? (!empty($cert) && strpos($cert, 'data:') !== 0 ? $cert : null);
     }
 }
