@@ -258,38 +258,90 @@ export default function App() {
   };
 
   const pendingPromiseRef = useRef<Promise<void> | null>(null);
+  const lastFetchRef = useRef<{ tab: string; time: number } | null>(null);
 
-  // STRICT TARGETED FETCHING: Fetches ONLY the exact endpoints required for the current active page
-  const loadTabData = async (tabNameOrForce?: string | boolean) => {
-    const token = localStorage.getItem('auth_token');
-    const role = localStorage.getItem('user_role');
-    const path = window.location.pathname;
+  // STRICT TARGETED FETCHING WITH DEDUPLICATION GUARD
+  const loadTabData = (tabNameOrForce?: string | boolean) => {
+    const tabName = typeof tabNameOrForce === 'string' ? tabNameOrForce : 'dashboard';
+    const now = Date.now();
 
-    const isUnauthAdmin = (path === '/belakang' || currentPath === '/belakang') && (!token || (role !== 'admin' && role !== 'operator'));
-    const isUnauthCoach = (path === '/coachs' || currentPath === '/coachs') && (!token || role !== 'coach');
-
-    if (isUnauthAdmin || isUnauthCoach) {
-      setIsDataLoading(false);
-      return;
+    // DEDUPLICATION: Skip if the exact same tab was requested in the last 2500ms
+    if (
+      lastFetchRef.current &&
+      lastFetchRef.current.tab === tabName &&
+      (now - lastFetchRef.current.time) < 2500
+    ) {
+      return pendingPromiseRef.current || Promise.resolve();
     }
 
-    const tabName = String(tabNameOrForce);
+    if (pendingPromiseRef.current) {
+      return pendingPromiseRef.current;
+    }
 
-    // TAILORED FETCHING FOR COACH ROLE: Only fetch exact data required for CoachDashboard tabs
-    if (role === 'coach') {
+    lastFetchRef.current = { tab: tabName, time: now };
+
+    const promise = (async () => {
+      const token = localStorage.getItem('auth_token');
+      const role = localStorage.getItem('user_role');
+      const path = window.location.pathname;
+
+      const isUnauthAdmin = (path === '/belakang' || currentPath === '/belakang') && (!token || (role !== 'admin' && role !== 'operator'));
+      const isUnauthCoach = (path === '/coachs' || currentPath === '/coachs') && (!token || role !== 'coach');
+
+      if (isUnauthAdmin || isUnauthCoach) {
+        setIsDataLoading(false);
+        return;
+      }
+
+      // TAILORED FETCHING FOR COACH ROLE
+      if (role === 'coach') {
+        try {
+          switch (tabName) {
+            case 'report_absence':
+            case 'absence_history': {
+              const [absencesData, coachesData] = await Promise.all([
+                api.getCoachAbsences(),
+                api.getCoaches()
+              ]);
+              setAbsences(absencesData || []);
+              setCoaches(coachesData || []);
+              break;
+            }
+            case 'schedule': {
+              const [coachesData, membersData] = await Promise.all([
+                api.getCoaches(),
+                api.getMembers()
+              ]);
+              setCoaches(coachesData || []);
+              setMembers(membersData || []);
+              break;
+            }
+            case 'students':
+            case 'laporan_coachs':
+            default: {
+              const [coachesData, membersData, absencesData] = await Promise.all([
+                api.getCoaches(),
+                api.getMembers(),
+                api.getCoachAbsences()
+              ]);
+              setCoaches(coachesData || []);
+              setMembers(membersData || []);
+              setAbsences(absencesData || []);
+              break;
+            }
+          }
+        } catch (err) {
+          console.error(`Failed to load coach tab data for ${tabName}:`, err);
+        }
+        return;
+      }
+
+      if (role !== 'admin' && role !== 'operator') {
+        return;
+      }
       try {
         switch (tabName) {
-          case 'report_absence':
-          case 'absence_history': {
-            const [absencesData, coachesData] = await Promise.all([
-              api.getCoachAbsences(),
-              api.getCoaches()
-            ]);
-            setAbsences(absencesData || []);
-            setCoaches(coachesData || []);
-            break;
-          }
-          case 'schedule': {
+          case 'pelatih': {
             const [coachesData, membersData] = await Promise.all([
               api.getCoaches(),
               api.getMembers()
@@ -298,9 +350,79 @@ export default function App() {
             setMembers(membersData || []);
             break;
           }
-          case 'students':
-          case 'laporan_coachs':
-          default: {
+          case 'peserta': {
+            const [membersData, coachesData, levelsData, packagesData, poolsData] = await Promise.all([
+              api.getMembers(),
+              api.getCoaches(),
+              api.getLevels(),
+              api.getPricingPackages(),
+              api.getSwimmingPools()
+            ]);
+            setMembers(membersData || []);
+            setCoaches(coachesData || []);
+            setLevels(levelsData || []);
+            setPricingPackages(packagesData || []);
+            setSwimmingPools(poolsData || []);
+            break;
+          }
+          case 'verifikasi': {
+            const [membersData, packagesData, poolsData, coachesData] = await Promise.all([
+              api.getMembers(),
+              api.getPricingPackages(),
+              api.getSwimmingPools(),
+              api.getCoaches()
+            ]);
+            setMembers(membersData || []);
+            setPricingPackages(packagesData || []);
+            setSwimmingPools(poolsData || []);
+            setCoaches(coachesData || []);
+            break;
+          }
+          case 'absensi_coach': {
+            const [absencesData, coachesData] = await Promise.all([
+              api.getCoachAbsences(),
+              api.getCoaches()
+            ]);
+            setAbsences(absencesData || []);
+            setCoaches(coachesData || []);
+            break;
+          }
+          case 'reminder':
+          case 'jadwal_hari_ini': {
+            const [membersData, coachesData, poolsData] = await Promise.all([
+              api.getMembers(),
+              api.getCoaches(),
+              api.getSwimmingPools()
+            ]);
+            setMembers(membersData || []);
+            setCoaches(coachesData || []);
+            setSwimmingPools(poolsData || []);
+            break;
+          }
+          case 'events': {
+            const [eventsData, categoriesData] = await Promise.all([
+              api.getEvents(),
+              api.getEventCategories()
+            ]);
+            setEvents(eventsData || []);
+            setEventCategories(categoriesData || []);
+            break;
+          }
+          case 'kolam_renang': {
+            const poolsData = await api.getSwimmingPools();
+            setSwimmingPools(poolsData || []);
+            break;
+          }
+          case 'laporan': {
+            const [membersData, packagesData] = await Promise.all([
+              api.getMembers(),
+              api.getPricingPackages()
+            ]);
+            setMembers(membersData || []);
+            setPricingPackages(packagesData || []);
+            break;
+          }
+          case 'laporan_coachs': {
             const [coachesData, membersData, absencesData] = await Promise.all([
               api.getCoaches(),
               api.getMembers(),
@@ -311,177 +433,79 @@ export default function App() {
             setAbsences(absencesData || []);
             break;
           }
+          case 'audit_logs': {
+            if (role === 'admin') {
+              const logs = await api.getAuditLogs();
+              setAuditLogs(logs || []);
+            }
+            break;
+          }
+          case 'pengaturan': {
+            const [settingsData, levelsData] = await Promise.all([
+              api.getSettings(),
+              api.getLevels()
+            ]);
+            if (settingsData && settingsData.status === 'success') {
+              setSettings(settingsData.settings);
+            }
+            setLevels(levelsData || []);
+            break;
+          }
+          case 'paket_harga': {
+            const [packagesData, coachesData] = await Promise.all([
+              api.getPricingPackages(),
+              api.getCoaches()
+            ]);
+            setPricingPackages(packagesData || []);
+            setCoaches(coachesData || []);
+            break;
+          }
+          case 'public': {
+            const fetchFns: (() => Promise<any>)[] = [
+              () => api.getCoaches(),
+              () => api.getEvents(),
+              () => api.getSettings(),
+              () => api.getLevels(),
+              () => api.getPricingPackages(),
+              () => api.getSwimmingPools()
+            ];
+            const results: any[] = [];
+            for (const fn of fetchFns) {
+              results.push(await fn());
+            }
+            setCoaches(results[0] || []);
+            setEvents(results[1] || []);
+            if (results[2] && results[2].status === 'success') {
+              setSettings(results[2].settings);
+            }
+            setLevels(results[3] || []);
+            setPricingPackages(results[4] || []);
+            setSwimmingPools(results[5] || []);
+            setMembers([]);
+            setAbsences([]);
+            setAuditLogs([]);
+            break;
+          }
+          case 'dashboard':
+          default: {
+            const [membersData, coachesData] = await Promise.all([
+              api.getMembers(),
+              api.getCoaches()
+            ]);
+            setMembers(membersData || []);
+            setCoaches(coachesData || []);
+            break;
+          }
         }
       } catch (err) {
-        console.error(`Failed to load coach tab data for ${tabName}:`, err);
+        console.error(`Failed to load tab data for ${tabName}:`, err);
+      } finally {
+        pendingPromiseRef.current = null;
       }
-      return;
-    }
+    })();
 
-    if (role !== 'admin' && role !== 'operator') {
-      return;
-    }
-    try {
-      switch (tabName) {
-        case 'pelatih': {
-          const [coachesData, membersData] = await Promise.all([
-            api.getCoaches(),
-            api.getMembers()
-          ]);
-          setCoaches(coachesData || []);
-          setMembers(membersData || []);
-          break;
-        }
-        case 'peserta': {
-          const [membersData, coachesData, levelsData, packagesData, poolsData] = await Promise.all([
-            api.getMembers(),
-            api.getCoaches(),
-            api.getLevels(),
-            api.getPricingPackages(),
-            api.getSwimmingPools()
-          ]);
-          setMembers(membersData || []);
-          setCoaches(coachesData || []);
-          setLevels(levelsData || []);
-          setPricingPackages(packagesData || []);
-          setSwimmingPools(poolsData || []);
-          break;
-        }
-        case 'verifikasi': {
-          const [membersData, packagesData, poolsData, coachesData] = await Promise.all([
-            api.getMembers(),
-            api.getPricingPackages(),
-            api.getSwimmingPools(),
-            api.getCoaches()
-          ]);
-          setMembers(membersData || []);
-          setPricingPackages(packagesData || []);
-          setSwimmingPools(poolsData || []);
-          setCoaches(coachesData || []);
-          break;
-        }
-        case 'absensi_coach': {
-          const [absencesData, coachesData] = await Promise.all([
-            api.getCoachAbsences(),
-            api.getCoaches()
-          ]);
-          setAbsences(absencesData || []);
-          setCoaches(coachesData || []);
-          break;
-        }
-        case 'reminder':
-        case 'jadwal_hari_ini': {
-          const [membersData, coachesData, poolsData] = await Promise.all([
-            api.getMembers(),
-            api.getCoaches(),
-            api.getSwimmingPools()
-          ]);
-          setMembers(membersData || []);
-          setCoaches(coachesData || []);
-          setSwimmingPools(poolsData || []);
-          break;
-        }
-        case 'events': {
-          const [eventsData, categoriesData] = await Promise.all([
-            api.getEvents(),
-            api.getEventCategories()
-          ]);
-          setEvents(eventsData || []);
-          setEventCategories(categoriesData || []);
-          break;
-        }
-        case 'kolam_renang': {
-          const poolsData = await api.getSwimmingPools();
-          setSwimmingPools(poolsData || []);
-          break;
-        }
-        case 'laporan': {
-          const [membersData, packagesData] = await Promise.all([
-            api.getMembers(),
-            api.getPricingPackages()
-          ]);
-          setMembers(membersData || []);
-          setPricingPackages(packagesData || []);
-          break;
-        }
-        case 'laporan_coachs': {
-          const [coachesData, membersData, absencesData] = await Promise.all([
-            api.getCoaches(),
-            api.getMembers(),
-            api.getCoachAbsences()
-          ]);
-          setCoaches(coachesData || []);
-          setMembers(membersData || []);
-          setAbsences(absencesData || []);
-          break;
-        }
-        case 'audit_logs': {
-          if (role === 'admin') {
-            const logs = await api.getAuditLogs();
-            setAuditLogs(logs || []);
-          }
-          break;
-        }
-        case 'pengaturan': {
-          const [settingsData, levelsData] = await Promise.all([
-            api.getSettings(),
-            api.getLevels()
-          ]);
-          if (settingsData && settingsData.status === 'success') {
-            setSettings(settingsData.settings);
-          }
-          setLevels(levelsData || []);
-          break;
-        }
-        case 'paket_harga': {
-          const [packagesData, coachesData] = await Promise.all([
-            api.getPricingPackages(),
-            api.getCoaches()
-          ]);
-          setPricingPackages(packagesData || []);
-          setCoaches(coachesData || []);
-          break;
-        }
-        case 'public': {
-          const fetchFns: (() => Promise<any>)[] = [
-            () => api.getCoaches(),
-            () => api.getEvents(),
-            () => api.getSettings(),
-            () => api.getLevels(),
-            () => api.getPricingPackages(),
-            () => api.getSwimmingPools()
-          ];
-          const results: any[] = [];
-          for (const fn of fetchFns) {
-            results.push(await fn());
-          }
-          setCoaches(results[0] || []);
-          setEvents(results[1] || []);
-          if (results[2] && results[2].status === 'success') {
-            setSettings(results[2].settings);
-          }
-          setLevels(results[3] || []);
-          setPricingPackages(results[4] || []);
-          setSwimmingPools(results[5] || []);
-          setMembers([]);
-          setAbsences([]);
-          setAuditLogs([]);
-          break;
-        }
-        case 'dashboard':
-        default: {
-          const [membersData, coachesData] = await Promise.all([
-            api.getMembers(),
-            api.getCoaches()
-          ]);
-          setMembers(membersData || []);
-          setCoaches(coachesData || []);
-          break;
-        }
-      }
-    } catch (err) {
-      console.error(`Failed to load tab data for ${tabName}:`, err);
-    }
+    pendingPromiseRef.current = promise;
+    return promise;
   };
 
   const handleUpdateSettings = async (newSettings: SiteSettings) => {
@@ -570,6 +594,7 @@ export default function App() {
       console.error("Failed to sync coach update to backend", e);
       setError("Gagal mensinkronisasikan perubahan pelatih ke database: " + e.message);
     }
+    lastFetchRef.current = null;
     loadTabData('pelatih');
   };
 
@@ -669,6 +694,7 @@ export default function App() {
       console.error("DEBUG: Failed to update member:", e);
       await api.debugLog(`DEBUG: Failed to update member: ${e.message || e}`);
     }
+    lastFetchRef.current = null;
     loadTabData('peserta');
   };
 
@@ -698,6 +724,7 @@ export default function App() {
     } catch (e) {
       console.error("Failed to update event:", e);
     }
+    lastFetchRef.current = null;
     loadTabData('events');
   };
 
@@ -750,6 +777,7 @@ export default function App() {
       });
       return null;
     } finally {
+      lastFetchRef.current = null;
       loadTabData('verifikasi');
     }
   };
