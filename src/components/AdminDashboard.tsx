@@ -113,7 +113,7 @@ interface AdminDashboardProps {
   eventCategories?: EventCategory[];
   swimmingPools?: SwimmingPool[];
   userRole?: string;
-  onReloadData: () => void;
+  onReloadData: (force?: boolean) => void;
   onUpdateSettings: (settings: SiteSettings) => void;
   onUpdateLevels: (levels: ProgramLevel[]) => void;
   onUpdateCoaches: (coaches: Coach[]) => void;
@@ -128,14 +128,14 @@ const getIndonesianDayName = (date: Date): string => {
 
 const calculateAge = (dobString: string): number => {
   if (!dobString) return 0;
-  const today = new Date();
   const birthDate = new Date(dobString);
+  const today = new Date();
   let age = today.getFullYear() - birthDate.getFullYear();
   const m = today.getMonth() - birthDate.getMonth();
   if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
     age--;
   }
-  return age >= 0 ? age : 0;
+  return age;
 };
 
 export default function AdminDashboard({ 
@@ -146,7 +146,7 @@ export default function AdminDashboard({
   levels,
   absences,
   pricingPackages,
-  auditLogs = [],
+  auditLogs,
   eventCategories = [],
   swimmingPools = [],
   userRole = 'admin',
@@ -197,8 +197,9 @@ export default function AdminDashboard({
     if (activeTab === 'pengaturan' || activeTab === 'audit_logs' || activeTab === 'paket_harga') {
       setIsKonfigurasiGroupOpen(true);
     }
-    if (activeTab === 'pelatih' && onReloadData) {
-      onReloadData();
+    // Auto-reload data freshly from database on EVERY page/tab change
+    if (onReloadData) {
+      onReloadData(true);
     }
   }, [activeTab]);
 

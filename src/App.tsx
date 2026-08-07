@@ -263,8 +263,10 @@ export default function App() {
   const pendingPromiseRef = useRef<Promise<void> | null>(null);
 
   // Load from database on mount with deduplication guard & smart route checking
-  const loadAllData = () => {
-    if (pendingPromiseRef.current) {
+  const loadAllData = (force: boolean = false) => {
+    if (force) {
+      pendingPromiseRef.current = null;
+    } else if (pendingPromiseRef.current) {
       return pendingPromiseRef.current;
     }
 
