@@ -172,7 +172,6 @@ export default function App() {
 
         setIsAdminLoggedIn(true);
         setAdminLoginError(null);
-        await loadTabData(res.user.role === 'operator' ? 'verifikasi' : 'dashboard');
       } else {
         setAdminLoginError('Username atau password Admin salah!');
       }
@@ -214,7 +213,6 @@ export default function App() {
         setIsCoachLoggedIn(true);
         setLoggedCoachId(res.user.id);
         setCoachLoginError(null);
-        await loadTabData('students');
       } else {
         setCoachLoginError('Username atau password Pelatih salah!');
       }
@@ -472,16 +470,12 @@ export default function App() {
         }
         case 'dashboard':
         default: {
-          const [membersData, coachesData, packagesData, poolsData] = await Promise.all([
+          const [membersData, coachesData] = await Promise.all([
             api.getMembers(),
-            api.getCoaches(),
-            api.getPricingPackages(),
-            api.getSwimmingPools()
+            api.getCoaches()
           ]);
           setMembers(membersData || []);
           setCoaches(coachesData || []);
-          setPricingPackages(packagesData || []);
-          setSwimmingPools(poolsData || []);
           break;
         }
       }
