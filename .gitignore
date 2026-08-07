@@ -1,19 +1,57 @@
+# Node dependencies & build outputs
 node_modules/
+dist/
 build/
 coverage/
-.DS_Store
-*.log
-.env*
+
+# Environment files (Sensitive Credentials)
+.env
+.env.local
+.env.development
+.env.production
 !.env.example
 
-# CodeIgniter 4 backend ignores
+# OS & Editor temp files
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+
+# CodeIgniter 4 Backend Ignores
+backend/.env
 backend/vendor/
 backend/writable/*
 !backend/writable/.gitkeep
 
-# Ignore backend uploaded images
+# User Uploaded Files & Dynamic Media
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep
+backend/writable/uploads/*
+!backend/writable/uploads/.gitkeep
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Ignore user uploads in images directory (PDF certificates & custom uploaded photos)
 backend/public/images/*
 !backend/public/images/.gitkeep
+!backend/public/images/logo.*
+!backend/public/images/hero_pool.*
+!backend/public/images/event_*
+!backend/public/images/default_*
+!backend/public/images/coach_amel.jpg
+!backend/public/images/coach_ardi.jpg
+!backend/public/images/coach_ari.jpg
+!backend/public/images/coach_asty.jpg
+!backend/public/images/coach_dika.png
+!backend/public/images/coach_hakim.jpg
+!backend/public/images/coach_nisa.png
+!backend/public/images/coach_rahmat.jpg
+!backend/public/images/coach_rama.jpg
+!backend/public/images/coach_rian.png
+!backend/public/images/coach_ridho.jpg
+!backend/public/images/coach_riyadz.jpg
+!backend/public/images/coach_yudi.jpg
 
-# Temporary scratch folder
+# Temporary & Local Developer Scratch Folders
 scratch/

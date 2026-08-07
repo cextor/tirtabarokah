@@ -979,7 +979,7 @@ export default function App() {
               </div>
               <h3 className="font-extrabold text-slate-800 text-lg">Gagal Terhubung ke Backend</h3>
               <p className="text-xs text-slate-605 leading-relaxed">
-                Aplikasi React tidak dapat mengambil data dari backend CodeIgniter 4 di <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-rose-600">{API_BASE_URL || window.location.origin}</code>.
+                Aplikasi React tidak dapat mengambil data dari backend CodeIgniter 4 di <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-rose-600">{API_BASE_URL || 'http://localhost:8081 (via Vite Proxy)'}</code>.
               </p>
               <div className="bg-slate-900 text-rose-300 p-4 rounded-xl text-left text-xs font-mono overflow-auto max-h-40 border border-slate-800">
                 Error: {error}
