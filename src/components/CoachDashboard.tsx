@@ -16,7 +16,7 @@ interface CoachDashboardProps {
   coaches: Coach[];
   members: Member[];
   absences: CoachAbsence[];
-  onReloadData: () => void;
+  onReloadData: (tabName?: string | boolean) => void;
   onUpdateMembers: (members: Member[]) => void;
   loggedCoachId?: string;
 }
@@ -56,6 +56,12 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
       setSelectedCoachId(coaches[0].id);
     }
   }, [loggedCoachId, coaches]);
+
+  React.useEffect(() => {
+    if (onReloadData) {
+      onReloadData(activeTab);
+    }
+  }, [activeTab]);
 
   const currentCoach = coaches.find(c => c.id === selectedCoachId);
   

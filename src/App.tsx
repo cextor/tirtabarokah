@@ -441,11 +441,58 @@ export default function App() {
 
     const token = localStorage.getItem('auth_token');
     const role = localStorage.getItem('user_role');
-    if (!token || (role !== 'admin' && role !== 'operator')) {
+    if (!token) {
       return;
     }
 
     const tabName = String(tabNameOrForce);
+
+    // TAILORED FETCHING FOR COACH ROLE: Only fetch exact data required for CoachDashboard tabs
+    if (role === 'coach') {
+      try {
+        switch (tabName) {
+          case 'report_absence':
+          case 'absence_history': {
+            const [absencesData, coachesData] = await Promise.all([
+              api.getCoachAbsences(),
+              api.getCoaches()
+            ]);
+            setAbsences(absencesData || []);
+            setCoaches(coachesData || []);
+            break;
+          }
+          case 'schedule': {
+            const [coachesData, membersData] = await Promise.all([
+              api.getCoaches(),
+              api.getMembers()
+            ]);
+            setCoaches(coachesData || []);
+            setMembers(membersData || []);
+            break;
+          }
+          case 'students':
+          case 'laporan_coachs':
+          default: {
+            const [coachesData, membersData, absencesData] = await Promise.all([
+              api.getCoaches(),
+              api.getMembers(),
+              api.getCoachAbsences()
+            ]);
+            setCoaches(coachesData || []);
+            setMembers(membersData || []);
+            setAbsences(absencesData || []);
+            break;
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to load coach tab data for ${tabName}:`, err);
+      }
+      return;
+    }
+
+    if (role !== 'admin' && role !== 'operator') {
+      return;
+    }
     try {
       switch (tabName) {
         case 'pelatih': {
