@@ -113,7 +113,7 @@ interface AdminDashboardProps {
   eventCategories?: EventCategory[];
   swimmingPools?: SwimmingPool[];
   userRole?: string;
-  onReloadData: (force?: boolean) => void;
+  onReloadData: (tabName?: string | boolean) => void;
   onUpdateSettings: (settings: SiteSettings) => void;
   onUpdateLevels: (levels: ProgramLevel[]) => void;
   onUpdateCoaches: (coaches: Coach[]) => void;
@@ -197,9 +197,9 @@ export default function AdminDashboard({
     if (activeTab === 'pengaturan' || activeTab === 'audit_logs' || activeTab === 'paket_harga') {
       setIsKonfigurasiGroupOpen(true);
     }
-    // Auto-reload data freshly from database on EVERY page/tab change
+    // Auto-fetch ONLY the specific data required for the opened page
     if (onReloadData) {
-      onReloadData(true);
+      onReloadData(activeTab);
     }
   }, [activeTab]);
 
