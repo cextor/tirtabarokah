@@ -2340,31 +2340,13 @@ export default function AdminDashboard({
               })()}
             </div>
 
-            {/* Member Growth Chart */}
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/60 mt-6">
-              <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-1">
-                <TrendingUp className="w-4 h-4 text-cyan-600" /> Tren Pertumbuhan Member Baru
-              </h4>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={memberGrowthData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="bulan" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="member" stroke="#4f46e5" fill="#e0e7ff" strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-            
-            {/* Quick Lists / Overview */}
-            <div className="grid md:grid-cols-2 gap-6 mt-6">
+            {/* Quick Lists / Action Items: Persetujuan Pembayaran Terbaru & Sesi Paket Murid Hampir Habis */}
+            <div className="grid md:grid-cols-2 gap-6">
               {/* Recent Pending Payments */}
-              <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+              <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs">
                 <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider mb-3 flex items-center justify-between">
                   <span>Persetujuan Pembayaran Terbaru</span>
-                  <button onClick={() => setActiveTab('verifikasi')} className="text-[10px] text-cyan-600 hover:underline">Lihat Semua ({pendingPaymentsFiltered.length})</button>
+                  <button onClick={() => setActiveTab('verifikasi')} className="text-[10px] text-cyan-600 hover:underline cursor-pointer">Lihat Semua ({pendingPaymentsFiltered.length})</button>
                 </h4>
                 {pendingPaymentsFiltered.length === 0 ? (
                   <p className="text-xs text-slate-400 italic py-4 text-center">Tidak ada pembayaran tertunda pada periode ini.</p>
@@ -2384,10 +2366,10 @@ export default function AdminDashboard({
               </div>
 
               {/* Expiring Sessions */}
-              <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+              <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs">
                 <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider mb-3 flex items-center justify-between">
                   <span>Sesi Paket Murid Hampir Habis</span>
-                  <button onClick={() => { setActiveTab('peserta'); setPesertaFilter('hampir-habis'); }} className="text-[10px] text-cyan-600 hover:underline">Lihat Semua ({expiringMembersFiltered.length})</button>
+                  <button onClick={() => { setActiveTab('peserta'); setPesertaFilter('hampir-habis'); }} className="text-[10px] text-cyan-600 hover:underline cursor-pointer">Lihat Semua ({expiringMembersFiltered.length})</button>
                 </h4>
                 {expiringMembersFiltered.length === 0 ? (
                   <p className="text-xs text-slate-400 italic py-4 text-center">Semua murid memiliki sesi yang cukup pada periode ini.</p>
@@ -2406,6 +2388,24 @@ export default function AdminDashboard({
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Member Growth Chart */}
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/60">
+              <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-1">
+                <TrendingUp className="w-4 h-4 text-cyan-600" /> Tren Pertumbuhan Member Baru
+              </h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={memberGrowthData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="bulan" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Area type="monotone" dataKey="member" stroke="#4f46e5" fill="#e0e7ff" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
