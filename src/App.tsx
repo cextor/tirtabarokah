@@ -172,8 +172,7 @@ export default function App() {
 
         setIsAdminLoggedIn(true);
         setAdminLoginError(null);
-        pendingPromiseRef.current = null;
-        await loadAllData();
+        await loadTabData(res.user.role === 'operator' ? 'verifikasi' : 'dashboard');
       } else {
         setAdminLoginError('Username atau password Admin salah!');
       }
@@ -215,7 +214,7 @@ export default function App() {
         setIsCoachLoggedIn(true);
         setLoggedCoachId(res.user.id);
         setCoachLoginError(null);
-        await loadAllData();
+        await loadTabData('students');
       } else {
         setCoachLoginError('Username atau password Pelatih salah!');
       }
@@ -257,191 +256,22 @@ export default function App() {
       navigateTo('/');
     }
 
-    loadAllData();
+    loadTabData('public');
   };
 
   const pendingPromiseRef = useRef<Promise<void> | null>(null);
 
-  // Load from database on mount with deduplication guard & smart route checking
-  const loadAllData = (force: boolean = false) => {
-    if (force) {
-      pendingPromiseRef.current = null;
-    } else if (pendingPromiseRef.current) {
-      return pendingPromiseRef.current;
-    }
-
-    const promise = (async () => {
-      setIsDataLoading(true);
-      try {
-        setError(null);
-        const token = localStorage.getItem('auth_token');
-        const role = localStorage.getItem('user_role');
-        const path = window.location.pathname;
-
-        // Skip fetching application data if user is on login screens and not authenticated
-        const isUnauthAdmin = (path === '/belakang' || currentPath === '/belakang') && (!token || (role !== 'admin' && role !== 'operator'));
-        const isUnauthCoach = (path === '/coachs' || currentPath === '/coachs') && (!token || role !== 'coach');
-
-        if (isUnauthAdmin || isUnauthCoach) {
-          setError(null);
-          return;
-        }
-
-        // ROLE-BASED TAILORED PARALLEL FETCHING:
-        if (token && role === 'coach') {
-          // Coach portal ONLY needs coaches, members, and absences (3 endpoints instead of 9!)
-          const [coachesData, membersData, absencesData] = await Promise.all([
-            api.getCoaches(),
-            api.getMembers(),
-            api.getCoachAbsences()
-          ]);
-
-          setCoaches(coachesData || []);
-          setMembers(membersData || []);
-          setAbsences(absencesData || []);
-          return;
-        }
-
-        if (token && (role === 'admin' || role === 'operator')) {
-          // Admin / Operator portal needs admin dashboard datasets
-          const [coachesData, eventsData, settingsData, levelsData, packagesData, categoriesData, poolsData, membersData, absencesData] = await Promise.all([
-            api.getCoaches(),
-            api.getEvents(),
-            api.getSettings(),
-            api.getLevels(),
-            api.getPricingPackages(),
-            api.getEventCategories(),
-            api.getSwimmingPools(),
-            api.getMembers(),
-            api.getCoachAbsences()
-          ]);
-
-          setCoaches(coachesData || []);
-          setEvents(eventsData || []);
-          if (settingsData && settingsData.status === 'success') {
-            setSettings(settingsData.settings);
-          }
-          setLevels(levelsData || []);
-          setPricingPackages(packagesData || []);
-          setEventCategories(categoriesData || []);
-          setSwimmingPools(poolsData || []);
-          setMembers(membersData || []);
-          setAbsences(absencesData || []);
-
-          if (role === 'admin') {
-            try {
-              const logs = await api.getAuditLogs();
-              setAuditLogs(logs || []);
-            } catch (err) {
-              console.error("Failed to load audit logs:", err);
-            }
-          }
-          return;
-        }
-
-        // Public Landing Page / Guest View (Sequential execution for rock-solid stability on single-threaded PHP CLI)
-        const fetchFns: (() => Promise<any>)[] = [
-          () => api.getCoaches(),
-          () => api.getEvents(),
-          () => api.getSettings(),
-          () => api.getLevels(),
-          () => api.getPricingPackages(),
-          () => api.getSwimmingPools()
-        ];
-
-        const results: any[] = [];
-        for (const fn of fetchFns) {
-          results.push(await fn());
-        }
-
-        setCoaches(results[0] || []);
-        setEvents(results[1] || []);
-        if (results[2] && results[2].status === 'success') {
-          setSettings(results[2].settings);
-        }
-        setLevels(results[3] || []);
-        setPricingPackages(results[4] || []);
-        setSwimmingPools(results[5] || []);
-        setMembers([]);
-        setAbsences([]);
-        setAuditLogs([]);
-      } catch (e: any) {
-        console.error("Failed to load data from MariaDB backend", e);
-
-        const errMsg = e.message || String(e);
-        const isAuthError =
-          errMsg.includes('Token tidak valid') ||
-          errMsg.includes('Token otentikasi diperlukan') ||
-          errMsg.includes('Token telah kedaluwarsa') ||
-          errMsg.includes('Akses ditolak') ||
-          e.status === 401;
-
-        if (isAuthError) {
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('user_role');
-          localStorage.removeItem('user_name');
-          localStorage.removeItem('logged_user_id');
-          setIsAdminLoggedIn(false);
-          setIsCoachLoggedIn(false);
-          setLoggedCoachId('');
-          setError(null);
-
-          const currentP = window.location.pathname;
-          if (currentP === '/belakang' || currentP === '/coachs') {
-            return;
-          }
-
-          try {
-            const fetchFns: (() => Promise<any>)[] = [
-              () => api.getCoaches(),
-              () => api.getEvents(),
-              () => api.getSettings(),
-              () => api.getLevels(),
-              () => api.getPricingPackages(),
-              () => api.getSwimmingPools()
-            ];
-            const results: any[] = [];
-            for (const fn of fetchFns) {
-              results.push(await fn());
-            }
-            setCoaches(results[0] || []);
-            setEvents(results[1] || []);
-            if (results[2] && results[2].status === 'success') {
-              setSettings(results[2].settings);
-            }
-            setLevels(results[3] || []);
-            setPricingPackages(results[4] || []);
-            setSwimmingPools(results[5] || []);
-            setMembers([]);
-            setAbsences([]);
-            setAuditLogs([]);
-          } catch (guestErr: any) {
-            setError(guestErr.message || String(guestErr));
-          }
-        } else {
-          setError(errMsg);
-        }
-      } finally {
-        setIsDataLoading(false);
-        setHasInitialLoaded(true);
-        pendingPromiseRef.current = null;
-      }
-    })();
-
-    pendingPromiseRef.current = promise;
-    return promise;
-  };
-
-  // TARGETED TAB-SPECIFIC FETCHING: Fetches ONLY the exact data required for the active page
+  // STRICT TARGETED FETCHING: Fetches ONLY the exact endpoints required for the current active page
   const loadTabData = async (tabNameOrForce?: string | boolean) => {
-    if (!tabNameOrForce || tabNameOrForce === true || tabNameOrForce === 'dashboard') {
-      await loadAllData(true);
-      return;
-    }
-
     const token = localStorage.getItem('auth_token');
     const role = localStorage.getItem('user_role');
-    if (!token) {
+    const path = window.location.pathname;
+
+    const isUnauthAdmin = (path === '/belakang' || currentPath === '/belakang') && (!token || (role !== 'admin' && role !== 'operator'));
+    const isUnauthCoach = (path === '/coachs' || currentPath === '/coachs') && (!token || role !== 'coach');
+
+    if (isUnauthAdmin || isUnauthCoach) {
+      setIsDataLoading(false);
       return;
     }
 
@@ -615,7 +445,7 @@ export default function App() {
           break;
         }
         default: {
-          await loadAllData(true);
+          await loadTabData('dashboard');
           break;
         }
       }
@@ -635,11 +465,19 @@ export default function App() {
 
   const handleUpdateLevels = async (newLevels: ProgramLevel[]) => {
     setLevels(newLevels);
-    loadAllData();
+    loadTabData('pengaturan');
   };
 
   useEffect(() => {
-    loadAllData();
+    const role = localStorage.getItem('user_role');
+    const path = window.location.pathname;
+    if (path === '/belakang') {
+      loadTabData(role === 'operator' ? 'verifikasi' : 'dashboard');
+    } else if (path === '/coachs') {
+      loadTabData('students');
+    } else {
+      loadTabData('public');
+    }
 
     // Listen to browser forward/back buttons
     const handlePopState = () => {
@@ -702,7 +540,7 @@ export default function App() {
       console.error("Failed to sync coach update to backend", e);
       setError("Gagal mensinkronisasikan perubahan pelatih ke database: " + e.message);
     }
-    loadAllData();
+    loadTabData('pelatih');
   };
 
   // Sync to database on updates (Members)
@@ -801,7 +639,7 @@ export default function App() {
       console.error("DEBUG: Failed to update member:", e);
       await api.debugLog(`DEBUG: Failed to update member: ${e.message || e}`);
     }
-    loadAllData();
+    loadTabData('peserta');
   };
 
   // Sync to database on updates (Events)
@@ -830,7 +668,7 @@ export default function App() {
     } catch (e) {
       console.error("Failed to update event:", e);
     }
-    loadAllData();
+    loadTabData('events');
   };
 
   // Reset database info/notice
@@ -882,7 +720,7 @@ export default function App() {
       });
       return null;
     } finally {
-      loadAllData();
+      loadTabData('verifikasi');
     }
   };
 
@@ -1183,7 +1021,7 @@ export default function App() {
                 Pastikan server backend PHP Anda sudah berjalan, terkonfigurasi dengan benar di hosting Anda, dan URL API di atas dapat diakses.
               </p>
               <button
-                onClick={loadAllData}
+                onClick={() => loadTabData('public')}
                 className="bg-rose-600 hover:bg-rose-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer"
               >
                 Coba Hubungkan Kembali
@@ -1348,7 +1186,7 @@ export default function App() {
                 coaches={coaches}
                 members={members}
                 absences={absences}
-                onReloadData={loadAllData}
+                onReloadData={loadTabData}
                 onUpdateMembers={updateMembersState}
                 loggedCoachId={loggedCoachId}
               />
