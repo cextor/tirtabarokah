@@ -177,10 +177,11 @@ export default function App() {
         setAdminLoginError('Username atau password Admin salah!');
       }
     } catch (err: any) {
-      console.error(err);
       const errMsg = err.message || '';
       if (errMsg.includes('Pelatih tidak dapat login')) {
         setAdminLoginError('Pelatih tidak dapat login di dashboard admin.');
+      } else if (errMsg && !errMsg.startsWith('{') && !errMsg.startsWith('HTTP Error')) {
+        setAdminLoginError(errMsg);
       } else {
         setAdminLoginError('Username atau password Admin salah!');
       }
@@ -218,8 +219,12 @@ export default function App() {
         setCoachLoginError('Username atau password Pelatih salah!');
       }
     } catch (err: any) {
-      console.error(err);
-      setCoachLoginError('Username atau password Pelatih salah!');
+      const errMsg = err.message || '';
+      if (errMsg && !errMsg.startsWith('{') && !errMsg.startsWith('HTTP Error')) {
+        setCoachLoginError(errMsg);
+      } else {
+        setCoachLoginError('Username atau password Pelatih salah!');
+      }
     } finally {
       setIsCoachLoggingIn(false);
     }
@@ -1100,7 +1105,7 @@ export default function App() {
               </form>
 
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[10px] text-slate-500 text-center">
-                Demo Login: Username (<strong className="text-slate-700">rian / nisa / dika</strong>) & Password: <strong className="text-slate-700">coach123</strong>
+                Demo Login: Username (<strong className="text-slate-700">ardi / hakim / ari</strong>) & Password: <strong className="text-slate-700">coach123</strong>
               </div>
             </div>
           ) : isDataLoading && !hasInitialLoaded ? (

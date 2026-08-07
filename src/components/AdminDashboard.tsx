@@ -4823,7 +4823,7 @@ export default function AdminDashboard({
                           <label className="font-bold text-slate-700">Username Login Pelatih</label>
                           <input
                             type="text"
-                            placeholder="Username (misal: rian)"
+                            placeholder="Username (misal: ardi)"
                             value={newCoachUsername}
                             onChange={(e) => setNewCoachUsername(e.target.value)}
                             className="w-full bg-white border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"

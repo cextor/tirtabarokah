@@ -33,7 +33,7 @@ const getIndonesianDay = (dateStr?: string): string => {
 
 export default function CoachDashboard({ coaches, members, absences, onReloadData, onUpdateMembers, loggedCoachId }: CoachDashboardProps) {
   // Simulate Coach Login
-  const [selectedCoachId, setSelectedCoachId] = useState<string>(loggedCoachId || 'coach-rian');
+  const [selectedCoachId, setSelectedCoachId] = useState<string>(loggedCoachId || 'coach-ardi');
   const [activeTab, setActiveTab] = useState<CoachTab>('students');
   const [selectedStudentForNote, setSelectedStudentForNote] = useState<string>('');
   const [newProgressNote, setNewProgressNote] = useState<string>('');
@@ -50,10 +50,12 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
   const [isSubmittingAbsence, setIsSubmittingAbsence] = useState<boolean>(false);
 
   React.useEffect(() => {
-    if (loggedCoachId) {
+    if (loggedCoachId && coaches.some(c => c.id === loggedCoachId)) {
       setSelectedCoachId(loggedCoachId);
+    } else if (coaches.length > 0 && !coaches.some(c => c.id === selectedCoachId)) {
+      setSelectedCoachId(coaches[0].id);
     }
-  }, [loggedCoachId]);
+  }, [loggedCoachId, coaches]);
 
   const currentCoach = coaches.find(c => c.id === selectedCoachId);
   

@@ -63,13 +63,28 @@ async function request(endpoint: string, options: RequestInit = {}) {
     const response = await fetch(url, config);
     if (!response.ok) {
       const errorText = await response.text();
-      let errorMsg = errorText || `HTTP Error ${response.status}`;
+      let errorMsg = `HTTP Error ${response.status}`;
       try {
         const parsed = JSON.parse(errorText);
-        if (parsed && parsed.message) {
-          errorMsg = parsed.message;
+        if (parsed && typeof parsed === 'object') {
+          if (typeof parsed.message === 'string' && parsed.message) {
+            errorMsg = parsed.message;
+          } else if (typeof parsed.messages === 'string' && parsed.messages) {
+            errorMsg = parsed.messages;
+          } else if (parsed.messages && typeof parsed.messages === 'object') {
+            const msgs = Object.values(parsed.messages).filter((m: any) => typeof m === 'string' && m.trim().length > 0);
+            if (msgs.length > 0) {
+              errorMsg = msgs.join(', ');
+            }
+          } else if (typeof parsed.error === 'string' && parsed.error) {
+            errorMsg = parsed.error;
+          }
         }
-      } catch {}
+      } catch {
+        if (errorText && !errorText.startsWith('<html')) {
+          errorMsg = errorText;
+        }
+      }
       const err: any = new Error(errorMsg);
       err.status = response.status;
       throw err;
@@ -78,7 +93,10 @@ async function request(endpoint: string, options: RequestInit = {}) {
     const text = await response.text();
     return text ? JSON.parse(text) : {};
   } catch (error) {
-    console.error(`API Request failed for ${endpoint}:`, error);
+    const status = (error as any)?.status;
+    if (!status || status >= 500) {
+      console.error(`API Request failed for ${endpoint}:`, error);
+    }
     throw error;
   }
 }
