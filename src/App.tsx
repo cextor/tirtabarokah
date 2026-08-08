@@ -1263,8 +1263,8 @@ export default function App() {
         </div>
       </main>
 
-      {/* Footer information section (Only for Public / Parent View) */}
-      {activeRole === 'parent' && (
+      {/* Footer information section (Only for Public Front Page) */}
+      {activeRole === 'member' && (
         <footer className="bg-slate-900 text-slate-300 pt-12 pb-6 border-t border-slate-800 text-xs mt-16">
           <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-10">
             
