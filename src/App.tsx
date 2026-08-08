@@ -488,14 +488,18 @@ export default function App() {
           }
           case 'dashboard':
           default: {
-            const [membersData, coachesData, poolsData] = await Promise.all([
+            const [membersData, coachesData, poolsData, eventsData, absencesData] = await Promise.all([
               api.getMembers(),
               api.getCoaches(),
-              api.getSwimmingPools()
+              api.getSwimmingPools(),
+              api.getEvents(),
+              api.getCoachAbsences()
             ]);
             setMembers(membersData || []);
             setCoaches(coachesData || []);
             setSwimmingPools(poolsData || []);
+            setEvents(eventsData || []);
+            setAbsences(absencesData || []);
             break;
           }
         }
