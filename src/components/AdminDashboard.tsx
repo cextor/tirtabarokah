@@ -349,6 +349,81 @@ export default function AdminDashboard({
   const [editCoachReferralCode, setEditCoachReferralCode] = useState<string>('');
   const [previewCertUrl, setPreviewCertUrl] = useState<string | null>(null);
 
+  // PRICING PACKAGES STATES & HANDLERS FOR PAKET_HARGA TAB
+  const [editingPricing, setEditingPricing] = useState<PricingPackage | null>(null);
+  const [isAddingPricing, setIsAddingPricing] = useState(false);
+  const [pricingForm, setPricingForm] = useState<PricingPackage>({
+    id: '',
+    category: 'REGULER',
+    name: '',
+    price: 0,
+    sessions: 5,
+    active_period: '',
+    description: '',
+    coachIds: []
+  });
+
+  const handleDeletePricing = (id: string) => {
+    Swal.fire({
+      title: 'Apakah Anda yakin?',
+      text: 'Ingin menghapus paket harga ini?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await api.deletePricingPackage(id);
+          if (onReloadData) onReloadData('paket_harga');
+          Swal.fire({
+            title: 'Terhapus!',
+            text: 'Paket harga berhasil dihapus!',
+            icon: 'success',
+            confirmButtonColor: '#06b6d4'
+          });
+        } catch (e) {
+          Swal.fire({
+            title: 'Gagal!',
+            text: 'Gagal menghapus paket: ' + e,
+            icon: 'error',
+            confirmButtonColor: '#06b6d4'
+          });
+        }
+      }
+    });
+  };
+
+  const handleSavePricing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (isAddingPricing) {
+        const newPkg = { ...pricingForm, id: 'pricing-' + Date.now() };
+        await api.addPricingPackage(newPkg);
+      } else {
+        await api.updatePricingPackage(pricingForm);
+      }
+      setIsAddingPricing(false);
+      setEditingPricing(null);
+      if (onReloadData) onReloadData('paket_harga');
+      Swal.fire({
+        title: 'Berhasil!',
+        text: 'Paket harga berhasil disimpan!',
+        icon: 'success',
+        confirmButtonColor: '#06b6d4'
+      });
+    } catch (e) {
+      Swal.fire({
+        title: 'Gagal!',
+        text: 'Gagal menyimpan paket: ' + e,
+        icon: 'error',
+        confirmButtonColor: '#06b6d4'
+      });
+    }
+  };
+
   // FILTERS FOR PARTICIPANTS
   const [pesertaFilter, setPesertaFilter] = useState<'semua' | 'aktif' | 'hampir-habis' | 'menunggu-verifikasi'>('semua');
   const [searchPeserta, setSearchPeserta] = useState<string>('');
