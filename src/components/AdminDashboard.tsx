@@ -1270,7 +1270,7 @@ export default function AdminDashboard({
       ...targetCoach,
       schedule: baseSchedule.map(d => {
         if (d.day === dayName) {
-          if (d.timeSlots.find(ts => ts.time === timeStr)) return d;
+          if (d.timeSlots.some(ts => ts.time.trim() === timeStr.trim())) return d;
           return {
             ...d,
             timeSlots: [...d.timeSlots, { 
@@ -1286,9 +1286,19 @@ export default function AdminDashboard({
       })
     };
 
+    // Optimistic UI update so slot appears INSTANTLY on screen!
+    if (onUpdateCoaches) {
+      onUpdateCoaches(coaches.map(c => c.id === coachId ? updatedCoach : c));
+    }
+
     try {
       if (onUpdateCoach) {
-        await onUpdateCoach(updatedCoach);
+        const res = await onUpdateCoach(updatedCoach);
+        if (res && res.success === false) {
+          Swal.fire('Gagal', res.message || 'Gagal menambahkan slot jadwal.', 'error');
+          if (onReloadData) await onReloadData('pelatih');
+          return;
+        }
       } else {
         await api.updateCoach(updatedCoach);
         if (onReloadData) await onReloadData('pelatih');
@@ -1302,6 +1312,7 @@ export default function AdminDashboard({
     } catch (err: any) {
       console.error("Gagal menambahkan slot jadwal:", err);
       Swal.fire('Gagal', 'Terjadi kesalahan saat menambahkan slot jadwal.', 'error');
+      if (onReloadData) await onReloadData('pelatih');
     }
   };
 

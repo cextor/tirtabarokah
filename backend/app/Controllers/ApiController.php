@@ -350,15 +350,20 @@ class ApiController extends BaseController
             foreach ($json->schedule as $dayGroup) {
                 $dayName = $dayGroup->day;
                 if (isset($dayGroup->timeSlots) && is_array($dayGroup->timeSlots)) {
-                    foreach ($dayGroup->timeSlots as $slot) {
+                        $poolId = null;
+                        if (isset($slot->swimmingPoolId) && !empty($slot->swimmingPoolId)) {
+                            $poolId = $slot->swimmingPoolId;
+                        } elseif (isset($slot->swimming_pool_id) && !empty($slot->swimming_pool_id)) {
+                            $poolId = $slot->swimming_pool_id;
+                        }
+
                         $this->db->table('coach_schedules')->insert([
                             'coach_id' => $id,
                             'day' => $dayName,
                             'time' => $slot->time,
                             'max_slots' => isset($slot->maxSlots) ? (int)$slot->maxSlots : 6,
-                            'swimming_pool_id' => $slot->swimmingPoolId ?? null
+                            'swimming_pool_id' => $poolId
                         ]);
-                    }
                 }
             }
         }
