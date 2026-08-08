@@ -255,6 +255,9 @@ export default function App() {
     setLoggedCoachId('');
     setHasInitialLoaded(false);
 
+    lastFetchRef.current = null;
+    pendingPromiseRef.current = null;
+
     if (roleBeforeLogout === 'admin' || roleBeforeLogout === 'operator') {
       navigateTo('/belakang');
     } else if (roleBeforeLogout === 'coach') {
@@ -471,26 +474,30 @@ export default function App() {
             break;
           }
           case 'public': {
-            const fetchFns: (() => Promise<any>)[] = [
-              () => api.getCoaches(),
-              () => api.getEvents(),
-              () => api.getSettings(),
-              () => api.getLevels(),
-              () => api.getPricingPackages(),
-              () => api.getSwimmingPools()
-            ];
-            const results: any[] = [];
-            for (const fn of fetchFns) {
-              results.push(await fn());
+            const [coachesRes, eventsRes, settingsRes, levelsRes, packagesRes, poolsRes] = await Promise.allSettled([
+              api.getCoaches(),
+              api.getEvents(),
+              api.getSettings(),
+              api.getLevels(),
+              api.getPricingPackages(),
+              api.getSwimmingPools()
+            ]);
+
+            const coachesData = coachesRes.status === 'fulfilled' ? coachesRes.value : [];
+            const eventsData = eventsRes.status === 'fulfilled' ? eventsRes.value : [];
+            const settingsData = settingsRes.status === 'fulfilled' ? settingsRes.value : null;
+            const levelsData = levelsRes.status === 'fulfilled' ? levelsRes.value : [];
+            const packagesData = packagesRes.status === 'fulfilled' ? packagesRes.value : [];
+            const poolsData = poolsRes.status === 'fulfilled' ? poolsRes.value : [];
+
+            setCoaches(Array.isArray(coachesData) ? coachesData : []);
+            setEvents(Array.isArray(eventsData) ? eventsData : []);
+            if (settingsData && settingsData.status === 'success') {
+              setSettings(settingsData.settings);
             }
-            setCoaches(results[0] || []);
-            setEvents(results[1] || []);
-            if (results[2] && results[2].status === 'success') {
-              setSettings(results[2].settings);
-            }
-            setLevels(results[3] || []);
-            setPricingPackages(results[4] || []);
-            setSwimmingPools(results[5] || []);
+            setLevels(Array.isArray(levelsData) ? levelsData : []);
+            setPricingPackages(Array.isArray(packagesData) ? packagesData : []);
+            setSwimmingPools(Array.isArray(poolsData) ? poolsData : []);
             setMembers([]);
             setAbsences([]);
             setAuditLogs([]);
