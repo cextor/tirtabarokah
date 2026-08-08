@@ -142,14 +142,14 @@ const calculateAge = (dobString: string): number => {
 };
 
 export default function AdminDashboard({ 
-  coaches, 
-  members, 
-  events,
-  settings,
-  levels,
-  absences,
-  pricingPackages,
-  auditLogs,
+  coaches = [], 
+  members = [], 
+  events = [],
+  settings = {},
+  levels = [],
+  absences = [],
+  pricingPackages = [],
+  auditLogs = [],
   eventCategories = [],
   swimmingPools = [],
   userRole = 'admin',
@@ -5803,13 +5803,13 @@ export default function AdminDashboard({
             </div>
 
             {/* Pricing packages list */}
-            {pricingPackages.length === 0 ? (
+            {(pricingPackages || []).length === 0 ? (
               <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
                 Belum ada paket harga yang dibuat. Klik tombol di atas untuk menambahkan paket harga pertama.
               </div>
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {pricingPackages.map((pkg) => (
+                {(pricingPackages || []).map((pkg) => (
                   <div key={pkg.id} className="bg-white border border-slate-200/80 p-5 rounded-2xl flex flex-col justify-between hover:border-violet-300 hover:shadow-md transition">
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
@@ -5823,7 +5823,7 @@ export default function AdminDashboard({
                         <span className="text-[10px] text-slate-400 font-bold">{pkg.active_period}</span>
                       </div>
                       <h4 className="font-extrabold text-slate-800 text-base">{pkg.name}</h4>
-                      <p className="font-mono text-xl font-black text-violet-700">Rp {pkg.price.toLocaleString('id-ID')}</p>
+                      <p className="font-mono text-xl font-black text-violet-700">Rp {(Number(pkg.price) || 0).toLocaleString('id-ID')}</p>
                       <div className="space-y-1.5 text-slate-600 text-xs leading-relaxed border-t border-slate-100 pt-3">
                         <p>• <strong>{pkg.sessions}x</strong> Pertemuan Latihan</p>
                         {pkg.description && <p>• {pkg.description}</p>}
