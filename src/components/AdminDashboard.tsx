@@ -1167,52 +1167,53 @@ export default function AdminDashboard({
   };
 
   // ACTION: ADD TIME SLOT TO SCHEDULE
-  const handleAddScheduleSlot = (coachId: string, dayName: string, timeStr: string, poolId?: string) => {
-    const updated = coaches.map(c => {
-      if (c.id === coachId) {
-        const dayExists = c.schedule.some(d => d.day === dayName);
-        let baseSchedule = [...c.schedule];
-        if (!dayExists) {
-          baseSchedule.push({ day: dayName, timeSlots: [] });
-        }
+  const handleAddScheduleSlot = async (coachId: string, dayName: string, timeStr: string, poolId?: string) => {
+    const targetCoach = coaches.find(c => c.id === coachId);
+    if (!targetCoach) return;
 
-        return {
-          ...c,
-          schedule: baseSchedule.map(d => {
-            if (d.day === dayName) {
-              if (d.timeSlots.find(ts => ts.time === timeStr)) return d;
-              return {
-                ...d,
-                timeSlots: [...d.timeSlots, { 
-                  time: timeStr, 
-                  maxSlots: c.maxQuota || 6, 
-                  currentSlots: 0, 
-                  students: [],
-                  swimmingPoolId: poolId || undefined 
-                }].sort((a, b) => a.time.localeCompare(b.time))
-              };
-            }
-            return d;
-          })
-        };
-      }
-      return c;
-    });
-
-    const targetCoach = updated.find(c => c.id === coachId);
-    if (targetCoach) {
-      api.updateCoach(targetCoach).then(() => {
-        onReloadData();
-      });
+    const dayExists = targetCoach.schedule.some(d => d.day === dayName);
+    let baseSchedule = [...targetCoach.schedule];
+    if (!dayExists) {
+      baseSchedule.push({ day: dayName, timeSlots: [] });
     }
 
-    onUpdateCoaches(updated);
-    Swal.fire({
-      title: 'Berhasil!',
-      text: `Slot waktu ${timeStr} ditambahkan pada hari ${dayName}.`,
-      icon: 'success',
-      confirmButtonColor: '#06b6d4'
-    });
+    const updatedCoach = {
+      ...targetCoach,
+      schedule: baseSchedule.map(d => {
+        if (d.day === dayName) {
+          if (d.timeSlots.find(ts => ts.time === timeStr)) return d;
+          return {
+            ...d,
+            timeSlots: [...d.timeSlots, { 
+              time: timeStr, 
+              maxSlots: targetCoach.maxQuota || 6, 
+              currentSlots: 0, 
+              students: [],
+              swimmingPoolId: poolId || undefined 
+            }].sort((a, b) => a.time.localeCompare(b.time))
+          };
+        }
+        return d;
+      })
+    };
+
+    try {
+      if (onUpdateCoach) {
+        await onUpdateCoach(updatedCoach);
+      } else {
+        await api.updateCoach(updatedCoach);
+        if (onReloadData) await onReloadData('pelatih');
+      }
+      Swal.fire({
+        title: 'Berhasil!',
+        text: `Slot waktu ${timeStr} ditambahkan pada hari ${dayName}.`,
+        icon: 'success',
+        confirmButtonColor: '#06b6d4'
+      });
+    } catch (err: any) {
+      console.error("Gagal menambahkan slot jadwal:", err);
+      Swal.fire('Gagal', 'Terjadi kesalahan saat menambahkan slot jadwal.', 'error');
+    }
   };
 
   // MASTER KOLAM RENANG HANDLERS
@@ -1347,35 +1348,43 @@ export default function AdminDashboard({
   };
 
   // ACTION: UPDATE TIME SLOT MAX SLOTS
-  const handleUpdateScheduleSlotMax = (coachId: string, dayName: string, timeStr: string, newMax: number) => {
-    const updated = coaches.map(c => {
-      if (c.id === coachId) {
-        return {
-          ...c,
-          schedule: c.schedule.map(d => {
-            if (d.day === dayName) {
-              return {
-                ...d,
-                timeSlots: d.timeSlots.map(ts => {
-                  if (ts.time === timeStr) {
-                    return { ...ts, maxSlots: newMax };
-                  }
-                  return ts;
-                })
-              };
-            }
-            return d;
-          })
-        };
+  const handleUpdateScheduleSlotMax = async (coachId: string, dayName: string, timeStr: string, newMax: number) => {
+    const targetCoach = coaches.find(c => c.id === coachId);
+    if (!targetCoach) return;
+
+    const updatedCoach = {
+      ...targetCoach,
+      schedule: targetCoach.schedule.map(d => {
+        if (d.day === dayName) {
+          return {
+            ...d,
+            timeSlots: d.timeSlots.map(ts => {
+              if (ts.time === timeStr) {
+                return { ...ts, maxSlots: newMax };
+              }
+              return ts;
+            })
+          };
+        }
+        return d;
+      })
+    };
+
+    try {
+      if (onUpdateCoach) {
+        await onUpdateCoach(updatedCoach);
+      } else {
+        await api.updateCoach(updatedCoach);
+        if (onReloadData) onReloadData('pelatih');
       }
-      return c;
-    });
-    onUpdateCoaches(updated);
+    } catch (err) {
+      console.error("Failed to update schedule slot max:", err);
+    }
   };
 
   // ACTION: REMOVE SLOT
-  const handleRemoveScheduleSlot = (coachId: string, dayName: string, timeStr: string) => {
-    Swal.fire({
+  const handleRemoveScheduleSlot = async (coachId: string, dayName: string, timeStr: string) => {
+    const result = await Swal.fire({
       title: 'Apakah Anda yakin?',
       text: `Apakah Anda yakin ingin menghapus slot waktu ${timeStr} pada hari ${dayName}?`,
       icon: 'warning',
@@ -1384,34 +1393,48 @@ export default function AdminDashboard({
       cancelButtonColor: '#64748b',
       confirmButtonText: 'Ya, Hapus!',
       cancelButtonText: 'Batal'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        const updated = coaches.map(c => {
-          if (c.id === coachId) {
+    });
+
+    if (result.isConfirmed) {
+      const targetCoach = coaches.find(c => c.id === coachId);
+      if (!targetCoach) return;
+
+      const updatedCoach = {
+        ...targetCoach,
+        schedule: targetCoach.schedule.map(d => {
+          if (d.day === dayName) {
             return {
-              ...c,
-              schedule: c.schedule.map(d => {
-                if (d.day === dayName) {
-                  return {
-                    ...d,
-                    timeSlots: d.timeSlots.filter(ts => ts.time !== timeStr)
-                  };
-                }
-                return d;
-              })
+              ...d,
+              timeSlots: d.timeSlots.filter(ts => ts.time !== timeStr)
             };
           }
-          return c;
-        });
-        onUpdateCoaches(updated);
+          return d;
+        })
+      };
+
+      try {
+        if (onUpdateCoach) {
+          const res = await onUpdateCoach(updatedCoach);
+          if (res && res.success === false) {
+            Swal.fire('Gagal', res.message || 'Gagal menghapus slot jadwal.', 'error');
+            return;
+          }
+        } else {
+          await api.updateCoach(updatedCoach);
+          if (onReloadData) await onReloadData('pelatih');
+        }
+
         Swal.fire({
           title: 'Terhapus!',
           text: 'Slot jadwal berhasil dihapus.',
           icon: 'success',
           confirmButtonColor: '#06b6d4'
         });
+      } catch (err: any) {
+        console.error("Gagal menghapus slot jadwal:", err);
+        Swal.fire('Gagal', 'Terjadi kesalahan saat menghapus slot jadwal: ' + (err.message || err), 'error');
       }
-    });
+    }
   };
 
   // ACTION: MANAGE EVENTS (ADD/EDIT/DELETE)

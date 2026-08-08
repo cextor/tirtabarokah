@@ -11,6 +11,7 @@ import MainPortal from './components/MainPortal';
 import AdminDashboard from './components/AdminDashboard';
 import CoachDashboard from './components/CoachDashboard';
 import ParentDashboard from './components/ParentDashboard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   Users, Shield, Award, UserCheck, RefreshCw,
   MapPin, Clock, Compass, BookOpen, Volume2, ShieldAlert, Menu, X,
@@ -488,18 +489,20 @@ export default function App() {
           }
           case 'dashboard':
           default: {
-            const [membersData, coachesData, poolsData, eventsData, absencesData] = await Promise.all([
+            const [membersData, coachesData, poolsData, eventsData, absencesData, packagesData] = await Promise.all([
               api.getMembers(),
               api.getCoaches(),
               api.getSwimmingPools(),
               api.getEvents(),
-              api.getCoachAbsences()
+              api.getCoachAbsences(),
+              api.getPricingPackages()
             ]);
             setMembers(membersData || []);
             setCoaches(coachesData || []);
             setSwimmingPools(poolsData || []);
             setEvents(eventsData || []);
             setAbsences(absencesData || []);
+            setPricingPackages(packagesData || []);
             break;
           }
         }
@@ -1212,43 +1215,49 @@ export default function App() {
                 navigateTo={navigateTo}
               />
             ) : activeRole === 'admin' ? (
-              <AdminDashboard
-                coaches={coaches}
-                members={members}
-                events={events}
-                settings={settings}
-                levels={levels}
-                absences={absences}
-                pricingPackages={pricingPackages}
-                auditLogs={auditLogs}
-                eventCategories={eventCategories}
-                swimmingPools={swimmingPools}
-                userRole={localStorage.getItem('user_role') || 'admin'}
-                onReloadData={loadTabData}
-                onUpdateSettings={handleUpdateSettings}
-                onUpdateLevels={handleUpdateLevels}
-                onUpdateCoaches={updateCoachesState}
-                onAddCoach={handleAddCoach}
-                onUpdateCoach={handleUpdateCoach}
-                onDeleteCoach={handleDeleteCoach}
-                onUpdateMembers={updateMembersState}
-                onUpdateEvents={updateEventsState}
-              />
+              <ErrorBoundary fallbackTitle="Terjadi Kendala Memuat Dashboard Admin">
+                <AdminDashboard
+                  coaches={coaches}
+                  members={members}
+                  events={events}
+                  settings={settings}
+                  levels={levels}
+                  absences={absences}
+                  pricingPackages={pricingPackages}
+                  auditLogs={auditLogs}
+                  eventCategories={eventCategories}
+                  swimmingPools={swimmingPools}
+                  userRole={localStorage.getItem('user_role') || 'admin'}
+                  onReloadData={loadTabData}
+                  onUpdateSettings={handleUpdateSettings}
+                  onUpdateLevels={handleUpdateLevels}
+                  onUpdateCoaches={updateCoachesState}
+                  onAddCoach={handleAddCoach}
+                  onUpdateCoach={handleUpdateCoach}
+                  onDeleteCoach={handleDeleteCoach}
+                  onUpdateMembers={updateMembersState}
+                  onUpdateEvents={updateEventsState}
+                />
+              </ErrorBoundary>
             ) : activeRole === 'coach' ? (
-              <CoachDashboard
-                coaches={coaches}
-                members={members}
-                absences={absences}
-                onReloadData={loadTabData}
-                onUpdateMembers={updateMembersState}
-                loggedCoachId={loggedCoachId}
-              />
+              <ErrorBoundary fallbackTitle="Terjadi Kendala Memuat Portal Pelatih">
+                <CoachDashboard
+                  coaches={coaches}
+                  members={members}
+                  absences={absences}
+                  onReloadData={loadTabData}
+                  onUpdateMembers={updateMembersState}
+                  loggedCoachId={loggedCoachId}
+                />
+              </ErrorBoundary>
             ) : (
-              <ParentDashboard
-                coaches={coaches}
-                members={members}
-                onUpdateMembers={updateMembersState}
-              />
+              <ErrorBoundary fallbackTitle="Terjadi Kendala Memuat Portal Orang Tua">
+                <ParentDashboard
+                  coaches={coaches}
+                  members={members}
+                  onUpdateMembers={updateMembersState}
+                />
+              </ErrorBoundary>
             )
           )}
         </div>
