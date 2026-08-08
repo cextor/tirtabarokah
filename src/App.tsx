@@ -1254,101 +1254,103 @@ export default function App() {
         </div>
       </main>
 
-      {/* Footer information section */}
-      <footer className="bg-slate-900 text-slate-300 pt-12 pb-6 border-t border-slate-800 text-xs mt-16">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-10">
-          
-          {/* Main Location & Contact Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {/* Footer information section (Only for Public / Parent View) */}
+      {activeRole === 'parent' && (
+        <footer className="bg-slate-900 text-slate-300 pt-12 pb-6 border-t border-slate-800 text-xs mt-16">
+          <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-10">
             
-            {/* Left: Brand info & Contact details */}
-            <div className="lg:col-span-5 space-y-5">
-              <div className="flex items-center gap-3">
-                <img src="/images/logo.png" alt="Tirta Barokah Logo" className="h-10 w-auto object-contain brightness-110" />
-                <div>
-                  <h3 className="font-extrabold text-white text-base tracking-wide uppercase">Private Renang Tirta Barokah</h3>
-                  <p className="text-[11px] text-cyan-400 font-bold">Palembang, Sumatera Selatan</p>
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Lembaga pelatihan les renang privat profesional di Palembang untuk anak-anak hingga dewasa dengan metode pelatihan yang ramah, aman, dan teruji.
-              </p>
-
-              <div className="space-y-3 pt-2 text-xs">
-                <div className="flex items-start gap-3 bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
-                  <MapPin className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+            {/* Main Location & Contact Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              
+              {/* Left: Brand info & Contact details */}
+              <div className="lg:col-span-5 space-y-5">
+                <div className="flex items-center gap-3">
+                  <img src="/images/logo.png" alt="Tirta Barokah Logo" className="h-10 w-auto object-contain brightness-110" />
                   <div>
-                    <span className="font-bold text-white block mb-0.5">Alamat Kolam / Lokasi:</span>
-                    <p className="text-slate-300 leading-normal">
-                      Kompleks grand garden, Bukit Sangkal, Kec. Kalidoni, Kota Palembang, Sumatera Selatan 30163
-                    </p>
+                    <h3 className="font-extrabold text-white text-base tracking-wide uppercase">Private Renang Tirta Barokah</h3>
+                    <p className="text-[11px] text-cyan-400 font-bold">Palembang, Sumatera Selatan</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
-                  <Phone className="w-5 h-5 text-emerald-400 shrink-0" />
-                  <div className="flex-1">
-                    <span className="font-bold text-white block mb-0.5">No HP / WhatsApp:</span>
-                    <a
-                      href="https://wa.me/6282137161188"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-emerald-400 font-bold hover:underline inline-flex items-center gap-1"
-                    >
-                      0821-3716-1188
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Lembaga pelatihan les renang privat profesional di Palembang untuk anak-anak hingga dewasa dengan metode pelatihan yang ramah, aman, dan teruji.
+                </p>
+
+                <div className="space-y-3 pt-2 text-xs">
+                  <div className="flex items-start gap-3 bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
+                    <MapPin className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-white block mb-0.5">Alamat Kolam / Lokasi:</span>
+                      <p className="text-slate-300 leading-normal">
+                        Kompleks grand garden, Bukit Sangkal, Kec. Kalidoni, Kota Palembang, Sumatera Selatan 30163
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
+                    <Phone className="w-5 h-5 text-emerald-400 shrink-0" />
+                    <div className="flex-1">
+                      <span className="font-bold text-white block mb-0.5">No HP / WhatsApp:</span>
+                      <a
+                        href="https://wa.me/6282137161188"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-400 font-bold hover:underline inline-flex items-center gap-1"
+                      >
+                        0821-3716-1188
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {/* Right: Interactive Google Maps Embed */}
+              <div className="lg:col-span-7 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-extrabold text-white text-xs uppercase tracking-wider flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-cyan-400" /> Peta Lokasi Google Maps
+                  </h4>
+                  <a
+                    href="https://www.google.com/maps/place/Privat+Renang+Tirta+Barokah+Palembang/@-2.945846,104.7868604,17z/data=!4m6!3m5!1s0x2e3b770d40744b59:0x53f9800cee282555!8m2!3d-2.9458411!4d104.7868668!16s%2Fg%2F11l2lj4bt_?hl=en&entry=ttu&g_ep=EgoyMDI2MDgwMi4wIKXMDSoASAFQAw%3D%3D"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1 bg-cyan-950/60 border border-cyan-800/60 px-3 py-1 rounded-xl transition"
+                  >
+                    Buka Aplikasi Maps <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                <div className="w-full h-64 md:h-72 rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl bg-slate-800 relative">
+                  <iframe
+                    title="Lokasi Privat Renang Tirta Barokah Palembang"
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3984.4485579979774!2d104.7868668!3d-2.9458411!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e3b770d40744b59%3A0x53f9800cee282555!2sPrivat%20Renang%20Tirta%20Barokah%20Palembang!5e0!3m2!1sid!2sid!4v1710000000000!5m2!1sid!2sid"
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    allowFullScreen={true}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    className="w-full h-full"
+                  ></iframe>
+                </div>
+              </div>
+
             </div>
 
-            {/* Right: Interactive Google Maps Embed */}
-            <div className="lg:col-span-7 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-extrabold text-white text-xs uppercase tracking-wider flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-cyan-400" /> Peta Lokasi Google Maps
-                </h4>
-                <a
-                  href="https://www.google.com/maps/place/Privat+Renang+Tirta+Barokah+Palembang/@-2.945846,104.7868604,17z/data=!4m6!3m5!1s0x2e3b770d40744b59:0x53f9800cee282555!8m2!3d-2.9458411!4d104.7868668!16s%2Fg%2F11l2lj4bt_?hl=en&entry=ttu&g_ep=EgoyMDI2MDgwMi4wIKXMDSoASAFQAw%3D%3D"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1 bg-cyan-950/60 border border-cyan-800/60 px-3 py-1 rounded-xl transition"
-                >
-                  Buka Aplikasi Maps <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-
-              <div className="w-full h-64 md:h-72 rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl bg-slate-800 relative">
-                <iframe
-                  title="Lokasi Privat Renang Tirta Barokah Palembang"
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3984.4485579979774!2d104.7868668!3d-2.9458411!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e3b770d40744b59%3A0x53f9800cee282555!2sPrivat%20Renang%20Tirta%20Barokah%20Palembang!5e0!3m2!1sid!2sid!4v1710000000000!5m2!1sid!2sid"
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  allowFullScreen={true}
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  className="w-full h-full"
-                ></iframe>
-              </div>
+            {/* Bottom Copyright */}
+            <div className="border-t border-slate-800/80 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-center">
+              <p className="text-[11px] text-slate-400 font-medium">
+                © 2026 Tirta Barokah Academy. Semua Hak Dilindungi Undang-Undang.
+              </p>
+              <p className="text-[10px] text-slate-500 font-mono">
+                Kompleks Grand Garden, Bukit Sangkal, Kec. Kalidoni, Kota Palembang
+              </p>
             </div>
 
           </div>
-
-          {/* Bottom Copyright */}
-          <div className="border-t border-slate-800/80 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-center">
-            <p className="text-[11px] text-slate-400 font-medium">
-              © 2026 Tirta Barokah Academy. Semua Hak Dilindungi Undang-Undang.
-            </p>
-            <p className="text-[10px] text-slate-500 font-mono">
-              Kompleks Grand Garden, Bukit Sangkal, Kec. Kalidoni, Kota Palembang
-            </p>
-          </div>
-
-        </div>
-      </footer>
+        </footer>
+      )}
 
       {/* User Profile Card Modal */}
       {showProfileCardModal && (() => {
