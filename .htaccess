@@ -4,6 +4,12 @@ DirectoryIndex dist/index.html
     RewriteEngine On
     RewriteBase /
 
+    # Ensure Authorization and X-Client-Key headers are passed along in CGI/FastCGI
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    RewriteCond %{HTTP:X-Client-Key} .
+    RewriteRule .* - [E=HTTP_X_CLIENT_KEY:%{HTTP:X-Client-Key}]
+
     # 1. Route API requests to backend/public/index.php
     RewriteRule ^api(/.*)?$ backend/public/index.php [QSA,L]
 

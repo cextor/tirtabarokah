@@ -42,7 +42,12 @@ class ApiAuthFilter implements FilterInterface
             'api/debug/log'
         ];
 
-        // 1. Enforce Client Key for ALL API requests
+        // If it's a public endpoint, allow access so landing page content is always served
+        if (in_array($path, $publicEndpoints)) {
+            return;
+        }
+
+        // 1. Enforce Client Key for protected API requests
         $clientHeader = $request->header('X-Client-Key') ?? $request->header('x-client-key');
         $clientKey = $clientHeader ? trim($clientHeader->getValue()) : '';
         if (!$clientKey) {
@@ -54,6 +59,15 @@ class ApiAuthFilter implements FilterInterface
         if (!$clientKey && isset($_SERVER['HTTP_X_CLIENT_KEY'])) {
             $clientKey = trim($_SERVER['HTTP_X_CLIENT_KEY']);
         }
+        if (!$clientKey && function_exists('getallheaders')) {
+            $headers = getallheaders();
+            foreach ($headers as $name => $value) {
+                if (strcasecmp($name, 'X-Client-Key') === 0) {
+                    $clientKey = trim($value);
+                    break;
+                }
+            }
+        }
 
         $expectedClientKey = 'TirtaBarokahClientSecret2026';
 
@@ -64,11 +78,6 @@ class ApiAuthFilter implements FilterInterface
                 'status' => 'error',
                 'message' => 'Akses ditolak: Klien tidak sah.'
             ]);
-        }
-
-        // If it's a public endpoint, client key check is sufficient
-        if (in_array($path, $publicEndpoints)) {
-            return;
         }
 
         // 2. Enforce User Authorization Token for protected endpoints

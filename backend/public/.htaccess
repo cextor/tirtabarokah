@@ -52,9 +52,11 @@ Options -Indexes
 	RewriteCond %{REQUEST_FILENAME} !-d
 	RewriteRule ^([\s\S]*)$ index.php/$1 [L,NC,QSA]
 
-	# Ensure Authorization header is passed along
+	# Ensure Authorization and X-Client-Key headers are passed along in CGI/FastCGI
 	RewriteCond %{HTTP:Authorization} .
 	RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+	RewriteCond %{HTTP:X-Client-Key} .
+	RewriteRule .* - [E=HTTP_X_CLIENT_KEY:%{HTTP:X-Client-Key}]
 </IfModule>
 
 <IfModule !mod_rewrite.c>
