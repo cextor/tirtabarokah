@@ -389,7 +389,7 @@ export default function MainPortal({
             </p>
             <div className="flex flex-wrap gap-3 pt-1">
               <button
-                onClick={scrollToRegister}
+                onClick={() => scrollToRegister()}
                 className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs transition flex items-center gap-2 shadow-lg shadow-cyan-500/20 cursor-pointer"
               >
                 Daftar Jadi Member <ArrowRight className="w-4 h-4" />

@@ -168,7 +168,7 @@ export default function AdminDashboard({
   const isOperator = userRole === 'operator';
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'verifikasi' | 'peserta' | 'pelatih' | 'laporan_coachs' | 'reminder' | 'events' | 'laporan' | 'pengaturan' | 'absensi_coach' | 'referral' | 'jadwal_hari_ini' | 'audit_logs' | 'kolam_renang' | 'paket_harga'>(() => {
-    return userRole === 'operator' ? 'verifikasi' : 'dashboard';
+    return 'dashboard';
   });
 
   const [reminderSubTab, setReminderSubTab] = useState<'today' | 'tomorrow'>('today');
@@ -253,9 +253,9 @@ export default function AdminDashboard({
 
   useEffect(() => {
     if (userRole === 'operator') {
-      const allowedOperatorTabs = ['verifikasi', 'peserta', 'pelatih', 'absensi_coach', 'reminder', 'events', 'kolam_renang'];
+      const allowedOperatorTabs = ['dashboard', 'verifikasi', 'peserta', 'pelatih', 'absensi_coach', 'reminder', 'events', 'kolam_renang', 'jadwal_hari_ini'];
       if (!allowedOperatorTabs.includes(activeTab)) {
-        setActiveTab('verifikasi');
+        setActiveTab('dashboard');
       }
     }
   }, [userRole, activeTab]);
@@ -1869,28 +1869,26 @@ export default function AdminDashboard({
 
           {/* Menu Items */}
           <nav className="space-y-0.5">
-            {/* 1. Dashboard (Admin Only) */}
-            {!isOperator && (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('dashboard');
-                  setIsMobileSidebarOpen(false);
-                }}
-                className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
-                  activeTab === 'dashboard'
-                    ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
-                  <div className={`p-1 rounded-lg shrink-0 transition-colors ${activeTab === 'dashboard' ? 'bg-white/15 text-white' : 'text-cyan-600 bg-cyan-50'}`}>
-                    <LayoutDashboard className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="truncate text-xs leading-tight">Dashboard</span>
+            {/* 1. Dashboard */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('dashboard');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-between group cursor-pointer text-left ${
+                activeTab === 'dashboard'
+                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/10 font-black'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
+                <div className={`p-1 rounded-lg shrink-0 transition-colors ${activeTab === 'dashboard' ? 'bg-white/15 text-white' : 'text-cyan-600 bg-cyan-50'}`}>
+                  <LayoutDashboard className="w-3.5 h-3.5" />
                 </div>
-              </button>
-            )}
+                <span className="truncate text-xs leading-tight">Dashboard</span>
+              </div>
+            </button>
 
             {/* 2. Verifikasi Pembayaran */}
             <button
@@ -2227,7 +2225,7 @@ export default function AdminDashboard({
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         
         {/* TAB 0: DASHBOARD */}
-        {!isOperator && activeTab === 'dashboard' && (
+        {activeTab === 'dashboard' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4 mb-4">
               <div>
@@ -2311,17 +2309,31 @@ export default function AdminDashboard({
 
             {/* 4 Stats Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-              <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 min-w-0">
-                <div className="p-2 sm:p-3 bg-cyan-50 rounded-xl text-cyan-600 shrink-0">
-                  <DollarSign className="w-4 h-4 sm:w-6 sm:h-6" />
+              {!isOperator ? (
+                <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 min-w-0">
+                  <div className="p-2 sm:p-3 bg-cyan-50 rounded-xl text-cyan-600 shrink-0">
+                    <DollarSign className="w-4 h-4 sm:w-6 sm:h-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Total Pendapatan</p>
+                    <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate" title={`Rp ${totalRevenueFiltered.toLocaleString('id-ID')}`}>
+                      Rp {totalRevenueFiltered.toLocaleString('id-ID')}
+                    </h4>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Total Pendapatan</p>
-                  <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate" title={`Rp ${totalRevenueFiltered.toLocaleString('id-ID')}`}>
-                    Rp {totalRevenueFiltered.toLocaleString('id-ID')}
-                  </h4>
+              ) : (
+                <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer min-w-0" onClick={() => setActiveTab('events')}>
+                  <div className="p-2 sm:p-3 bg-indigo-50 rounded-xl text-indigo-600 shrink-0">
+                    <Calendar className="w-4 h-4 sm:w-6 sm:h-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Total Agenda Event</p>
+                    <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate">
+                      {events.length} Event
+                    </h4>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 min-w-0">
                 <div className="p-2 sm:p-3 bg-emerald-50 rounded-xl text-emerald-600 shrink-0">

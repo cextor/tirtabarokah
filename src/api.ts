@@ -26,7 +26,7 @@ export const API_BASE_URL = (() => {
       }
     }
   }
-  return 'https://api.tirtabarokah.id';
+  return '';
 })();
 
 export function getMediaUrl(url?: string | null): string {
