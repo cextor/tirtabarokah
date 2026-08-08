@@ -171,8 +171,12 @@ export default function App() {
         localStorage.setItem('user_name', res.user.name);
         localStorage.setItem('logged_user_id', res.user.id);
 
+        lastFetchRef.current = null;
+        pendingPromiseRef.current = null;
+
         setIsAdminLoggedIn(true);
         setAdminLoginError(null);
+        await loadTabData('dashboard');
       } else {
         setAdminLoginError('Username atau password Admin salah!');
       }
@@ -211,9 +215,13 @@ export default function App() {
         localStorage.setItem('user_name', res.user.name);
         localStorage.setItem('logged_user_id', res.user.id);
 
+        lastFetchRef.current = null;
+        pendingPromiseRef.current = null;
+
         setIsCoachLoggedIn(true);
         setLoggedCoachId(res.user.id);
         setCoachLoginError(null);
+        await loadTabData('students');
       } else {
         setCoachLoginError('Username atau password Pelatih salah!');
       }
@@ -279,8 +287,6 @@ export default function App() {
       return pendingPromiseRef.current;
     }
 
-    lastFetchRef.current = { tab: tabName, time: now };
-
     const promise = (async () => {
       const token = localStorage.getItem('auth_token');
       const role = localStorage.getItem('user_role');
@@ -293,6 +299,9 @@ export default function App() {
         setIsDataLoading(false);
         return;
       }
+
+      // Record deduplication timestamp ONLY for authorized requests
+      lastFetchRef.current = { tab: tabName, time: Date.now() };
 
       // TAILORED FETCHING FOR COACH ROLE
       if (role === 'coach') {
