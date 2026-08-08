@@ -149,7 +149,7 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
     }
   };
 
-  // ACTION: RECORD ATTENDANCE AND SUBMIT DEVELOPING NOTE
+  // ACTION: RECORD DEVELOPING NOTE FOR STUDENT
   const handleAddProgressRecord = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudentForNote || !newProgressNote) return;
@@ -158,40 +158,19 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
     if (!student) return;
 
     const todayStr = new Date().toISOString().split('T')[0];
-    if (student.progress.some(p => p.date === todayStr)) {
-      Swal.fire({
-        title: 'Presensi Sudah Ada',
-        text: `Siswa ${student.student.fullName} sudah diabsen pada hari ini (${todayStr}). Presensi hanya dapat diisi 1 kali dalam sehari.`,
-        icon: 'warning',
-        confirmButtonColor: '#06b6d4'
-      });
-      return;
-    }
 
     const updated = members.map(m => {
       if (m.id === selectedStudentForNote) {
-        const isHadir = newProgressAttendance === 'Hadir';
-        const newSessionsLeft = isHadir ? Math.max(0, m.sessionsLeft - 1) : m.sessionsLeft;
-        
-        let newStatus = m.status;
-        if (newSessionsLeft === 0) {
-          newStatus = 'Selesai';
-        } else if (newSessionsLeft <= 2) {
-          newStatus = 'Paket Hampir Habis';
-        }
-
         const newRecord: TrainingProgress = {
           id: `prog-${Date.now()}`,
           date: todayStr,
-          attendance: newProgressAttendance,
+          attendance: newProgressAttendance || 'Hadir',
           note: newProgressNote
         };
 
         return {
           ...m,
-          sessionsLeft: newSessionsLeft,
-          status: newStatus,
-          progress: [newRecord, ...m.progress]
+          progress: [newRecord, ...(m.progress || [])]
         };
       }
       return m;
@@ -203,7 +182,7 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
     setSelectedStudentForNote('');
     Swal.fire({
       title: 'Berhasil!',
-      text: 'Catatan perkembangan & presensi berhasil disimpan!',
+      text: 'Catatan perkembangan siswa berhasil disimpan!',
       icon: 'success',
       confirmButtonColor: '#06b6d4'
     });
@@ -610,9 +589,6 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                   <div className="space-y-1">
                     <div className="flex justify-between items-center">
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Catatan Perkembangan Materi & Keterampilan</label>
-                      {newProgressAttendance === 'Hadir' && (
-                        <span className="text-[10px] text-rose-600 font-bold">* Mengurangi sisa paket sebanyak 1 sesi</span>
-                      )}
                     </div>
                     <textarea
                       placeholder="Contoh: Sudah mulai berani meluncur mandiri sejauh 3 meter, gerakan kaki sudah mulai stabil dan konstan..."
@@ -826,104 +802,97 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                         <tr>
                           <th className="px-5 py-3">No</th>
                           <th className="px-5 py-3">Nama Pelatih</th>
-                          <th className="px-5 py-3">Total Mengajar Periode Ini</th>
-                          <th className="px-5 py-3">Tanggal & Hari</th>
+                          <th className="px-5 py-3">Hari & Tanggal</th>
                           <th className="px-5 py-3">Jam Latihan</th>
                           <th className="px-5 py-3">Nama Siswa</th>
+                          <th className="px-5 py-3">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {(() => {
                           const DAYS_INDO = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-                          const dateList: { dateStr: string; dayName: string; displayDate: string }[] = [];
-                          if (laporanStartDate && laporanEndDate) {
-                            let curr = new Date(laporanStartDate + 'T00:00:00');
-                            const end = new Date(laporanEndDate + 'T00:00:00');
-                            while (curr <= end) {
-                              const year = curr.getFullYear();
-                              const month = String(curr.getMonth() + 1).padStart(2, '0');
-                              const dayNum = String(curr.getDate()).padStart(2, '0');
-                              const dateStr = `${year}-${month}-${dayNum}`;
-                              const dayName = DAYS_INDO[curr.getDay()];
-                              const displayDate = `${dayNum}/${month}/${year} (${dayName})`;
-                              dateList.push({ dateStr, dayName, displayDate });
-                              curr.setDate(curr.getDate() + 1);
-                            }
-                          }
+                          const rawRows: {
+                            no: number;
+                            coachName: string;
+                            dayAndDate: string;
+                            scheduleTime: string;
+                            studentName: string;
+                            status: string;
+                            rawDate: string;
+                          }[] = [];
 
                           let count = 0;
-                          let coachTotalSessionsInRange = 0;
-                          const coachRows: any[] = [];
+                          const coachMembers = members.filter(m => m.coachId === currentCoach.id);
 
-                          dateList.forEach(dateObj => {
-                            const dayName = dateObj.dayName;
-                            const displayDate = dateObj.displayDate;
+                          coachMembers.forEach(m => {
+                            if (m.progress && Array.isArray(m.progress) && m.progress.length > 0) {
+                              m.progress.forEach(p => {
+                                if (!p.date) return;
 
-                            const daySched = currentCoach.schedule ? currentCoach.schedule.find(d => d.day === dayName) : null;
-                            const timeSlots = daySched ? daySched.timeSlots || [] : [];
+                                if (laporanStartDate && p.date < laporanStartDate) return;
+                                if (laporanEndDate && p.date > laporanEndDate) return;
 
-                            timeSlots.forEach(slot => {
-                              coachTotalSessionsInRange++;
-                              const time = slot.time;
+                                const d = new Date(p.date + 'T00:00:00');
+                                const dayName = DAYS_INDO[d.getDay()] || 'Senin';
+                                const dateParts = p.date.split('-');
+                                const displayDate = dateParts.length === 3
+                                  ? `${dayName}, ${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`
+                                  : `${dayName}, ${p.date}`;
 
-                              const slotStudents = members.filter(m => 
-                                m.coachId === currentCoach.id &&
-                                m.isActive !== false &&
-                                (m.status === 'Aktif' || m.status === 'Paket Hampir Habis') &&
-                                (
-                                  (m.scheduleDay === dayName && m.scheduleTime === time) ||
-                                  (m.scheduleDay2 === dayName && m.scheduleTime2 === time) ||
-                                  (m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.day === dayName && s.time === time)) ||
-                                  (slot.students && slot.students.includes(m.id))
-                                )
-                              );
+                                let sessionTime = m.scheduleTime || '08.00';
+                                if (m.scheduleDay === dayName && m.scheduleTime) {
+                                  sessionTime = m.scheduleTime;
+                                } else if (m.scheduleDay2 === dayName && m.scheduleTime2) {
+                                  sessionTime = m.scheduleTime2;
+                                } else if (m.schedules && Array.isArray(m.schedules)) {
+                                  const matchedSlot = m.schedules.find((s: any) => s.day === dayName);
+                                  if (matchedSlot && matchedSlot.time) {
+                                    sessionTime = matchedSlot.time;
+                                  }
+                                }
 
-                              if (slotStudents.length > 0) {
-                                slotStudents.forEach(st => {
-                                  count++;
-                                  coachRows.push({
-                                    no: count,
-                                    coachName: currentCoach.name,
-                                    displayDate,
-                                    scheduleTime: time,
-                                    studentName: st.student.fullName
-                                  });
-                                });
-                              } else {
                                 count++;
-                                coachRows.push({
+                                rawRows.push({
                                   no: count,
                                   coachName: currentCoach.name,
-                                  displayDate,
-                                  scheduleTime: time,
-                                  studentName: '- (Kosong)'
+                                  dayAndDate: displayDate,
+                                  scheduleTime: sessionTime,
+                                  studentName: m.student.fullName,
+                                  status: p.attendance || 'Hadir',
+                                  rawDate: p.date
                                 });
-                              }
-                            });
+                              });
+                            }
                           });
 
-                          const totalStr = `${coachTotalSessionsInRange} Sesi`;
+                          rawRows.sort((a, b) => b.rawDate.localeCompare(a.rawDate));
 
-                          if (coachRows.length === 0) {
+                          if (rawRows.length === 0) {
                             return (
                               <tr>
-                                <td colSpan={6} className="text-center py-6 text-slate-400 italic">Belum ada jadwal mengajar rutin pada rentang tanggal ini.</td>
+                                <td colSpan={6} className="text-center py-6 text-slate-400 italic">
+                                  Belum ada presensi mengajar terekam pada rentang tanggal ini.
+                                </td>
                               </tr>
                             );
                           }
 
-                          return coachRows.map((r) => (
-                            <tr key={r.no} className="hover:bg-slate-50/80 transition">
-                              <td className="px-5 py-2.5 font-mono font-bold text-slate-400">{r.no}</td>
+                          return rawRows.map((r, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/80 transition">
+                              <td className="px-5 py-2.5 font-mono font-bold text-slate-400">{idx + 1}</td>
                               <td className="px-5 py-2.5 font-extrabold text-slate-800">{r.coachName}</td>
-                              <td className="px-5 py-2.5 font-bold text-emerald-700">
-                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full text-[11px] font-black">
-                                  {totalStr}
+                              <td className="px-5 py-2.5 font-bold text-slate-700">{r.dayAndDate}</td>
+                              <td className="px-5 py-2.5 font-mono font-bold text-cyan-700">{r.scheduleTime} WIB</td>
+                              <td className="px-5 py-2.5 font-semibold text-slate-800">{r.studentName}</td>
+                              <td className="px-5 py-2.5 font-extrabold">
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] uppercase tracking-wider ${
+                                  r.status === 'Hadir' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                  r.status === 'Izin' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                  'bg-rose-100 text-rose-800 border border-rose-200'
+                                }`}>
+                                  {r.status}
                                 </span>
                               </td>
-                              <td className="px-5 py-2.5 font-bold text-slate-700">{r.displayDate}</td>
-                              <td className="px-5 py-2.5 font-bold text-cyan-700 bg-cyan-50/50 rounded-lg">{r.scheduleTime}</td>
-                              <td className="px-5 py-2.5 font-bold text-slate-700">{r.studentName}</td>
                             </tr>
                           ));
                         })()}

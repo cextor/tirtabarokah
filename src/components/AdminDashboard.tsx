@@ -1216,9 +1216,14 @@ export default function AdminDashboard({
     setEditCoachPackages(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
 
+  const [newSlotStartTime, setNewSlotStartTime] = useState<string>('16:15');
+  const [newSlotEndTime, setNewSlotEndTime] = useState<string>('17:30');
+
   const handleOpenAddSlotModal = (coachId: string, dayName: string) => {
     setAddSlotCoachId(coachId);
     setAddSlotDayName(dayName);
+    setNewSlotStartTime('16:15');
+    setNewSlotEndTime('17:30');
     setNewSlotTime('');
     setAddSlotPoolId(swimmingPools.length > 0 ? swimmingPools[0].id : '');
     setShowAddSlotModal(true);
@@ -1226,7 +1231,17 @@ export default function AdminDashboard({
 
   const handleSaveScheduleSlot = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSlotTime) {
+    let timeStr = newSlotTime.trim();
+
+    if (!timeStr && newSlotStartTime) {
+      if (newSlotEndTime) {
+        timeStr = `${newSlotStartTime} - ${newSlotEndTime}`;
+      } else {
+        timeStr = newSlotStartTime;
+      }
+    }
+
+    if (!timeStr) {
       Swal.fire({
         title: 'Perhatian!',
         text: 'Harap masukkan waktu/jam latihan!',
@@ -1235,9 +1250,8 @@ export default function AdminDashboard({
       });
       return;
     }
-    // Replace colon (:) with dot (.) to match our database and application format
-    const formattedTime = newSlotTime.replace(':', '.');
-    handleAddScheduleSlot(addSlotCoachId, addSlotDayName, formattedTime, addSlotPoolId);
+
+    handleAddScheduleSlot(addSlotCoachId, addSlotDayName, timeStr, addSlotPoolId);
     setShowAddSlotModal(false);
   };
 
@@ -2202,7 +2216,7 @@ export default function AdminDashboard({
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         
         {/* TAB 0: DASHBOARD */}
-        {activeTab === 'dashboard' && (
+        {!isOperator && activeTab === 'dashboard' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4 mb-4">
               <div>
@@ -5540,17 +5554,49 @@ export default function AdminDashboard({
 
                   {/* Modal Body */}
                   <form onSubmit={handleSaveScheduleSlot} className="p-6 space-y-4 text-xs text-slate-700">
-                    <div className="space-y-1.5">
-                      <label className="font-bold text-slate-600">Jam Latihan (WIB) <span className="text-rose-500">*</span></label>
-                      <input
-                        type="time"
-                        value={newSlotTime}
-                        onChange={(e) => setNewSlotTime(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
-                        required
-                        autoFocus
-                      />
-                      <p className="text-[9px] text-slate-400">Pilih jam dan menit menggunakan pemilih waktu.</p>
+                    <div className="space-y-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                      <label className="font-extrabold text-slate-800 block text-xs">Pilih Rentang Jam Latihan (WIB) <span className="text-rose-500">*</span></label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 block">Jam Mulai</label>
+                          <input
+                            type="time"
+                            value={newSlotStartTime}
+                            onChange={(e) => {
+                              setNewSlotStartTime(e.target.value);
+                              setNewSlotTime('');
+                            }}
+                            className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-mono font-bold focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 block">Jam Selesai</label>
+                          <input
+                            type="time"
+                            value={newSlotEndTime}
+                            onChange={(e) => {
+                              setNewSlotEndTime(e.target.value);
+                              setNewSlotTime('');
+                            }}
+                            className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-mono font-bold focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t border-slate-200/60">
+                        <label className="text-[10px] font-bold text-slate-500 block">Atau Format Custom / Teks Manual:</label>
+                        <input
+                          type="text"
+                          placeholder="Contoh: 16:15 - 17:30"
+                          value={newSlotTime}
+                          onChange={(e) => setNewSlotTime(e.target.value)}
+                          className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-mono font-bold text-slate-800 mt-1 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                        />
+                        <p className="text-[9px] text-cyan-700 font-bold mt-1">
+                          Format Disimpan: <span className="bg-white border border-cyan-200 px-1.5 py-0.5 rounded font-extrabold text-cyan-900">{newSlotTime.trim() || (newSlotEndTime ? `${newSlotStartTime} - ${newSlotEndTime}` : newSlotStartTime)}</span>
+                        </p>
+                      </div>
                     </div>
 
                     <div className="space-y-1.5">
