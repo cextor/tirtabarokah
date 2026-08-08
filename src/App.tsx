@@ -274,11 +274,14 @@ export default function App() {
 
   // STRICT TARGETED FETCHING WITH DEDUPLICATION GUARD
   const loadTabData = (tabNameOrForce?: string | boolean) => {
+    const isForce = tabNameOrForce === true;
     const tabName = typeof tabNameOrForce === 'string' ? tabNameOrForce : 'dashboard';
     const now = Date.now();
 
-    // DEDUPLICATION: Skip if the exact same tab was requested in the last 2500ms
+    // DEDUPLICATION: Skip if the exact same tab was requested in the last 2500ms (unless forced or public)
     if (
+      !isForce &&
+      tabName !== 'public' &&
       lastFetchRef.current &&
       lastFetchRef.current.tab === tabName &&
       (now - lastFetchRef.current.time) < 2500
@@ -286,7 +289,7 @@ export default function App() {
       return pendingPromiseRef.current || Promise.resolve();
     }
 
-    if (pendingPromiseRef.current) {
+    if (pendingPromiseRef.current && tabName !== 'public') {
       return pendingPromiseRef.current;
     }
 
@@ -300,8 +303,11 @@ export default function App() {
 
       if (isUnauthAdmin || isUnauthCoach) {
         setIsDataLoading(false);
+        setHasInitialLoaded(true);
         return;
       }
+
+      setIsDataLoading(true);
 
       // Record deduplication timestamp ONLY for authorized requests
       lastFetchRef.current = { tab: tabName, time: Date.now() };
@@ -525,6 +531,8 @@ export default function App() {
       } catch (err) {
         console.error(`Failed to load tab data for ${tabName}:`, err);
       } finally {
+        setIsDataLoading(false);
+        setHasInitialLoaded(true);
         pendingPromiseRef.current = null;
       }
     })();

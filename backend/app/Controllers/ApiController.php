@@ -21,7 +21,7 @@ class ApiController extends BaseController
     {
         $coaches = $this->db->table('coaches')
             ->select('coaches.*, users.username')
-            ->join('users', 'users.id = coaches.id')
+            ->join('users', 'users.id = coaches.id', 'left')
             ->orderBy('coaches.name', 'ASC')
             ->get()
             ->getResultArray();
