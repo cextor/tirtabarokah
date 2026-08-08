@@ -117,6 +117,9 @@ interface AdminDashboardProps {
   onUpdateSettings: (settings: SiteSettings) => void;
   onUpdateLevels: (levels: ProgramLevel[]) => void;
   onUpdateCoaches: (coaches: Coach[]) => void;
+  onAddCoach?: (coachData: any) => Promise<{ success: boolean; message?: string; id?: string }>;
+  onUpdateCoach?: (coachData: any) => Promise<{ success: boolean; message?: string }>;
+  onDeleteCoach?: (id: string) => Promise<{ success: boolean; message?: string }>;
   onUpdateMembers: (members: Member[]) => void;
   onUpdateEvents: (events: EventItem[]) => void;
 }
@@ -153,7 +156,10 @@ export default function AdminDashboard({
   onReloadData,
   onUpdateSettings,
   onUpdateLevels,
-  onUpdateCoaches, 
+  onUpdateCoaches,
+  onAddCoach,
+  onUpdateCoach,
+  onDeleteCoach,
   onUpdateMembers,
   onUpdateEvents
 }: AdminDashboardProps) {
@@ -957,46 +963,47 @@ export default function AdminDashboard({
       sessions: p.sessions
     }));
 
-    const newCoach: Coach = {
-      id: newId,
-      name: newCoachName,
+    const coachPayload = {
+      name: newCoachName.trim(),
       username: newCoachUsername.trim() || undefined,
       password: newCoachPassword.trim() || 'coach123',
-      status: 'Tersedia',
       photo: defaultPhoto,
       certificateUrl: newCoachCertificate || undefined,
-      experience: newCoachExperience,
-      maxQuota: newCoachQuota,
-      currentQuota: 0,
-      referralCode: newCoachReferralCode.trim() ? newCoachReferralCode.trim().toUpperCase() : `COACH-${newCoachName.toUpperCase().replace(/\s+/g, '')}`,
-      referralBonus: 0,
-      packages: coachPkgs,
-      schedule: [
-        {
-          day: 'Senin',
-          timeSlots: [
-            { time: '08.00', maxSlots: newCoachQuota, currentSlots: 0, students: [] },
-            { time: '16.00', maxSlots: newCoachQuota, currentSlots: 0, students: [] }
-          ]
-        },
-        {
-          day: 'Rabu',
-          timeSlots: [
-            { time: '08.00', maxSlots: newCoachQuota, currentSlots: 0, students: [] },
-            { time: '16.00', maxSlots: newCoachQuota, currentSlots: 0, students: [] }
-          ]
-        },
-        {
-          day: 'Jumat',
-          timeSlots: [
-            { time: '08.00', maxSlots: newCoachQuota, currentSlots: 0, students: [] },
-            { time: '16.00', maxSlots: newCoachQuota, currentSlots: 0, students: [] }
-          ]
-        }
-      ]
+      experience: newCoachExperience || 'Pelatih Renang Profesional',
+      maxQuota: newCoachQuota || 6,
+      packages: coachPkgs
     };
 
-    onUpdateCoaches([...coaches, newCoach]);
+    if (onAddCoach) {
+      const res = await onAddCoach(coachPayload);
+      if (res && !res.success) {
+        Swal.fire({
+          title: 'Gagal Menambah Pelatih',
+          text: res.message || 'Terjadi kesalahan saat menyimpan data pelatih ke database.',
+          icon: 'error',
+          confirmButtonColor: '#e11d48'
+        });
+        return;
+      }
+    } else {
+      const newCoach: Coach = {
+        id: newId,
+        name: newCoachName,
+        username: newCoachUsername.trim() || undefined,
+        password: newCoachPassword.trim() || 'coach123',
+        status: 'Tersedia',
+        photo: defaultPhoto,
+        certificateUrl: newCoachCertificate || undefined,
+        experience: newCoachExperience,
+        maxQuota: newCoachQuota,
+        currentQuota: 0,
+        referralCode: newCoachReferralCode.trim() ? newCoachReferralCode.trim().toUpperCase() : `COACH-${newCoachName.toUpperCase().replace(/\s+/g, '')}`,
+        referralBonus: 0,
+        packages: coachPkgs,
+        schedule: []
+      };
+      onUpdateCoaches([...coaches, newCoach]);
+    }
 
     // Sync to global settings coachIds
     if (globalPricingPackages.length > 0) {
@@ -1031,7 +1038,7 @@ export default function AdminDashboard({
 
     Swal.fire({
       title: 'Berhasil!',
-      text: 'Pelatih baru berhasil ditambahkan!',
+      text: 'Pelatih baru berhasil disimpan ke database!',
       icon: 'success',
       confirmButtonColor: '#06b6d4'
     });
@@ -1039,32 +1046,44 @@ export default function AdminDashboard({
 
   // ACTION: SAVE COACH SETTINGS
   const handleSaveCoachSettings = async (coachId: string) => {
-    const updated = coaches.map(c => {
-      if (c.id === coachId) {
-        return {
-          ...c,
-          name: editCoachName,
-          username: editCoachUsername.trim() || undefined,
-          password: editCoachPassword.trim() || undefined,
-          experience: editCoachExperience,
-          photo: editCoachPhoto,
-          certificateUrl: editCoachCertificate || undefined,
-          maxQuota: editQuotaValue,
-          packages: editCoachPackages,
-          isActive: editCoachIsActive,
-          referralCode: editCoachReferralCode.trim().toUpperCase()
-        };
-      }
-      return c;
-    });
+    const coachObj = coaches.find(c => c.id === coachId);
+    if (!coachObj) return;
 
-    onUpdateCoaches(updated);
+    const coachPayload = {
+      id: coachId,
+      name: editCoachName.trim(),
+      username: editCoachUsername.trim() || undefined,
+      password: editCoachPassword.trim() || undefined,
+      experience: editCoachExperience,
+      photo: editCoachPhoto || coachObj.photo,
+      certificateUrl: editCoachCertificate || coachObj.certificateUrl,
+      maxQuota: editQuotaValue,
+      packages: editCoachPackages,
+      isActive: editCoachIsActive,
+      referralCode: editCoachReferralCode.trim().toUpperCase()
+    };
+
+    if (onUpdateCoach) {
+      const res = await onUpdateCoach(coachPayload);
+      if (res && !res.success) {
+        Swal.fire({
+          title: 'Gagal Menyimpan Pelatih',
+          text: res.message || 'Terjadi kesalahan saat memperbarui database.',
+          icon: 'error',
+          confirmButtonColor: '#e11d48'
+        });
+        return;
+      }
+    } else {
+      const updated = coaches.map(c => c.id === coachId ? { ...c, ...coachPayload } : c);
+      onUpdateCoaches(updated);
+    }
 
     setSelectedEditCoachId('');
     setEditCoachPassword('');
     Swal.fire({
       title: 'Berhasil!',
-      text: 'Profil & harga paket pelatih berhasil disimpan!',
+      text: 'Profil & harga paket pelatih berhasil diperbarui di database!',
       icon: 'success',
       confirmButtonColor: '#06b6d4'
     });

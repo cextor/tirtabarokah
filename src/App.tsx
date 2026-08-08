@@ -541,61 +541,47 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Sync to database on updates (Coaches)
+  const handleAddCoach = async (coachData: any) => {
+    try {
+      const res: any = await api.addCoach(coachData);
+      lastFetchRef.current = null;
+      await loadTabData('pelatih');
+      return { success: true, id: res?.id };
+    } catch (e: any) {
+      console.error("Failed to add coach to backend:", e);
+      return { success: false, message: e.message || 'Gagal menambahkan pelatih baru.' };
+    }
+  };
+
+  const handleUpdateCoach = async (coachData: any) => {
+    try {
+      await api.updateCoach(coachData);
+      lastFetchRef.current = null;
+      await loadTabData('pelatih');
+      return { success: true };
+    } catch (e: any) {
+      console.error("Failed to update coach in backend:", e);
+      return { success: false, message: e.message || 'Gagal memperbarui data pelatih.' };
+    }
+  };
+
+  const handleDeleteCoach = async (id: string) => {
+    try {
+      await api.deleteCoach(id);
+      lastFetchRef.current = null;
+      await loadTabData('pelatih');
+      return { success: true };
+    } catch (e: any) {
+      console.error("Failed to delete coach in backend:", e);
+      return { success: false, message: e.message || 'Gagal menghapus pelatih.' };
+    }
+  };
+
+  // Sync to database on updates (Coaches - Fallback)
   const updateCoachesState = async (newCoaches: Coach[]) => {
     setCoaches(newCoaches);
-    try {
-      if (newCoaches.length > coaches.length) {
-        const added = newCoaches.find(nc => !coaches.some(c => c.id === nc.id));
-        if (added) {
-          await api.addCoach({
-            name: added.name,
-            experience: added.experience,
-            photo: added.photo,
-            maxQuota: added.maxQuota,
-            packages: added.packages,
-            schedule: added.schedule,
-            username: added.username,
-            password: added.password,
-            email: added.email,
-            phone: added.phone,
-            certificateUrl: added.certificateUrl
-          });
-        }
-      } else if (newCoaches.length < coaches.length) {
-        const deleted = coaches.find(c => !newCoaches.some(nc => nc.id === c.id));
-        if (deleted) {
-          await api.deleteCoach(deleted.id);
-        }
-      } else {
-        const updated = newCoaches.find(nc => {
-          const old = coaches.find(c => c.id === nc.id);
-          return old && JSON.stringify(old) !== JSON.stringify(nc);
-        });
-        if (updated) {
-          await api.updateCoach({
-            id: updated.id,
-            name: updated.name,
-            experience: updated.experience,
-            photo: updated.photo,
-            maxQuota: updated.maxQuota,
-            isActive: updated.isActive,
-            packages: updated.packages,
-            schedule: updated.schedule,
-            username: updated.username,
-            password: updated.password,
-            email: updated.email,
-            phone: updated.phone,
-            certificateUrl: updated.certificateUrl
-          });
-        }
-      }
-    } catch (e: any) {
-      console.error("Failed to sync coach update to backend", e);
-      setError("Gagal mensinkronisasikan perubahan pelatih ke database: " + e.message);
-    }
     lastFetchRef.current = null;
-    loadTabData('pelatih');
+    await loadTabData('pelatih');
   };
 
   // Sync to database on updates (Members)
@@ -1236,6 +1222,9 @@ export default function App() {
                 onUpdateSettings={handleUpdateSettings}
                 onUpdateLevels={handleUpdateLevels}
                 onUpdateCoaches={updateCoachesState}
+                onAddCoach={handleAddCoach}
+                onUpdateCoach={handleUpdateCoach}
+                onDeleteCoach={handleDeleteCoach}
                 onUpdateMembers={updateMembersState}
                 onUpdateEvents={updateEventsState}
               />
