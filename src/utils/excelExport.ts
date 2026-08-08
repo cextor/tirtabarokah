@@ -1,6 +1,6 @@
 /**
  * Utility to export teaching schedule recaps for coaches with Date Range filter in Excel (.csv) format.
- * Format: Nama Pelatih, Total Mengajar Periode Ini, Tanggal & Hari, Jam Latihan, Nama Siswa
+ * Format: Nama Pelatih, Hari & Tanggal, Jam Latihan, Nama Siswa, Status
  */
 
 import { Coach, Member } from '../types';
@@ -20,124 +20,79 @@ export function exportCoachScheduleToExcel(
 
   if (!selectedCoaches || selectedCoaches.length === 0) return;
 
-  // Determine date range list
-  const dateList: { dateStr: string; dayName: string; displayDate: string }[] = [];
-
-  if (startDateStr && endDateStr) {
-    let curr = new Date(startDateStr + 'T00:00:00');
-    const end = new Date(endDateStr + 'T00:00:00');
-
-    while (curr <= end) {
-      const year = curr.getFullYear();
-      const month = String(curr.getMonth() + 1).padStart(2, '0');
-      const dayNum = String(curr.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${dayNum}`;
-      const dayName = DAYS_INDO[curr.getDay()];
-      const displayDate = `${dayNum}/${month}/${year} (${dayName})`;
-
-      dateList.push({ dateStr, dayName, displayDate });
-      curr.setDate(curr.getDate() + 1);
-    }
-  } else {
-    // Default 7 days if no date range specified
-    const DAYS_ORDER = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
-    DAYS_ORDER.forEach(d => {
-      dateList.push({ dateStr: '', dayName: d, displayDate: d });
-    });
-  }
-
-  const rows: { coachName: string; totalTeachingCount: string; dateDisplay: string; scheduleTime: string; studentName: string }[] = [];
+  const rows: { 
+    coachName: string; 
+    dayAndDate: string; 
+    scheduleTime: string; 
+    studentName: string; 
+    status: string;
+    rawDate: string;
+  }[] = [];
 
   selectedCoaches.forEach(coach => {
     const coachName = coach.name;
-    let coachTotalSessionsInRange = 0;
-    const coachRows: { dateDisplay: string; scheduleTime: string; studentName: string }[] = [];
+    const coachMembers = members.filter(m => m.coachId === coach.id);
 
-    dateList.forEach(dateObj => {
-      const dayName = dateObj.dayName;
-      const displayDate = dateObj.displayDate;
+    coachMembers.forEach(m => {
+      if (m.progress && Array.isArray(m.progress) && m.progress.length > 0) {
+        m.progress.forEach(p => {
+          if (!p.date) return;
 
-      // Check configured slots for this dayName
-      const daySched = coach.schedule ? coach.schedule.find(d => d.day === dayName) : null;
-      const timeSlots = daySched ? daySched.timeSlots || [] : [];
+          // Filter by date range if provided
+          if (startDateStr && p.date < startDateStr) return;
+          if (endDateStr && p.date > endDateStr) return;
 
-      timeSlots.forEach(slot => {
-        coachTotalSessionsInRange++;
-        const time = slot.time;
+          // Format Date & Day Name from student attendance record
+          const d = new Date(p.date + 'T00:00:00');
+          const dayName = DAYS_INDO[d.getDay()] || 'Senin';
+          const dateParts = p.date.split('-');
+          const displayDate = dateParts.length === 3 
+            ? `${dayName}, ${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`
+            : `${dayName}, ${p.date}`;
 
-        // Find students assigned to this slot
-        const studentsInSlot = (slot.students || [])
-          .map(mId => members.find(m => m.id === mId))
-          .filter(Boolean) as Member[];
+          // Determine Jam Latihan (Session Time) for student on this day
+          let sessionTime = m.scheduleTime || '08.00';
+          if (m.scheduleDay === dayName && m.scheduleTime) {
+            sessionTime = m.scheduleTime;
+          } else if (m.scheduleDay2 === dayName && m.scheduleTime2) {
+            sessionTime = m.scheduleTime2;
+          } else if (m.schedules && Array.isArray(m.schedules)) {
+            const matchedSlot = m.schedules.find((s: any) => s.day === dayName);
+            if (matchedSlot && matchedSlot.time) {
+              sessionTime = matchedSlot.time;
+            }
+          }
 
-        const studentsFromMembers = members.filter(m => {
-          if (m.coachId !== coach.id) return false;
-          if (m.isActive === false) return false;
-          if (m.status !== 'Aktif' && m.status !== 'Paket Hampir Habis') return false;
-
-          const m1 = m.scheduleDay === dayName && m.scheduleTime === time;
-          const m2 = m.scheduleDay2 === dayName && m.scheduleTime2 === time;
-          const m3 = m.schedules && Array.isArray(m.schedules) && m.schedules.some(s => s.day === dayName && s.time === time);
-          return m1 || m2 || m3;
+          rows.push({
+            coachName,
+            dayAndDate: displayDate,
+            scheduleTime: sessionTime,
+            studentName: m.student.fullName,
+            status: p.attendance || 'Hadir',
+            rawDate: p.date
+          });
         });
-
-        const studentMap = new Map<string, Member>();
-        studentsInSlot.forEach(s => studentMap.set(s.id, s));
-        studentsFromMembers.forEach(s => studentMap.set(s.id, s));
-
-        const allMatched = Array.from(studentMap.values());
-
-        if (allMatched.length > 0) {
-          allMatched.forEach(st => {
-            coachRows.push({
-              dateDisplay: displayDate,
-              scheduleTime: time,
-              studentName: st.student.fullName
-            });
-          });
-        } else {
-          coachRows.push({
-            dateDisplay: displayDate,
-            scheduleTime: time,
-            studentName: '- (Kosong)'
-          });
-        }
-      });
+      }
     });
+  });
 
-    const totalStr = `${coachTotalSessionsInRange} Sesi`;
-
-    if (coachRows.length === 0) {
-      rows.push({
-        coachName,
-        totalTeachingCount: '0 Sesi',
-        dateDisplay: '-',
-        scheduleTime: 'Belum Ada Jadwal',
-        studentName: '-'
-      });
-    } else {
-      coachRows.forEach(r => {
-        rows.push({
-          coachName,
-          totalTeachingCount: totalStr,
-          dateDisplay: r.dateDisplay,
-          scheduleTime: r.scheduleTime,
-          studentName: r.studentName
-        });
-      });
-    }
+  // Sort rows by Date (ascending), then Time, then Student Name
+  rows.sort((a, b) => {
+    if (a.rawDate !== b.rawDate) return a.rawDate.localeCompare(b.rawDate);
+    if (a.scheduleTime !== b.scheduleTime) return a.scheduleTime.localeCompare(b.scheduleTime);
+    return a.studentName.localeCompare(b.studentName);
   });
 
   // Create CSV with UTF-8 BOM for Excel compatibility
-  const headers = ['Nama Pelatih', 'Total Mengajar Periode Ini', 'Tanggal & Hari', 'Jam Latihan', 'Nama Siswa'];
+  const headers = ['Nama Pelatih', 'Hari & Tanggal', 'Jam Latihan', 'Nama Siswa', 'Status'];
   const csvLines = [
     headers.join(','),
     ...rows.map(r => [
       `"${r.coachName.replace(/"/g, '""')}"`,
-      `"${r.totalTeachingCount.replace(/"/g, '""')}"`,
-      `"${r.dateDisplay.replace(/"/g, '""')}"`,
+      `"${r.dayAndDate.replace(/"/g, '""')}"`,
       `"${r.scheduleTime.replace(/"/g, '""')}"`,
-      `"${r.studentName.replace(/"/g, '""')}"`
+      `"${r.studentName.replace(/"/g, '""')}"`,
+      `"${r.status.replace(/"/g, '""')}"`
     ].join(','))
   ];
 
@@ -146,10 +101,10 @@ export function exportCoachScheduleToExcel(
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement('a');
-  const dateSuffix = startDateStr && endDateStr ? `_${startDateStr}_sd_${endDateStr}` : '_Rekapan';
+  const dateSuffix = startDateStr && endDateStr ? `_${startDateStr}_sd_${endDateStr}` : '_Absensi';
   const fileName = (targetCoachId && selectedCoaches[0])
-    ? `Rekapan_Jadwal_${selectedCoaches[0].name.replace(/[^a-zA-Z0-9]/g, '_')}${dateSuffix}.csv`
-    : `Rekapan_Jadwal_Semua_Pelatih${dateSuffix}.csv`;
+    ? `Laporan_Absen_${selectedCoaches[0].name.replace(/[^a-zA-Z0-9]/g, '_')}${dateSuffix}.csv`
+    : `Laporan_Absen_Semua_Pelatih${dateSuffix}.csv`;
 
   a.href = url;
   a.download = fileName;

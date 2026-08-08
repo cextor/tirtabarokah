@@ -3787,11 +3787,10 @@ export default function AdminDashboard({
                     <tr>
                       <th className="px-5 py-3.5">No</th>
                       <th className="px-5 py-3.5">Nama Pelatih</th>
-                      <th className="px-5 py-3.5">Total Mengajar Periode Ini</th>
-                      <th className="px-5 py-3.5">Tanggal & Hari</th>
+                      <th className="px-5 py-3.5">Hari & Tanggal</th>
                       <th className="px-5 py-3.5">Jam Latihan</th>
                       <th className="px-5 py-3.5">Nama Siswa</th>
-                      <th className="px-5 py-3.5">Status Siswa</th>
+                      <th className="px-5 py-3.5">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -3799,140 +3798,89 @@ export default function AdminDashboard({
                       const targetCoaches = laporanCoachId === 'all' ? coaches : coaches.filter(c => c.id === laporanCoachId);
                       const DAYS_INDO = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
-                      // Calculate date list
-                      const dateList: { dateStr: string; dayName: string; displayDate: string }[] = [];
-                      if (laporanStartDate && laporanEndDate) {
-                        let curr = new Date(laporanStartDate + 'T00:00:00');
-                        const end = new Date(laporanEndDate + 'T00:00:00');
-                        while (curr <= end) {
-                          const year = curr.getFullYear();
-                          const month = String(curr.getMonth() + 1).padStart(2, '0');
-                          const dayNum = String(curr.getDate()).padStart(2, '0');
-                          const dateStr = `${year}-${month}-${dayNum}`;
-                          const dayName = DAYS_INDO[curr.getDay()];
-                          const displayDate = `${dayNum}/${month}/${year} (${dayName})`;
-                          dateList.push({ dateStr, dayName, displayDate });
-                          curr.setDate(curr.getDate() + 1);
-                        }
-                      }
-
-                      let rowCount = 0;
-                      const previewRows: any[] = [];
+                      const rawRows: {
+                        coachName: string;
+                        dayAndDate: string;
+                        scheduleTime: string;
+                        studentName: string;
+                        status: string;
+                        rawDate: string;
+                      }[] = [];
 
                       targetCoaches.forEach(coach => {
-                        let coachTotalSessionsInRange = 0;
-                        const coachRows: any[] = [];
+                        const coachName = coach.name;
+                        const coachMembers = members.filter(m => m.coachId === coach.id);
 
-                        dateList.forEach(dateObj => {
-                          const dayName = dateObj.dayName;
-                          const displayDate = dateObj.displayDate;
+                        coachMembers.forEach(m => {
+                          if (m.progress && Array.isArray(m.progress) && m.progress.length > 0) {
+                            m.progress.forEach(p => {
+                              if (!p.date) return;
 
-                          const daySched = coach.schedule ? coach.schedule.find(d => d.day === dayName) : null;
-                          const timeSlots = daySched ? daySched.timeSlots || [] : [];
+                              if (laporanStartDate && p.date < laporanStartDate) return;
+                              if (laporanEndDate && p.date > laporanEndDate) return;
 
-                          timeSlots.forEach(slot => {
-                            coachTotalSessionsInRange++;
-                            const time = slot.time;
+                              const d = new Date(p.date + 'T00:00:00');
+                              const dayName = DAYS_INDO[d.getDay()] || 'Senin';
+                              const dateParts = p.date.split('-');
+                              const displayDate = dateParts.length === 3
+                                ? `${dayName}, ${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`
+                                : `${dayName}, ${p.date}`;
 
-                            const studentsInSlot = (slot.students || [])
-                              .map(mId => members.find(m => m.id === mId))
-                              .filter(Boolean) as Member[];
+                              let sessionTime = m.scheduleTime || '08.00';
+                              if (m.scheduleDay === dayName && m.scheduleTime) {
+                                sessionTime = m.scheduleTime;
+                              } else if (m.scheduleDay2 === dayName && m.scheduleTime2) {
+                                sessionTime = m.scheduleTime2;
+                              } else if (m.schedules && Array.isArray(m.schedules)) {
+                                const matchedSlot = m.schedules.find((s: any) => s.day === dayName);
+                                if (matchedSlot && matchedSlot.time) {
+                                  sessionTime = matchedSlot.time;
+                                }
+                              }
 
-                            const studentsFromMembers = members.filter(m => {
-                              if (m.coachId !== coach.id) return false;
-                              if (m.isActive === false) return false;
-                              if (m.status !== 'Aktif' && m.status !== 'Paket Hampir Habis') return false;
-
-                              const m1 = m.scheduleDay === dayName && m.scheduleTime === time;
-                              const m2 = m.scheduleDay2 === dayName && m.scheduleTime2 === time;
-                              const m3 = m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.day === dayName && s.time === time);
-                              return m1 || m2 || m3;
+                              rawRows.push({
+                                coachName,
+                                dayAndDate: displayDate,
+                                scheduleTime: sessionTime,
+                                studentName: m.student.fullName,
+                                status: p.attendance || 'Hadir',
+                                rawDate: p.date
+                              });
                             });
-
-                            const studentMap = new Map<string, Member>();
-                            studentsInSlot.forEach(s => studentMap.set(s.id, s));
-                            studentsFromMembers.forEach(s => studentMap.set(s.id, s));
-
-                            const allMatched = Array.from(studentMap.values());
-
-                            if (allMatched.length > 0) {
-                              allMatched.forEach(st => {
-                                coachRows.push({
-                                  displayDate,
-                                  scheduleTime: time,
-                                  studentName: st.student.fullName,
-                                  status: st.status
-                                });
-                              });
-                            } else {
-                              coachRows.push({
-                                displayDate,
-                                scheduleTime: time,
-                                studentName: '- (Kosong)',
-                                status: '-'
-                              });
-                            }
-                          });
+                          }
                         });
-
-                        const totalStr = `${coachTotalSessionsInRange} Sesi`;
-
-                        if (coachRows.length === 0) {
-                          rowCount++;
-                          previewRows.push({
-                            no: rowCount,
-                            coachName: coach.name,
-                            totalTeachingCount: '0 Sesi',
-                            dateDisplay: '-',
-                            scheduleTime: 'Belum Ada Jadwal',
-                            studentName: '-',
-                            status: '-'
-                          });
-                        } else {
-                          coachRows.forEach(r => {
-                            rowCount++;
-                            previewRows.push({
-                              no: rowCount,
-                              coachName: coach.name,
-                              totalTeachingCount: totalStr,
-                              dateDisplay: r.displayDate,
-                              scheduleTime: r.scheduleTime,
-                              studentName: r.studentName,
-                              status: r.status
-                            });
-                          });
-                        }
                       });
 
-                      if (previewRows.length === 0) {
+                      rawRows.sort((a, b) => {
+                        if (a.rawDate !== b.rawDate) return a.rawDate.localeCompare(b.rawDate);
+                        if (a.scheduleTime !== b.scheduleTime) return a.scheduleTime.localeCompare(b.scheduleTime);
+                        return a.studentName.localeCompare(b.studentName);
+                      });
+
+                      if (rawRows.length === 0) {
                         return (
                           <tr>
-                            <td colSpan={7} className="text-center py-8 text-slate-400 italic">
-                              Tidak ada data jadwal ditemukan untuk rentang tanggal terpilih.
+                            <td colSpan={6} className="text-center py-8 text-slate-400 italic">
+                              Belum ada data absen siswa ditemukan untuk periode tanggal ini.
                             </td>
                           </tr>
                         );
                       }
 
-                      return previewRows.map((r) => (
-                        <tr key={r.no} className="hover:bg-slate-50/80 transition">
-                          <td className="px-5 py-3 font-mono font-bold text-slate-400">{r.no}</td>
+                      return rawRows.map((r, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/80 transition">
+                          <td className="px-5 py-3 font-mono font-bold text-slate-400">{idx + 1}</td>
                           <td className="px-5 py-3 font-extrabold text-slate-800">{r.coachName}</td>
-                          <td className="px-5 py-3 font-bold text-emerald-700">
-                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full text-[11px] font-black">
-                              {r.totalTeachingCount}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3 font-bold text-slate-700">{r.dateDisplay}</td>
+                          <td className="px-5 py-3 font-bold text-slate-700">{r.dayAndDate}</td>
                           <td className="px-5 py-3 font-bold text-cyan-700 bg-cyan-50/50 rounded-lg">{r.scheduleTime}</td>
                           <td className="px-5 py-3 font-bold text-slate-700">{r.studentName}</td>
                           <td className="px-5 py-3">
-                            {r.status === 'Aktif' ? (
-                              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md font-extrabold text-[10px]">Aktif</span>
-                            ) : r.status === 'Paket Hampir Habis' ? (
-                              <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md font-extrabold text-[10px]">Paket Hampir Habis</span>
+                            {r.status === 'Hadir' ? (
+                              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-md font-extrabold text-[10px]">Hadir</span>
+                            ) : r.status === 'Izin' ? (
+                              <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-md font-extrabold text-[10px]">Izin</span>
                             ) : (
-                              <span className="text-slate-400">{r.status}</span>
+                              <span className="bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-md font-extrabold text-[10px]">{r.status}</span>
                             )}
                           </td>
                         </tr>
