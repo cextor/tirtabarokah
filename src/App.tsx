@@ -736,7 +736,7 @@ export default function App() {
               requestedTime: updated.scheduleTime,
               reason: lastReq ? lastReq.reason : 'Reschedule kelas'
             });
-          } else if (updated.payment.status === 'Pembayaran Berhasil' && old.payment.status !== 'Pembayaran Berhasil') {
+          } else if (updated.payment?.status === 'Pembayaran Berhasil' && old.payment?.status !== 'Pembayaran Berhasil') {
             await api.verifyPayment(updated.id);
           } else {
             console.log("DEBUG: Calling api.updateMember for generic changes");

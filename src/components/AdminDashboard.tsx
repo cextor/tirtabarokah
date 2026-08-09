@@ -847,12 +847,12 @@ export default function AdminDashboard({
   ];
 
   // CALCULATIONS FOR STATS CARDS
-  const activeMembers = members.filter(m => m.status === 'Aktif' || m.status === 'Paket Hampir Habis');
-  const pendingPayments = members.filter(m => m.status === 'Menunggu Verifikasi' || m.payment.status === 'Menunggu Verifikasi');
-  const expiringMembers = members.filter(m => m.sessionsLeft <= 2 && m.status !== 'Menunggu Verifikasi');
+  const activeMembers = members.filter(m => m && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis'));
+  const pendingPayments = members.filter(m => m && (m.status === 'Menunggu Verifikasi' || m.payment?.status === 'Menunggu Verifikasi'));
+  const expiringMembers = members.filter(m => m && m.sessionsLeft <= 2 && m.status !== 'Menunggu Verifikasi');
   const totalRevenue = members
-    .filter(m => m.payment.status === 'Pembayaran Berhasil')
-    .reduce((sum, m) => sum + m.payment.amount, 0);
+    .filter(m => m && m.payment?.status === 'Pembayaran Berhasil')
+    .reduce((sum, m) => sum + (m.payment?.amount || 0), 0);
 
   // ACTION: VERIFY PAYMENT (WITH CONFIRMATION & NOTIF)
   const handleVerifyPayment = (memberId: string, isApproved: boolean = true) => {
@@ -1012,14 +1012,11 @@ export default function AdminDashboard({
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          const updatedMembers = members.filter(m => m.id !== memberId);
+          const updatedMembers = members.filter(m => m && m.id !== memberId);
           const syncedCoaches = syncCoachesSchedules(coaches, updatedMembers);
 
           onUpdateCoaches(syncedCoaches);
           onUpdateMembers(updatedMembers);
-
-          // Permanently delete member & free up coach quota in MySQL DB
-          await api.deleteMember(memberId);
 
           Swal.fire({
             title: 'Terhapus!',
@@ -1027,12 +1024,8 @@ export default function AdminDashboard({
             icon: 'success',
             confirmButtonColor: '#06b6d4'
           });
-
-          if (onReloadData) {
-            onReloadData();
-          }
         } catch (err: any) {
-          console.error("Failed to delete member from backend:", err);
+          console.error("Failed to delete member:", err);
           Swal.fire('Gagal Hapus', err.message || 'Terjadi kesalahan saat menghapus data siswa.', 'error');
         }
       }
@@ -1807,12 +1800,13 @@ export default function AdminDashboard({
 
   // FILTERED STUDENT LIST
   const filteredPeserta = members.filter(m => {
+    if (!m) return false;
     const coach = coaches.find(c => c.id === m.coachId);
     const coachName = coach ? coach.name : '';
-    const matchesSearch = m.student.fullName.toLowerCase().includes(searchPeserta.toLowerCase()) || 
-                          m.parent.fatherMotherName.toLowerCase().includes(searchPeserta.toLowerCase()) ||
-                          m.parent.whatsapp.includes(searchPeserta) ||
-                          m.id.toLowerCase().includes(searchPeserta.toLowerCase()) ||
+    const matchesSearch = (m.student?.fullName || '').toLowerCase().includes(searchPeserta.toLowerCase()) || 
+                          (m.parent?.fatherMotherName || '').toLowerCase().includes(searchPeserta.toLowerCase()) ||
+                          (m.parent?.whatsapp || '').includes(searchPeserta) ||
+                          (m.id || '').toLowerCase().includes(searchPeserta.toLowerCase()) ||
                           coachName.toLowerCase().includes(searchPeserta.toLowerCase());
     
     const isVerified = m.status === 'Aktif' || m.status === 'Paket Hampir Habis' || m.status === 'Selesai';
@@ -1827,8 +1821,8 @@ export default function AdminDashboard({
   // CHART DATA COMPILATION
   const revenueByCoachData = coaches.map(c => {
     const revenue = members
-      .filter(m => m.coachId === c.id && m.payment.status === 'Pembayaran Berhasil')
-      .reduce((sum, m) => sum + m.payment.amount, 0);
+      .filter(m => m && m.coachId === c.id && m.payment?.status === 'Pembayaran Berhasil')
+      .reduce((sum, m) => sum + (m.payment?.amount || 0), 0);
     return {
       name: c.name,
       pendapatan: revenue
@@ -1915,29 +1909,29 @@ export default function AdminDashboard({
 
   // FILTERED DASHBOARD VARIABLES
   const activeMembersFiltered = members.filter(m => 
-    (m.status === 'Aktif' || m.status === 'Paket Hampir Habis') && 
+    m && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis') && 
     isWithinDateFilter(m.registeredAt)
   );
   
   const pendingPaymentsFiltered = members.filter(m => 
-    (m.status === 'Menunggu Verifikasi' || m.payment.status === 'Menunggu Verifikasi') && 
+    m && (m.status === 'Menunggu Verifikasi' || m.payment?.status === 'Menunggu Verifikasi') && 
     isWithinDateFilter(m.registeredAt)
   );
   
   const expiringMembersFiltered = members.filter(m => 
-    m.sessionsLeft <= 2 && 
+    m && m.sessionsLeft <= 2 && 
     m.status !== 'Menunggu Verifikasi' && 
     isWithinDateFilter(m.registeredAt)
   );
   
   const totalRevenueFiltered = members
-    .filter(m => m.payment.status === 'Pembayaran Berhasil' && isWithinDateFilter(m.payment.date))
-    .reduce((sum, m) => sum + m.payment.amount, 0);
+    .filter(m => m && m.payment?.status === 'Pembayaran Berhasil' && isWithinDateFilter(m.payment?.date))
+    .reduce((sum, m) => sum + (m.payment?.amount || 0), 0);
 
   const revenueByCoachDataFiltered = coaches.map(c => {
     const revenue = members
-      .filter(m => m.coachId === c.id && m.payment.status === 'Pembayaran Berhasil' && isWithinDateFilter(m.payment.date))
-      .reduce((sum, m) => sum + m.payment.amount, 0);
+      .filter(m => m && m.coachId === c.id && m.payment?.status === 'Pembayaran Berhasil' && isWithinDateFilter(m.payment?.date))
+      .reduce((sum, m) => sum + (m.payment?.amount || 0), 0);
     return {
       name: c.name,
       pendapatan: revenue
@@ -2662,10 +2656,10 @@ export default function AdminDashboard({
                     {pendingPaymentsFiltered.slice(0, 3).map(m => (
                       <div key={m.id} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200/50">
                         <div>
-                          <p className="font-bold text-xs text-slate-800">{m.student.fullName}</p>
-                          <p className="text-[10px] text-slate-500 font-mono">{m.id} • {m.payment.method}</p>
+                          <p className="font-bold text-xs text-slate-800">{m.student?.fullName || m.id}</p>
+                          <p className="text-[10px] text-slate-500 font-mono">{m.id} • {m.payment?.method || '-'}</p>
                         </div>
-                        <span className="font-bold text-xs text-cyan-700">Rp {m.payment.amount.toLocaleString('id-ID')}</span>
+                        <span className="font-bold text-xs text-cyan-700">Rp {(m.payment?.amount || 0).toLocaleString('id-ID')}</span>
                       </div>
                     ))}
                   </div>
@@ -5970,12 +5964,12 @@ export default function AdminDashboard({
               const monthlyRevenueData = months.map((mName, idx) => {
                 const revenue = filteredMembersForFinance
                   .filter(m => {
-                    if (m.payment.status !== 'Pembayaran Berhasil') return false;
+                    if (!m || !m.payment || m.payment.status !== 'Pembayaran Berhasil') return false;
                     if (!m.payment.date) return false;
                     const d = new Date(m.payment.date.replace(' ', 'T'));
                     return d.getFullYear() === currentYear && d.getMonth() === idx;
                   })
-                  .reduce((sum, m) => sum + m.payment.amount, 0);
+                  .reduce((sum, m) => sum + (m.payment?.amount || 0), 0);
 
                 return {
                   name: mName,
@@ -5984,14 +5978,14 @@ export default function AdminDashboard({
               });
 
               const dynamicTotalRevenue = filteredMembersForFinance
-                .filter(m => m.payment.status === 'Pembayaran Berhasil')
-                .reduce((sum, m) => sum + m.payment.amount, 0);
+                .filter(m => m && m.payment?.status === 'Pembayaran Berhasil')
+                .reduce((sum, m) => sum + (m.payment?.amount || 0), 0);
 
-              const dynamicActiveMembersCount = filteredMembersForFinance.filter(m => m.status === 'Aktif' || m.status === 'Paket Hampir Habis').length;
+              const dynamicActiveMembersCount = filteredMembersForFinance.filter(m => m && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis')).length;
 
               const dynamicMemberGrowthData = months.map((mName, idx) => {
                 const count = members.filter(m => {
-                  if (!m.payment || !m.payment.date) return false;
+                  if (!m || !m.payment || !m.payment.date) return false;
                   const d = new Date(m.payment.date.replace(' ', 'T'));
                   return d.getFullYear() === currentYear && d.getMonth() <= idx && m.payment.status === 'Pembayaran Berhasil';
                 }).length;
@@ -6129,13 +6123,14 @@ export default function AdminDashboard({
                             </tr>
                           ) : (
                             filteredMembersForHistory
+                              .filter(m => m && m.student && m.payment)
                               .map(m => ({
                                 memberId: m.id,
-                                studentName: m.student.fullName,
-                                amount: m.payment.amount,
-                                method: m.payment.method,
-                                status: m.payment.status,
-                                date: m.payment.date
+                                studentName: m.student?.fullName || m.id,
+                                amount: m.payment?.amount || 0,
+                                method: m.payment?.method || '-',
+                                status: m.payment?.status || 'Pembayaran Berhasil',
+                                date: m.payment?.date || ''
                               }))
                               .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                               .map((p, idx) => (
