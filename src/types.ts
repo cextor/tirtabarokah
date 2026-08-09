@@ -44,7 +44,7 @@ export interface Member {
   scheduleDay2?: string;
   scheduleTime2?: string;
   coachType: 'Reguler' | 'Privat';
-  status: 'Menunggu Pembayaran' | 'Menunggu Verifikasi' | 'Aktif' | 'Paket Hampir Habis' | 'Selesai';
+  status: 'Menunggu Pembayaran' | 'Menunggu Verifikasi' | 'Aktif' | 'Paket Hampir Habis' | 'Selesai' | 'Ditolak';
   sessionsLeft: number;
   sessionsTotal: number;
   payment: PaymentRecord;

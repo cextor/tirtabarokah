@@ -122,7 +122,7 @@ export const api = {
   // Members
   getMembers: () => request('/api/members'),
   registerMember: (data: any) => request('/api/members/register', { method: 'POST', body: JSON.stringify(data) }),
-  verifyPayment: (id: string) => request('/api/members/verify-payment', { method: 'POST', body: JSON.stringify({ id }) }),
+  verifyPayment: (id: string, isApproved: boolean = true) => request('/api/members/verify-payment', { method: 'POST', body: JSON.stringify({ id, isApproved }) }),
   updateMember: (data: any) => request('/api/members/update', { method: 'POST', body: JSON.stringify(data) }),
   deleteMember: (id: string) => request(`/api/members/delete/${id}`, { method: 'DELETE' }),
 

@@ -59,7 +59,8 @@ class ApiController extends BaseController
                 ->select('member_schedules.coach_id, member_schedules.day, member_schedules.time, member_schedules.member_id')
                 ->join('members', 'members.id = member_schedules.member_id')
                 ->whereIn('member_schedules.coach_id', $coachIds)
-                ->where('members.status !=', 'Selesai')
+                ->whereNotIn('members.status', ['Selesai', 'Menunggu Verifikasi', 'Menunggu Pembayaran', 'Ditolak'])
+                ->where('members.is_active !=', 0)
                 ->get()
                 ->getResultArray();
         }
@@ -452,7 +453,8 @@ class ApiController extends BaseController
                     ->where('member_schedules.coach_id', $ns['coach_id'])
                     ->where('member_schedules.day', $ns['day'])
                     ->where('member_schedules.time', $ns['time'])
-                    ->where('members.status !=', 'Selesai')
+                    ->whereNotIn('members.status', ['Selesai', 'Menunggu Verifikasi', 'Menunggu Pembayaran', 'Ditolak'])
+                    ->where('members.is_active !=', 0)
                     ->where('members.coach_type !=', $targetType);
 
                 if ($id) {
@@ -750,18 +752,26 @@ class ApiController extends BaseController
             return $this->fail('ID Siswa harus dilampirkan.');
         }
 
+        $isApproved = true;
+        if (isset($json->isApproved)) {
+            $isApproved = filter_var($json->isApproved, FILTER_VALIDATE_BOOLEAN);
+        } elseif (isset($json->status) && ($json->status === 'Ditolak' || $json->status === 'Pembayaran Gagal')) {
+            $isApproved = false;
+        }
+
         $member = $this->db->table('members')->where('id', $json->id)->get()->getRowArray();
         $studentName = $member ? $member['student_name'] : $json->id;
 
         $this->db->transStart();
         $this->db->table('payments')->where('member_id', $json->id)->update([
-            'status' => 'Pembayaran Berhasil',
+            'status' => $isApproved ? 'Pembayaran Berhasil' : 'Pembayaran Gagal',
             'date' => date('Y-m-d H:i:s')
         ]);
         $this->db->table('members')->where('id', $json->id)->update([
-            'status' => 'Aktif'
+            'status' => $isApproved ? 'Aktif' : 'Ditolak',
+            'is_active' => $isApproved ? 1 : 0
         ]);
-        $this->logAction('verifikasi', 'members', $json->id, "Memverifikasi pendaftaran/pembayaran siswa: {$studentName}");
+        $this->logAction($isApproved ? 'verifikasi' : 'penolakan', 'members', $json->id, ($isApproved ? "Memverifikasi pendaftaran/pembayaran siswa: {$studentName}" : "Menolak pendaftaran siswa: {$studentName}"));
         $this->db->transComplete();
 
         if ($this->db->transStatus() === false) {

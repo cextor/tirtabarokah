@@ -879,10 +879,11 @@ export default function AdminDashboard({
           const updated = members.map(m => {
             if (m.id === memberId) {
               const approvedStatus = isApproved ? 'Pembayaran Berhasil' : 'Pembayaran Gagal';
-              const memberStatus = isApproved ? 'Aktif' : 'Menunggu Pembayaran';
+              const memberStatus = isApproved ? 'Aktif' : 'Ditolak';
               return {
                 ...m,
                 status: memberStatus as any,
+                isActive: isApproved ? true : false,
                 payment: {
                   ...m.payment,
                   status: approvedStatus as any
@@ -891,6 +892,9 @@ export default function AdminDashboard({
             }
             return m;
           });
+
+          // Sync verification status with backend API
+          api.verifyPayment(memberId, isApproved).catch(err => console.error("Failed to sync verification:", err));
 
           // Check if referral was used, and trigger reward calculation
           if (isApproved && memberObj.referralCodeUsed) {
@@ -989,6 +993,16 @@ export default function AdminDashboard({
   const handleLogAttendance = (memberId: string) => {
     const member = members.find(m => m.id === memberId);
     if (!member) return;
+
+    if (member.status === 'Menunggu Verifikasi' || member.status === 'Menunggu Pembayaran' || member.status === 'Ditolak' || member.isActive === false) {
+      Swal.fire({
+        title: 'Belum Di-verifikasi',
+        text: `Siswa ${member.student.fullName} belum di-verifikasi atau statusnya ditolak. Presensi hanya dapat dilakukan untuk siswa aktif yang sudah di-verifikasi.`,
+        icon: 'warning',
+        confirmButtonColor: '#06b6d4'
+      });
+      return;
+    }
 
     setAttendanceMember(member);
     setNewAttendanceStatus('Hadir');
@@ -1751,11 +1765,13 @@ export default function AdminDashboard({
                           m.id.toLowerCase().includes(searchPeserta.toLowerCase()) ||
                           coachName.toLowerCase().includes(searchPeserta.toLowerCase());
     
-    if (pesertaFilter === 'semua') return matchesSearch;
-    if (pesertaFilter === 'aktif') return matchesSearch && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis');
-    if (pesertaFilter === 'hampir-habis') return matchesSearch && m.sessionsLeft <= 2 && m.status !== 'Menunggu Verifikasi';
-    if (pesertaFilter === 'menunggu-verifikasi') return matchesSearch && m.status === 'Menunggu Verifikasi';
-    return matchesSearch;
+    const isVerified = m.status === 'Aktif' || m.status === 'Paket Hampir Habis' || m.status === 'Selesai';
+    
+    if (pesertaFilter === 'semua') return matchesSearch && isVerified && m.isActive !== false;
+    if (pesertaFilter === 'aktif') return matchesSearch && isVerified && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis') && m.isActive !== false;
+    if (pesertaFilter === 'hampir-habis') return matchesSearch && isVerified && m.sessionsLeft <= 2 && m.isActive !== false;
+    if (pesertaFilter === 'menunggu-verifikasi') return matchesSearch && (m.status === 'Menunggu Verifikasi' || m.status === 'Menunggu Pembayaran' || m.status === 'Ditolak');
+    return matchesSearch && isVerified && m.isActive !== false;
   });
 
   // CHART DATA COMPILATION
