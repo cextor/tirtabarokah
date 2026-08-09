@@ -21,7 +21,7 @@ interface CoachDashboardProps {
   loggedCoachId?: string;
 }
 
-type CoachTab = 'students' | 'add_progress' | 'schedule' | 'laporan_coachs' | 'report_absence' | 'absence_history';
+type CoachTab = 'students' | 'add_progress' | 'schedule' | 'laporan_coachs' | 'absence_history';
 
 // Helper to get Indonesian Day name from date string (YYYY-MM-DD)
 const getIndonesianDay = (dateStr?: string): string => {
@@ -42,12 +42,6 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
   // State for Date Filter in Siswa tab (defaults to today's date YYYY-MM-DD)
   const [studentFilterDate, setStudentFilterDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [showAllStudents, setShowAllStudents] = useState<boolean>(false);
-
-  // State for absence report
-  const [absenceDate, setAbsenceDate] = useState<string>('');
-  const [absenceScheduleIndex, setAbsenceScheduleIndex] = useState<string>('');
-  const [absenceReason, setAbsenceReason] = useState<string>('');
-  const [isSubmittingAbsence, setIsSubmittingAbsence] = useState<boolean>(false);
 
   React.useEffect(() => {
     if (loggedCoachId && coaches.some(c => c.id === loggedCoachId)) {
@@ -109,45 +103,7 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
 
   const coachAbsencesList = absences.filter(a => a.coachId === selectedCoachId);
 
-  // Submit absence report
-  const handleReportAbsence = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!absenceDate || !absenceScheduleIndex || !absenceReason.trim()) {
-      Swal.fire('Data Belum Lengkap', 'Silakan lengkapi semua field.', 'warning');
-      return;
-    }
 
-    const slot = coachSlots[parseInt(absenceScheduleIndex)];
-    if (!slot) return;
-
-    try {
-      setIsSubmittingAbsence(true);
-      await api.reportCoachAbsence({
-        coachId: selectedCoachId,
-        day: slot.day,
-        time: slot.time,
-        date: absenceDate,
-        reason: absenceReason.trim()
-      });
-      
-      Swal.fire({
-        title: 'Berhasil!',
-        text: 'Laporan ketidakhadiran berhasil dikirim ke Admin.',
-        icon: 'success',
-        confirmButtonColor: '#06b6d4'
-      });
-      
-      setAbsenceDate('');
-      setAbsenceScheduleIndex('');
-      setAbsenceReason('');
-      onReloadData();
-    } catch (err: any) {
-      console.error(err);
-      Swal.fire('Gagal', 'Terjadi kesalahan: ' + (err.message || err), 'error');
-    } finally {
-      setIsSubmittingAbsence(false);
-    }
-  };
 
   // ACTION: RECORD DEVELOPING NOTE FOR STUDENT
   const handleAddProgressRecord = (e: React.FormEvent) => {
@@ -269,8 +225,7 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
     { id: 'students', label: 'Siswa', icon: <Users className="w-4 h-4" />, badge: filteredStudents.length },
     { id: 'add_progress', label: 'Catat Perkembangan', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'schedule', label: 'Jadwal Mengajar', icon: <Calendar className="w-4 h-4" />, badge: coachSlots.length },
-    { id: 'report_absence', label: 'Lapor Absen Mengajar', icon: <AlertCircle className="w-4 h-4" /> },
-    { id: 'absence_history', label: 'Riwayat Absen Saya', icon: <Clock className="w-4 h-4" />, badge: coachAbsencesList.length },
+    { id: 'absence_history', label: 'Riwayat Absen Izin', icon: <Clock className="w-4 h-4" />, badge: coachAbsencesList.length },
     { id: 'laporan_coachs', label: 'Laporan Coachs', icon: <FileSpreadsheet className="w-4 h-4" /> },
   ];
 
@@ -483,25 +438,8 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                                   <Clock className="w-3.5 h-3.5 text-cyan-600" />
                                   <span>Jadwal: {member.scheduleDay} pukul {member.scheduleTime} WIB</span>
                                 </div>
-                                <div className="flex gap-1.5">
-                                  <button
-                                    onClick={() => handleQuickAttendance(member.id, 'Hadir')}
-                                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold px-3 py-1.5 rounded-xl text-[10px] transition cursor-pointer"
-                                  >
-                                    ✓ Hadir
-                                  </button>
-                                  <button
-                                    onClick={() => handleQuickAttendance(member.id, 'Absen')}
-                                    className="bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold px-3 py-1.5 rounded-xl text-[10px] transition cursor-pointer"
-                                  >
-                                    ✗ Absen
-                                  </button>
-                                  <button
-                                    onClick={() => handleQuickAttendance(member.id, 'Izin')}
-                                    className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold px-3 py-1.5 rounded-xl text-[10px] transition cursor-pointer"
-                                  >
-                                    - Izin
-                                  </button>
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold bg-slate-100/90 px-3 py-1.5 rounded-xl border border-slate-200/60">
+                                  <span>🔒 Absen Sesi Dikelola Admin / Operator</span>
                                 </div>
                               </div>
                             );
@@ -566,22 +504,9 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">Status Kehadiran Hari Ini</label>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {(['Hadir', 'Absen', 'Izin'] as const).map(att => (
-                          <button
-                            type="button"
-                            key={att}
-                            onClick={() => setNewProgressAttendance(att)}
-                            className={`py-2 text-xs rounded-xl font-bold border transition cursor-pointer ${
-                              newProgressAttendance === att
-                                ? 'bg-cyan-600 text-white border-transparent shadow-xs'
-                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {att}
-                          </button>
-                        ))}
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Status Presensi / Absen Sesi</label>
+                      <div className="bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-500 font-bold flex items-center gap-2">
+                        <span>🔒 Presensi Sesi & Pengurangan Sesi Dikelola oleh Admin / Operator</span>
                       </div>
                     </div>
                   </div>
@@ -903,71 +828,7 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
               </div>
             )}
 
-            {/* TAB 4: REPORT ABSENCE */}
-            {activeTab === 'report_absence' && (
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-5">
-                <div className="border-b border-slate-100 pb-3">
-                  <h3 className="font-extrabold text-base text-slate-800 flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5 text-rose-500" /> Laporkan Ketidakhadiran Mengajar
-                  </h3>
-                  <p className="text-xs text-slate-500">Kirim pemberitahuan ke Admin jika Anda berhalangan hadir mengajar pada tanggal tertentu.</p>
-                </div>
-                
-                <form onSubmit={handleReportAbsence} className="space-y-4 text-xs">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Jadwal yang Ingin Diliburkan</label>
-                      <select
-                        value={absenceScheduleIndex}
-                        onChange={(e) => setAbsenceScheduleIndex(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-800 font-semibold focus:outline-hidden"
-                        required
-                      >
-                        <option value="">-- Pilih Hari & Jam --</option>
-                        {coachSlots.map((slot, index) => (
-                          <option key={index} value={index}>
-                            Hari {slot.day} @ {slot.time} WIB
-                          </option>
-                        ))}
-                      </select>
-                    </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase block">Tanggal Absen</label>
-                      <input
-                        type="date"
-                        value={absenceDate}
-                        onChange={(e) => setAbsenceDate(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-800 focus:outline-hidden"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Alasan Berhalangan Hadir</label>
-                    <textarea
-                      placeholder="Contoh: Sedang sakit medis, ada urusan darurat keluarga, dinas luar..."
-                      value={absenceReason}
-                      onChange={(e) => setAbsenceReason(e.target.value)}
-                      rows={3}
-                      className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs text-slate-800 focus:outline-hidden"
-                      required
-                    />
-                  </div>
-
-                  <div className="flex justify-end pt-2">
-                    <button
-                      type="submit"
-                      disabled={isSubmittingAbsence}
-                      className="bg-rose-600 hover:bg-rose-500 text-white font-bold px-6 py-3 rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-md shadow-rose-600/10"
-                    >
-                      {isSubmittingAbsence ? 'Mengirim...' : 'Kirim Laporan Absen ke Admin'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
 
             {/* TAB 5: ABSENCE HISTORY */}
             {activeTab === 'absence_history' && (

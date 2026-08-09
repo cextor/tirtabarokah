@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 import { Coach, Member, Package, ScheduleDay, EventItem, SiteSettings, ProgramLevel, CoachAbsence, BankAccount, PricingPackage, AuditLog, EventCategory, SwimmingPool } from '../types';
 import { 
   Users, DollarSign, Award, Calendar, ShieldCheck, TrendingUp, AlertTriangle, 
-  Plus, Edit, Trash, Check, X, Bell, BarChart2, PieChart as PieIcon, Settings, Phone, CheckSquare, Sparkles, Image as ImageIcon,
+  Plus, PlusCircle, Edit, Trash, Check, X, Bell, BarChart2, PieChart as PieIcon, Settings, Phone, CheckSquare, Sparkles, Image as ImageIcon,
   LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, Key, CreditCard, FileText, FileSpreadsheet
 } from 'lucide-react';
 import { api, getMediaUrl } from '../api';
@@ -302,6 +302,53 @@ export default function AdminDashboard({
     } catch (err: any) {
       console.error(err);
       Swal.fire('Gagal', 'Terjadi kesalahan: ' + (err.message || err), 'error');
+    }
+  };
+
+  // State for Admin/Operator Coach Absence Entry
+  const [adminAbsenceCoachId, setAdminAbsenceCoachId] = useState<string>('');
+  const [adminAbsenceDate, setAdminAbsenceDate] = useState<string>('');
+  const [adminAbsenceTime, setAdminAbsenceTime] = useState<string>('');
+  const [adminAbsenceReason, setAdminAbsenceReason] = useState<string>('');
+  const [isSubmittingAdminAbsence, setIsSubmittingAdminAbsence] = useState<boolean>(false);
+
+  const handleAddCoachAbsenceByAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminAbsenceCoachId || !adminAbsenceDate || !adminAbsenceTime || !adminAbsenceReason) {
+      Swal.fire('Form Belum Lengkap', 'Silakan lengkapi seluruh data izin pelatih.', 'warning');
+      return;
+    }
+
+    setIsSubmittingAdminAbsence(true);
+    try {
+      const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+      const d = new Date(adminAbsenceDate + 'T00:00:00');
+      const dayName = days[d.getDay()];
+
+      await api.reportCoachAbsence({
+        coachId: adminAbsenceCoachId,
+        date: adminAbsenceDate,
+        day: dayName,
+        time: adminAbsenceTime,
+        reason: adminAbsenceReason
+      });
+
+      Swal.fire({
+        title: 'Berhasil Catat Izin!',
+        text: 'Laporan ketidakhadiran pelatih telah berhasil dicatat oleh Admin/Operator.',
+        icon: 'success',
+        confirmButtonColor: '#06b6d4'
+      });
+
+      setAdminAbsenceCoachId('');
+      setAdminAbsenceDate('');
+      setAdminAbsenceTime('');
+      setAdminAbsenceReason('');
+      if (onReloadData) onReloadData('absensi_coach');
+    } catch (err: any) {
+      Swal.fire('Gagal Catat Izin', err.message || 'Gagal menyimpan data ketidakhadiran pelatih.', 'error');
+    } finally {
+      setIsSubmittingAdminAbsence(false);
     }
   };
 
@@ -4033,16 +4080,88 @@ export default function AdminDashboard({
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-rose-500" /> Laporan Ketidakhadiran & Izin Pelatih (H-1)
+                <AlertTriangle className="w-5 h-5 text-rose-500" /> Kelola Ketidakhadiran & Izin Pelatih
               </h3>
               <p className="text-slate-500 text-xs mt-1">
-                Proses laporan absen dari pelatih dengan memilih opsi: mengganti dengan pelatih lain (Transfer) atau meniadakan sesi dan mengundur jadwal (Reschedule).
+                Admin & Operator dapat mencatat izin pelatih dan memproses opsi pengganti (Transfer) atau meniadakan sesi dan mengundur jadwal (Reschedule).
               </p>
+            </div>
+
+            {/* FORM INPUT IZIN PELATIH OLEH ADMIN / OPERATOR */}
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+              <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-2">
+                <PlusCircle className="w-4 h-4 text-cyan-600" /> Catat Izin / Ketidakhadiran Pelatih Baru
+              </h4>
+
+              <form onSubmit={handleAddCoachAbsenceByAdmin} className="space-y-4 text-xs">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Pilih Pelatih</label>
+                    <select
+                      value={adminAbsenceCoachId}
+                      onChange={(e) => setAdminAbsenceCoachId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-800 font-semibold focus:outline-none cursor-pointer"
+                      required
+                    >
+                      <option value="">-- Pilih Pelatih --</option>
+                      {coaches.map(c => (
+                        <option key={c.id} value={c.id}>Coach {c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Tanggal Izin/Absen</label>
+                    <input
+                      type="date"
+                      value={adminAbsenceDate}
+                      onChange={(e) => setAdminAbsenceDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-800 focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Jam / Waktu Latihan</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 16.10 WIB"
+                      value={adminAbsenceTime}
+                      onChange={(e) => setAdminAbsenceTime(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs text-slate-800 focus:outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Alasan Ketidakhadiran</label>
+                  <textarea
+                    placeholder="Tuliskan alasan izin pelatih (misal: Sakit medis, urusan keluarga, dinas luar, dll)..."
+                    value={adminAbsenceReason}
+                    onChange={(e) => setAdminAbsenceReason(e.target.value)}
+                    rows={2}
+                    className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs text-slate-800 focus:outline-none resize-none"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSubmittingAdminAbsence}
+                    className="bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    <CheckSquare className="w-4 h-4" />
+                    {isSubmittingAdminAbsence ? 'Menyimpan...' : 'Simpan Laporan Izin Pelatih'}
+                  </button>
+                </div>
+              </form>
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-6">
               <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100">
-                Laporan Izin yang Masuk
+                Daftar Laporan Izin Pelatih
               </h4>
 
               {absences.length === 0 ? (
