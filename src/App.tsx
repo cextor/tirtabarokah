@@ -312,6 +312,45 @@ export default function App() {
       // Record deduplication timestamp ONLY for authorized requests
       lastFetchRef.current = { tab: tabName, time: Date.now() };
 
+      // ALWAYS EXECUTE FOR PUBLIC TAB REGARDLESS OF ROLE
+      if (tabName === 'public') {
+        try {
+          const [coachesRes, eventsRes, settingsRes, levelsRes, packagesRes, poolsRes] = await Promise.allSettled([
+            api.getCoaches(),
+            api.getEvents(),
+            api.getSettings(),
+            api.getLevels(),
+            api.getPricingPackages(),
+            api.getSwimmingPools()
+          ]);
+
+          const coachesData = coachesRes.status === 'fulfilled' ? coachesRes.value : [];
+          const eventsData = eventsRes.status === 'fulfilled' ? eventsRes.value : [];
+          const settingsData = settingsRes.status === 'fulfilled' ? settingsRes.value : null;
+          const levelsData = levelsRes.status === 'fulfilled' ? levelsRes.value : [];
+          const packagesData = packagesRes.status === 'fulfilled' ? packagesRes.value : [];
+          const poolsData = poolsRes.status === 'fulfilled' ? poolsRes.value : [];
+
+          setCoaches(Array.isArray(coachesData) ? coachesData : []);
+          setEvents(Array.isArray(eventsData) ? eventsData : []);
+          if (settingsData && settingsData.status === 'success') {
+            setSettings(settingsData.settings);
+          }
+          setLevels(Array.isArray(levelsData) ? levelsData : []);
+          setPricingPackages(Array.isArray(packagesData) ? packagesData : []);
+          setSwimmingPools(Array.isArray(poolsData) ? poolsData : []);
+          setMembers([]);
+          setAbsences([]);
+          setAuditLogs([]);
+        } catch (err) {
+          console.error("Failed to load public data:", err);
+        } finally {
+          setIsDataLoading(false);
+          setHasInitialLoaded(true);
+        }
+        return;
+      }
+
       // TAILORED FETCHING FOR COACH ROLE
       if (role === 'coach') {
         try {
