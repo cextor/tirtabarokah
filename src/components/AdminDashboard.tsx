@@ -972,19 +972,32 @@ export default function AdminDashboard({
       cancelButtonColor: '#64748b',
       confirmButtonText: 'Ya, Hapus!',
       cancelButtonText: 'Batal'
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        const updatedMembers = members.filter(m => m.id !== memberId);
-        const syncedCoaches = syncCoachesSchedules(coaches, updatedMembers);
+        try {
+          const updatedMembers = members.filter(m => m.id !== memberId);
+          const syncedCoaches = syncCoachesSchedules(coaches, updatedMembers);
 
-        onUpdateCoaches(syncedCoaches);
-        onUpdateMembers(updatedMembers);
-        Swal.fire({
-          title: 'Terhapus!',
-          text: 'Data member berhasil dihapus dan slot pelatih dikosongkan.',
-          icon: 'success',
-          confirmButtonColor: '#06b6d4'
-        });
+          onUpdateCoaches(syncedCoaches);
+          onUpdateMembers(updatedMembers);
+
+          // Permanently delete member & free up coach quota in MySQL DB
+          await api.deleteMember(memberId);
+
+          Swal.fire({
+            title: 'Terhapus!',
+            text: 'Data member berhasil dihapus dan slot pelatih otomatis dikosongkan.',
+            icon: 'success',
+            confirmButtonColor: '#06b6d4'
+          });
+
+          if (onReloadData) {
+            onReloadData();
+          }
+        } catch (err: any) {
+          console.error("Failed to delete member from backend:", err);
+          Swal.fire('Gagal Hapus', err.message || 'Terjadi kesalahan saat menghapus data siswa.', 'error');
+        }
       }
     });
   };

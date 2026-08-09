@@ -893,10 +893,22 @@ class ApiController extends BaseController
         if (!$member) {
             return $this->failNotFound('Siswa tidak ditemukan.');
         }
-        $studentName = $member['student_name'];
+        $studentName = $member['student_name'] ?? $id;
 
+        $this->db->transStart();
+        if ($this->db->tableExists('member_schedules')) {
+            $this->db->table('member_schedules')->where('member_id', $id)->delete();
+        }
+        if ($this->db->tableExists('payments')) {
+            $this->db->table('payments')->where('member_id', $id)->delete();
+        }
+        if ($this->db->tableExists('training_progress')) {
+            $this->db->table('training_progress')->where('member_id', $id)->delete();
+        }
         $this->db->table('members')->where('id', $id)->delete();
         $this->logAction('hapus', 'members', $id, "Menghapus data siswa: {$studentName}");
+        $this->db->transComplete();
+
         return $this->respondDeleted(['status' => 'success']);
     }
 
