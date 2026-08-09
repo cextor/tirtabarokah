@@ -699,9 +699,10 @@ export default function MainPortal({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-              {coaches.filter(c => c.isActive !== false).map((coach) => {
-                const quota = getCoachOverallQuota(coach);
-                return (
+              {coaches && coaches.length > 0 ? (
+                coaches.map((coach) => {
+                  const quota = getCoachOverallQuota(coach);
+                  return (
                   <div 
                     key={coach.id} 
                     className="relative group transition-all duration-300 transform hover:-translate-y-1.5"
@@ -801,7 +802,18 @@ export default function MainPortal({
                     </div>
                   </div>
                 );
-              })}
+              })
+            ) : (
+              <div className="col-span-full bg-white rounded-3xl p-8 text-center border border-slate-200/80 shadow-xs space-y-3">
+                <div className="w-12 h-12 bg-cyan-50 text-cyan-600 rounded-full flex items-center justify-center mx-auto">
+                  <Users className="w-6 h-6" />
+                </div>
+                <h4 className="font-bold text-slate-800 text-sm">Daftar Pelatih Sedang Diperbarui</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Data tim pelatih resmi Tirta Barokah belum tersedia atau sedang diperbarui oleh Administrator.
+                </p>
+              </div>
+            )}
             </div>
           </section>
 

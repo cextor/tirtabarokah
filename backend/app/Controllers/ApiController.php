@@ -19,12 +19,15 @@ class ApiController extends BaseController
 
     public function getCoaches()
     {
-        $coaches = $this->db->table('coaches')
+        $builder = $this->db->table('coaches')
             ->select('coaches.*, users.username')
-            ->join('users', 'users.id = coaches.id', 'left')
-            ->orderBy('coaches.name', 'ASC')
-            ->get()
-            ->getResultArray();
+            ->join('users', 'users.id = coaches.id', 'left');
+            
+        if ($this->db->fieldExists('name', 'coaches')) {
+            $builder->orderBy('coaches.name', 'ASC');
+        }
+
+        $coaches = $builder->get()->getResultArray();
         
         if (empty($coaches)) {
             return $this->respond([]);
@@ -50,13 +53,16 @@ class ApiController extends BaseController
             ->getResultArray();
 
         // 3. Bulk Fetch Active Member Schedules for all coaches
-        $allMemberSchedules = $this->db->table('member_schedules')
-            ->select('member_schedules.coach_id, member_schedules.day, member_schedules.time, member_schedules.member_id')
-            ->join('members', 'members.id = member_schedules.member_id')
-            ->whereIn('member_schedules.coach_id', $coachIds)
-            ->where('members.status !=', 'Selesai')
-            ->get()
-            ->getResultArray();
+        $allMemberSchedules = [];
+        if ($this->db->tableExists('member_schedules') && $this->db->tableExists('members')) {
+            $allMemberSchedules = $this->db->table('member_schedules')
+                ->select('member_schedules.coach_id, member_schedules.day, member_schedules.time, member_schedules.member_id')
+                ->join('members', 'members.id = member_schedules.member_id')
+                ->whereIn('member_schedules.coach_id', $coachIds)
+                ->where('members.status !=', 'Selesai')
+                ->get()
+                ->getResultArray();
+        }
 
         // Map member schedules by coach_id -> day -> time -> array of member_ids
         $slotStudents = [];
@@ -90,7 +96,7 @@ class ApiController extends BaseController
 
             $schedulesByCoach[$cId][$dayName]['timeSlots'][] = [
                 'time' => $time,
-                'maxSlots' => (int)$sched['max_slots'],
+                'maxSlots' => (int)($sched['max_slots'] ?? 6),
                 'swimmingPoolId' => $sched['swimming_pool_id'] ?? null,
                 'currentSlots' => count($studentsInThisSlot),
                 'students' => $studentsInThisSlot
@@ -106,12 +112,13 @@ class ApiController extends BaseController
 
             $activeStudentsTotal = isset($coachActiveStudents[$cId]) ? count($coachActiveStudents[$cId]) : 0;
 
+            $maxQ = (int)($coach['max_quota'] ?? 6);
             $coach['currentQuota'] = $activeStudentsTotal;
-            $coach['status'] = ($activeStudentsTotal >= $coach['max_quota']) ? 'Penuh' : 'Tersedia';
-            $coach['referralBonus'] = (int)$coach['referral_bonus'];
-            $coach['maxQuota'] = (int)$coach['max_quota'];
-            $coach['referralCode'] = $coach['referral_code'];
-            $coach['isActive'] = isset($coach['is_active']) ? (bool)$coach['is_active'] : true;
+            $coach['status'] = ($activeStudentsTotal >= $maxQ) ? 'Penuh' : 'Tersedia';
+            $coach['referralBonus'] = (int)($coach['referral_bonus'] ?? 0);
+            $coach['maxQuota'] = $maxQ;
+            $coach['referralCode'] = $coach['referral_code'] ?? '';
+            $coach['isActive'] = isset($coach['is_active']) && $coach['is_active'] !== null ? ((int)$coach['is_active'] === 1 || $coach['is_active'] === true || $coach['is_active'] === '1') : true;
             $coach['certificateUrl'] = $coach['certificate_url'] ?? null;
         }
 
