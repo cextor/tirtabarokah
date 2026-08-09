@@ -357,6 +357,7 @@ class ApiController extends BaseController
             foreach ($json->schedule as $dayGroup) {
                 $dayName = $dayGroup->day;
                 if (isset($dayGroup->timeSlots) && is_array($dayGroup->timeSlots)) {
+                    foreach ($dayGroup->timeSlots as $slot) {
                         $poolId = null;
                         if (isset($slot->swimmingPoolId) && !empty($slot->swimmingPoolId)) {
                             $poolId = $slot->swimmingPoolId;
@@ -371,6 +372,7 @@ class ApiController extends BaseController
                             'max_slots' => isset($slot->maxSlots) ? (int)$slot->maxSlots : 6,
                             'swimming_pool_id' => $poolId
                         ]);
+                    }
                 }
             }
         }
