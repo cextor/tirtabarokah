@@ -355,7 +355,7 @@ export default function App() {
         return;
       }
 
-      if (role !== 'admin' && role !== 'operator') {
+      if (tabName !== 'public' && role !== 'admin' && role !== 'operator') {
         return;
       }
       try {
