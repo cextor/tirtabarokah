@@ -1035,6 +1035,20 @@ export default function AdminDashboard({
     onUpdateMembers(updated);
     setShowAttendanceModal(false);
 
+    // Sync to backend API
+    api.addProgress({
+      memberId: member.id,
+      attendance: newAttendanceStatus,
+      note: newProgressRecord.note,
+      date: todayStr
+    }).catch(err => console.error("Failed to sync progress to backend:", err));
+
+    api.updateMember({
+      id: member.id,
+      sessionsLeft: newSessionsLeft,
+      status: newSessionsLeft === 0 ? 'Selesai' : isAlmostExpiring ? 'Paket Hampir Habis' : member.status
+    }).catch(err => console.error("Failed to sync member status to backend:", err));
+
     // Show success prompt
     if (newSessionsLeft === 0) {
       Swal.fire({
@@ -2522,13 +2536,27 @@ export default function AdminDashboard({
                                   <span className="text-[9px] text-slate-400 block mt-0.5">dari {member.sessionsTotal} total</span>
                                 </td>
                                 <td className="p-3 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleLogAttendance(member.id)}
-                                    className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl border border-transparent flex items-center gap-1 transition ml-auto shadow-xs cursor-pointer text-xs"
-                                  >
-                                    <CheckSquare className="w-3.5 h-3.5" /> Absen Sesi
-                                  </button>
+                                  {(() => {
+                                    const todayStr = new Date().toISOString().split('T')[0];
+                                    const isAttendedToday = member.progress && member.progress.some(p => p.date === todayStr);
+
+                                    return (
+                                      <button
+                                        type="button"
+                                        disabled={isAttendedToday}
+                                        onClick={() => handleLogAttendance(member.id)}
+                                        className={`px-3 py-1.5 font-bold rounded-xl border flex items-center gap-1 transition ml-auto shadow-xs text-xs ${
+                                          isAttendedToday
+                                            ? 'bg-slate-100 text-slate-400 border-slate-200/80 cursor-not-allowed opacity-80'
+                                            : 'bg-cyan-600 hover:bg-cyan-500 text-white border-transparent cursor-pointer'
+                                        }`}
+                                        title={isAttendedToday ? 'Siswa ini sudah diabsen hari ini' : 'Absen Sesi Siswa'}
+                                      >
+                                        <CheckSquare className={`w-3.5 h-3.5 ${isAttendedToday ? 'text-emerald-600' : ''}`} />
+                                        {isAttendedToday ? 'Sudah Absen' : 'Absen Sesi'}
+                                      </button>
+                                    );
+                                  })()}
                                 </td>
                               </tr>
                             );
@@ -2867,27 +2895,41 @@ export default function AdminDashboard({
                               </button>
 
                               {/* ATTENDANCE/HISTORY ACTION */}
-                              {member.status !== 'Menunggu Verifikasi' && (
-                                <button
-                                  onClick={() => handleLogAttendance(member.id)}
-                                  className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-1 transition cursor-pointer font-bold ${
-                                    member.status !== 'Selesai' && member.sessionsLeft > 0 && member.isActive !== false
-                                      ? 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border-cyan-200'
-                                      : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                                  }`}
-                                  title={member.status !== 'Selesai' && member.sessionsLeft > 0 && member.isActive !== false ? 'Log Hadir Siswa (Kurangi 1 Sesi)' : 'Lihat Riwayat Latihan'}
-                                >
-                                  {member.status !== 'Selesai' && member.sessionsLeft > 0 && member.isActive !== false ? (
-                                    <>
-                                      <CheckSquare className="w-3.5 h-3.5" /> Absen Sesi
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Eye className="w-3.5 h-3.5" /> Lihat Riwayat
-                                    </>
-                                  )}
-                                </button>
-                              )}
+                              {member.status !== 'Menunggu Verifikasi' && (() => {
+                                const todayStr = new Date().toISOString().split('T')[0];
+                                const isAttendedToday = member.progress && member.progress.some(p => p.date === todayStr);
+                                const isAvailableForAbsence = member.status !== 'Selesai' && member.sessionsLeft > 0 && member.isActive !== false;
+
+                                return (
+                                  <button
+                                    type="button"
+                                    disabled={isAttendedToday && isAvailableForAbsence}
+                                    onClick={() => handleLogAttendance(member.id)}
+                                    className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-1 transition font-bold text-xs ${
+                                      isAttendedToday && isAvailableForAbsence
+                                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-80'
+                                        : isAvailableForAbsence
+                                        ? 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border-cyan-200 cursor-pointer'
+                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 cursor-pointer'
+                                    }`}
+                                    title={isAttendedToday && isAvailableForAbsence ? 'Siswa ini sudah diabsen hari ini' : isAvailableForAbsence ? 'Log Hadir Siswa (Kurangi 1 Sesi)' : 'Lihat Riwayat Latihan'}
+                                  >
+                                    {isAttendedToday && isAvailableForAbsence ? (
+                                      <>
+                                        <CheckSquare className="w-3.5 h-3.5 text-emerald-600" /> Sudah Absen
+                                      </>
+                                    ) : isAvailableForAbsence ? (
+                                      <>
+                                        <CheckSquare className="w-3.5 h-3.5" /> Absen Sesi
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Eye className="w-3.5 h-3.5" /> Lihat Riwayat
+                                      </>
+                                    )}
+                                  </button>
+                                );
+                              })()}
 
                               {/* STOP PACKET / DELETE USER */}
                               <button
@@ -3663,14 +3705,28 @@ export default function AdminDashboard({
                                     <span className="text-[9px] text-slate-400 block mt-0.5">dari {member.sessionsTotal} total</span>
                                   </td>
                                   <td className="p-3.5 text-right">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleLogAttendance(member.id)}
-                                      className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl border border-transparent flex items-center gap-1 transition ml-auto shadow-xs cursor-pointer"
-                                    >
-                                      <CheckSquare className="w-3.5 h-3.5" /> Absen Sesi
-                                    </button>
-                                  </td>
+                                     {(() => {
+                                       const todayStr = new Date().toISOString().split('T')[0];
+                                       const isAttendedToday = member.progress && member.progress.some(p => p.date === todayStr);
+
+                                       return (
+                                         <button
+                                           type="button"
+                                           disabled={isAttendedToday}
+                                           onClick={() => handleLogAttendance(member.id)}
+                                           className={`px-3 py-1.5 font-bold rounded-xl border flex items-center gap-1 transition ml-auto shadow-xs text-xs ${
+                                             isAttendedToday
+                                               ? 'bg-slate-100 text-slate-400 border-slate-200/80 cursor-not-allowed opacity-80'
+                                               : 'bg-cyan-600 hover:bg-cyan-500 text-white border-transparent cursor-pointer'
+                                           }`}
+                                           title={isAttendedToday ? 'Siswa ini sudah diabsen hari ini' : 'Absen Sesi Siswa'}
+                                         >
+                                           <CheckSquare className={`w-3.5 h-3.5 ${isAttendedToday ? 'text-emerald-600' : ''}`} />
+                                           {isAttendedToday ? 'Sudah Absen' : 'Absen Sesi'}
+                                         </button>
+                                       );
+                                     })()}
+                                   </td>
                                 </tr>
                               );
                             })}
