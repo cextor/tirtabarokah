@@ -16,14 +16,13 @@ class ApiAuthFilter implements FilterInterface
         }
 
         // Get request path relative to index.php (e.g. api/coaches)
-        $path = $request->getUri()->getPath();
+        $rawPath = $request->getUri()->getPath();
+        $cleanPath = explode('?', $rawPath)[0];
         
-        // Normalize path (remove leading/trailing slashes)
-        $path = trim($path, '/');
-
-        // Strip index.php if present
-        if (str_starts_with($path, 'index.php/')) {
-            $path = substr($path, 10);
+        if (preg_match('#api/.*#i', $cleanPath, $matches)) {
+            $path = strtolower(trim($matches[0], '/'));
+        } else {
+            $path = strtolower(trim($cleanPath, '/'));
         }
 
         // Define public endpoints
