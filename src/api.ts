@@ -46,6 +46,9 @@ async function request(endpoint: string, options: RequestInit = {}) {
   const token = localStorage.getItem('auth_token');
   const clientKey = 'TirtaBarokahClientSecret2026';
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -57,10 +60,12 @@ async function request(endpoint: string, options: RequestInit = {}) {
   const config = {
     ...options,
     headers,
+    signal: options.signal || controller.signal,
   };
 
   try {
     const response = await fetch(url, config);
+    clearTimeout(timeoutId);
     if (!response.ok) {
       const errorText = await response.text();
       let errorMsg = `HTTP Error ${response.status}`;

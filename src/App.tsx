@@ -1218,11 +1218,6 @@ export default function App() {
                 Demo Login: Username (<strong className="text-slate-700">ardi / hakim / ari</strong>) & Password: <strong className="text-slate-700">coach123</strong>
               </div>
             </div>
-          ) : isDataLoading && !hasInitialLoaded ? (
-            <div className="flex flex-col items-center justify-center py-20 space-y-4">
-              <div className="w-12 h-12 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin" />
-              <p className="text-xs font-bold text-slate-600 animate-pulse">Memuat data portal Tirta Barokah...</p>
-            </div>
           ) : (
             activeRole === 'member' ? (
               <MainPortal
