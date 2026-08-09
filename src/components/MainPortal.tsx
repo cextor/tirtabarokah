@@ -322,6 +322,34 @@ export default function MainPortal({
 
   // Helper: check coach overall status
   const getCoachOverallQuota = (coach: Coach) => {
+    if (coach.schedule && coach.schedule.length > 0) {
+      let totalMaxSlots = 0;
+      let totalActiveInSlots = 0;
+      let hasAvailableSlot = false;
+
+      for (const dayGroup of coach.schedule) {
+        for (const slot of dayGroup.timeSlots) {
+          const cap = getSlotDetails(coach, dayGroup.day, slot.time);
+          totalMaxSlots += cap.max;
+          totalActiveInSlots += cap.current;
+          if (!cap.isFull) {
+            hasAvailableSlot = true;
+          }
+        }
+      }
+
+      // Coach is only overall FULL if ALL schedule slots across all days are full
+      const isFull = !hasAvailableSlot;
+      const remaining = Math.max(0, totalMaxSlots - totalActiveInSlots);
+
+      return {
+        current: totalActiveInSlots,
+        max: totalMaxSlots,
+        isFull,
+        remaining
+      };
+    }
+
     const activeStudents = members.length > 0 
       ? members.filter(m => {
           if (m.status === 'Selesai') return false;
@@ -331,13 +359,15 @@ export default function MainPortal({
           return mSchedules.some(s => s.coachId === coach.id);
         }).length 
       : (coach.currentQuota || 0);
+
     const maxQuota = coach.maxQuota || 6;
     const isFull = activeStudents >= maxQuota;
+
     return {
       current: activeStudents,
       max: maxQuota,
       isFull,
-      remaining: maxQuota - activeStudents
+      remaining: Math.max(0, maxQuota - activeStudents)
     };
   };
 

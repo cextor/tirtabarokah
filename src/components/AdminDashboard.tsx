@@ -561,11 +561,24 @@ export default function AdminDashboard({
       const activeCount = updatedSchedule.reduce(
         (sum, d) => sum + d.timeSlots.reduce((sSum, ts) => sSum + ts.students.length, 0), 0
       );
+
+      let hasAvailableSlot = false;
+      for (const dayGroup of updatedSchedule) {
+        for (const slot of dayGroup.timeSlots) {
+          const maxS = slot.maxSlots || c.maxQuota || 6;
+          if ((slot.currentSlots || 0) < maxS) {
+            hasAvailableSlot = true;
+          }
+        }
+      }
+
+      const isOverallFull = updatedSchedule.length > 0 ? !hasAvailableSlot : activeCount >= (c.maxQuota || 6);
+
       return {
         ...c,
         schedule: updatedSchedule,
         currentQuota: activeCount,
-        status: activeCount >= c.maxQuota ? 'Penuh' as const : 'Tersedia' as const
+        status: isOverallFull ? 'Penuh' as const : 'Tersedia' as const
       };
     });
   };
