@@ -400,70 +400,70 @@ export default function App() {
       try {
         switch (tabName) {
           case 'pelatih': {
-            const [coachesData, membersData] = await Promise.all([
+            const [coachesRes, membersRes] = await Promise.allSettled([
               api.getCoaches(),
               api.getMembers()
             ]);
-            setCoaches(coachesData || []);
-            setMembers(membersData || []);
+            if (coachesRes.status === 'fulfilled') setCoaches(coachesRes.value || []);
+            if (membersRes.status === 'fulfilled') setMembers(membersRes.value || []);
             break;
           }
           case 'peserta': {
-            const [membersData, coachesData, levelsData, packagesData, poolsData] = await Promise.all([
+            const [membersRes, coachesRes, levelsRes, packagesRes, poolsRes] = await Promise.allSettled([
               api.getMembers(),
               api.getCoaches(),
               api.getLevels(),
               api.getPricingPackages(),
               api.getSwimmingPools()
             ]);
-            setMembers(membersData || []);
-            setCoaches(coachesData || []);
-            setLevels(levelsData || []);
-            setPricingPackages(packagesData || []);
-            setSwimmingPools(poolsData || []);
+            if (membersRes.status === 'fulfilled') setMembers(membersRes.value || []);
+            if (coachesRes.status === 'fulfilled') setCoaches(coachesRes.value || []);
+            if (levelsRes.status === 'fulfilled') setLevels(levelsRes.value || []);
+            if (packagesRes.status === 'fulfilled') setPricingPackages(packagesRes.value || []);
+            if (poolsRes.status === 'fulfilled') setSwimmingPools(poolsRes.value || []);
             break;
           }
           case 'verifikasi': {
-            const [membersData, packagesData, poolsData, coachesData] = await Promise.all([
+            const [membersRes, packagesRes, poolsRes, coachesRes] = await Promise.allSettled([
               api.getMembers(),
               api.getPricingPackages(),
               api.getSwimmingPools(),
               api.getCoaches()
             ]);
-            setMembers(membersData || []);
-            setPricingPackages(packagesData || []);
-            setSwimmingPools(poolsData || []);
-            setCoaches(coachesData || []);
+            if (membersRes.status === 'fulfilled') setMembers(membersRes.value || []);
+            if (packagesRes.status === 'fulfilled') setPricingPackages(packagesRes.value || []);
+            if (poolsRes.status === 'fulfilled') setSwimmingPools(poolsRes.value || []);
+            if (coachesRes.status === 'fulfilled') setCoaches(coachesRes.value || []);
             break;
           }
           case 'absensi_coach': {
-            const [absencesData, coachesData] = await Promise.all([
+            const [absencesRes, coachesRes] = await Promise.allSettled([
               api.getCoachAbsences(),
               api.getCoaches()
             ]);
-            setAbsences(absencesData || []);
-            setCoaches(coachesData || []);
+            if (absencesRes.status === 'fulfilled') setAbsences(absencesRes.value || []);
+            if (coachesRes.status === 'fulfilled') setCoaches(coachesRes.value || []);
             break;
           }
           case 'reminder':
           case 'jadwal_hari_ini': {
-            const [membersData, coachesData, poolsData] = await Promise.all([
+            const [membersRes, coachesRes, poolsRes] = await Promise.allSettled([
               api.getMembers(),
               api.getCoaches(),
               api.getSwimmingPools()
             ]);
-            setMembers(membersData || []);
-            setCoaches(coachesData || []);
-            setSwimmingPools(poolsData || []);
+            if (membersRes.status === 'fulfilled') setMembers(membersRes.value || []);
+            if (coachesRes.status === 'fulfilled') setCoaches(coachesRes.value || []);
+            if (poolsRes.status === 'fulfilled') setSwimmingPools(poolsRes.value || []);
             break;
           }
           case 'events': {
-            const [eventsData, categoriesData] = await Promise.all([
+            const [eventsRes, categoriesRes] = await Promise.allSettled([
               api.getEvents(),
               api.getEventCategories()
             ]);
-            setEvents(eventsData || []);
-            setEventCategories(categoriesData || []);
+            if (eventsRes.status === 'fulfilled') setEvents(eventsRes.value || []);
+            if (categoriesRes.status === 'fulfilled') setEventCategories(categoriesRes.value || []);
             break;
           }
           case 'kolam_renang': {
@@ -472,23 +472,23 @@ export default function App() {
             break;
           }
           case 'laporan': {
-            const [membersData, packagesData] = await Promise.all([
+            const [membersRes, packagesRes] = await Promise.allSettled([
               api.getMembers(),
               api.getPricingPackages()
             ]);
-            setMembers(membersData || []);
-            setPricingPackages(packagesData || []);
+            if (membersRes.status === 'fulfilled') setMembers(membersRes.value || []);
+            if (packagesRes.status === 'fulfilled') setPricingPackages(packagesRes.value || []);
             break;
           }
           case 'laporan_coachs': {
-            const [coachesData, membersData, absencesData] = await Promise.all([
+            const [coachesRes, membersRes, absencesRes] = await Promise.allSettled([
               api.getCoaches(),
               api.getMembers(),
               api.getCoachAbsences()
             ]);
-            setCoaches(coachesData || []);
-            setMembers(membersData || []);
-            setAbsences(absencesData || []);
+            if (coachesRes.status === 'fulfilled') setCoaches(coachesRes.value || []);
+            if (membersRes.status === 'fulfilled') setMembers(membersRes.value || []);
+            if (absencesRes.status === 'fulfilled') setAbsences(absencesRes.value || []);
             break;
           }
           case 'audit_logs': {
@@ -499,23 +499,23 @@ export default function App() {
             break;
           }
           case 'pengaturan': {
-            const [settingsData, levelsData] = await Promise.all([
+            const [settingsRes, levelsRes] = await Promise.allSettled([
               api.getSettings(),
               api.getLevels()
             ]);
-            if (settingsData && settingsData.status === 'success') {
-              setSettings(settingsData.settings);
+            if (settingsRes.status === 'fulfilled' && settingsRes.value?.status === 'success') {
+              setSettings(settingsRes.value.settings);
             }
-            setLevels(levelsData || []);
+            if (levelsRes.status === 'fulfilled') setLevels(levelsRes.value || []);
             break;
           }
           case 'paket_harga': {
-            const [packagesData, coachesData] = await Promise.all([
+            const [packagesRes, coachesRes] = await Promise.allSettled([
               api.getPricingPackages(),
               api.getCoaches()
             ]);
-            setPricingPackages(packagesData || []);
-            setCoaches(coachesData || []);
+            if (packagesRes.status === 'fulfilled') setPricingPackages(packagesRes.value || []);
+            if (coachesRes.status === 'fulfilled') setCoaches(coachesRes.value || []);
             break;
           }
           case 'public': {
@@ -550,7 +550,7 @@ export default function App() {
           }
           case 'dashboard':
           default: {
-            const [membersData, coachesData, poolsData, eventsData, absencesData, packagesData] = await Promise.all([
+            const [membersRes, coachesRes, poolsRes, eventsRes, absencesRes, packagesRes] = await Promise.allSettled([
               api.getMembers(),
               api.getCoaches(),
               api.getSwimmingPools(),
@@ -558,12 +558,12 @@ export default function App() {
               api.getCoachAbsences(),
               api.getPricingPackages()
             ]);
-            setMembers(membersData || []);
-            setCoaches(coachesData || []);
-            setSwimmingPools(poolsData || []);
-            setEvents(eventsData || []);
-            setAbsences(absencesData || []);
-            setPricingPackages(packagesData || []);
+            if (membersRes.status === 'fulfilled') setMembers(membersRes.value || []);
+            if (coachesRes.status === 'fulfilled') setCoaches(coachesRes.value || []);
+            if (poolsRes.status === 'fulfilled') setSwimmingPools(poolsRes.value || []);
+            if (eventsRes.status === 'fulfilled') setEvents(eventsRes.value || []);
+            if (absencesRes.status === 'fulfilled') setAbsences(absencesRes.value || []);
+            if (packagesRes.status === 'fulfilled') setPricingPackages(packagesRes.value || []);
             break;
           }
         }

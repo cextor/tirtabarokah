@@ -47,7 +47,8 @@ async function request(endpoint: string, options: RequestInit = {}) {
   const clientKey = 'TirtaBarokahClientSecret2026';
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutMs = options.method === 'GET' ? 30000 : 45000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   const headers = {
     'Content-Type': 'application/json',
@@ -57,7 +58,7 @@ async function request(endpoint: string, options: RequestInit = {}) {
     ...options.headers,
   };
 
-  const config = {
+  const config: RequestInit = {
     ...options,
     headers,
     signal: options.signal || controller.signal,
@@ -97,10 +98,15 @@ async function request(endpoint: string, options: RequestInit = {}) {
     // Handle empty response
     const text = await response.text();
     return text ? JSON.parse(text) : {};
-  } catch (error) {
-    const status = (error as any)?.status;
-    if (!status || status >= 500) {
-      console.error(`API Request failed for ${endpoint}:`, error);
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error?.name === 'AbortError') {
+      console.warn(`API Request cancelled/timed out for ${endpoint}`);
+    } else {
+      const status = error?.status;
+      if (!status || status >= 500) {
+        console.error(`API Request failed for ${endpoint}:`, error);
+      }
     }
     throw error;
   }
