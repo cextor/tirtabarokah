@@ -979,7 +979,6 @@ export default function AdminDashboard({
 
     setAttendanceMember(member);
     setNewAttendanceStatus('Hadir');
-    setNewAttendanceNote('Menyelesaikan sesi latihan rutin dengan baik. Fokus gerakan hari ini tercapai.');
     setShowAttendanceModal(true);
   };
 
@@ -1007,17 +1006,17 @@ export default function AdminDashboard({
     const newSessionsLeft = Math.max(0, member.sessionsLeft - 1);
     const isAlmostExpiring = newSessionsLeft <= 2;
 
+    const autoNote = newAttendanceStatus === 'Hadir' 
+      ? 'Presensi Sesi dikonfirmasi oleh Admin/Operator.' 
+      : newAttendanceStatus === 'Absen' 
+      ? 'Siswa absen tanpa keterangan (dikonfirmasi Admin/Operator).' 
+      : 'Siswa berhalangan hadir dengan izin (dikonfirmasi Admin/Operator).';
+
     const newProgressRecord = {
       id: `prog-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
+      date: todayStr,
       attendance: newAttendanceStatus,
-      note: newAttendanceNote || (
-        newAttendanceStatus === 'Hadir' 
-          ? 'Menyelesaikan sesi latihan rutin dengan baik. Fokus gerakan hari ini tercapai.' 
-          : newAttendanceStatus === 'Absen' 
-          ? 'Siswa absen tanpa keterangan pada jadwal latihan rutin.' 
-          : 'Siswa berhalangan hadir dengan izin tertulis / pemberitahuan sebelumnya.'
-      )
+      note: autoNote
     };
 
     const updated = members.map(m => {
@@ -1039,7 +1038,7 @@ export default function AdminDashboard({
     api.addProgress({
       memberId: member.id,
       attendance: newAttendanceStatus,
-      note: newProgressRecord.note,
+      note: autoNote,
       date: todayStr
     }).catch(err => console.error("Failed to sync progress to backend:", err));
 
@@ -6593,22 +6592,13 @@ export default function AdminDashboard({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="font-bold text-slate-600 uppercase block text-[10px]">Status Kehadiran</label>
+                      <label className="font-bold text-slate-600 uppercase block text-[10px]">Status Kehadiran Hari Ini</label>
                       <div className="grid grid-cols-3 gap-1.5">
                         {(['Hadir', 'Absen', 'Izin'] as const).map(status => (
                           <button
                             type="button"
                             key={status}
-                            onClick={() => {
-                              setNewAttendanceStatus(status);
-                              if (status === 'Hadir') {
-                                setNewAttendanceNote('Menyelesaikan sesi latihan rutin dengan baik. Fokus gerakan hari ini tercapai.');
-                              } else if (status === 'Absen') {
-                                setNewAttendanceNote('Siswa absen tanpa keterangan pada jadwal latihan rutin.');
-                              } else {
-                                setNewAttendanceNote('Siswa berhalangan hadir dengan izin tertulis / pemberitahuan sebelumnya.');
-                              }
-                            }}
+                            onClick={() => setNewAttendanceStatus(status)}
                             className={`py-2 text-xs rounded-xl font-bold border transition cursor-pointer ${
                               newAttendanceStatus === status
                                 ? 'bg-cyan-600 text-white border-transparent shadow-xs'
@@ -6621,16 +6611,11 @@ export default function AdminDashboard({
                       </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="font-bold text-slate-600 uppercase block text-[10px]">Catatan Latihan / Presensi</label>
-                      <textarea
-                        rows={4}
-                        required
-                        placeholder="Contoh: Budi berlatih gerakan kayuhan tangan gaya bebas bolak-balik 10 meter dengan baik..."
-                        value={newAttendanceNote}
-                        onChange={(e) => setNewAttendanceNote(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl focus:bg-white text-xs focus:ring-2 focus:ring-cyan-500/20 focus:outline-hidden transition"
-                      />
+                    <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-600 space-y-1">
+                      <span className="font-bold text-slate-700 block">💡 Informasi Catatan Perkembangan:</span>
+                      <p className="text-[10px] text-slate-500 leading-normal">
+                        Catatan materi & perkembangan keterampilan diisi secara eksklusif oleh Pelatih (Coach) di menu <strong>Catat Perkembangan</strong>.
+                      </p>
                     </div>
 
                     {attendanceMember.progress.some(p => p.date === new Date().toISOString().split('T')[0]) && (
@@ -6649,7 +6634,7 @@ export default function AdminDashboard({
                       }`}
                     >
                       <CheckSquare className="w-4 h-4" /> 
-                      {attendanceMember.progress.some(p => p.date === new Date().toISOString().split('T')[0]) ? 'Sudah Diabsen Hari Ini' : 'Simpan Presensi Baru'}
+                      {attendanceMember.progress.some(p => p.date === new Date().toISOString().split('T')[0]) ? 'Sudah Diabsen Hari Ini' : 'Konfirmasi Presensi Sesi'}
                     </button>
                   </form>
                 </div>
@@ -6657,13 +6642,14 @@ export default function AdminDashboard({
 
               {/* Right Column: Attendance History List */}
               <div className={attendanceMember.isActive === false || attendanceMember.sessionsLeft <= 0 || attendanceMember.status === 'Selesai' ? "lg:col-span-12 space-y-4" : "lg:col-span-7 space-y-4"}>
-                <h5 className="font-extrabold text-xs text-cyan-700 uppercase tracking-wider border-b border-cyan-100 pb-1.5">
-                  ⏳ Riwayat Sesi Sebelumnya
+                <h5 className="font-extrabold text-xs text-cyan-700 uppercase tracking-wider border-b border-cyan-100 pb-1.5 flex items-center justify-between">
+                  <span>⏳ Riwayat Sesi & Catatan Perkembangan Coach</span>
+                  <span className="text-[10px] font-semibold text-slate-400">({attendanceMember.progress.length} Sesi Recorded)</span>
                 </h5>
 
                 {attendanceMember.progress.length === 0 ? (
                   <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                    <p className="text-xs text-slate-400 italic">Belum ada riwayat presensi / latihan untuk siswa ini.</p>
+                    <p className="text-xs text-slate-400 italic">Belum ada riwayat presensi / catatan perkembangan dari coach untuk siswa ini.</p>
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
@@ -6672,7 +6658,7 @@ export default function AdminDashboard({
                       const startSessionNum = Math.max(attendanceMember.sessionsTotal - attendanceMember.sessionsLeft, attendanceMember.progress.length);
                       const sessionNum = startSessionNum - index;
                       return (
-                        <div key={log.id} className="bg-slate-50 border border-slate-200/60 rounded-xl p-3.5 space-y-2 hover:border-slate-300 transition">
+                        <div key={log.id} className="bg-slate-50 border border-slate-200/60 rounded-xl p-3.5 space-y-2 hover:border-slate-300 transition shadow-2xs">
                           <div className="flex justify-between items-center">
                             <span className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
                               Sesi Ke-{sessionNum}
@@ -6687,10 +6673,14 @@ export default function AdminDashboard({
                               {log.attendance === 'Hadir' ? '✓ Hadir' : log.attendance === 'Absen' ? '✗ Absen' : '- Izin'}
                             </span>
                           </div>
-                          <p className="text-slate-600 font-medium leading-relaxed">{log.note}</p>
-                          <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1.5 border-t border-slate-100">
-                            <span>📅 Waktu: {log.date}</span>
-                            <span>👤 Pelatih: {coach?.name || 'Pelatih'}</span>
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200/50">
+                            <p className="text-slate-700 font-medium leading-relaxed italic text-xs">
+                              "{log.note}"
+                            </p>
+                          </div>
+                          <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                            <span>📅 Tanggal: <strong className="text-slate-700">{log.date}</strong></span>
+                            <span>👤 Coach: <strong className="text-cyan-700">{coach?.name || 'Pelatih'}</strong></span>
                           </div>
                         </div>
                       );
