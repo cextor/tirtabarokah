@@ -1705,6 +1705,21 @@ export default function MainPortal({
                             });
                             return;
                           }
+
+                          // Check if Sesi 1 is full
+                          if (selectedCoach) {
+                            const details1 = getSlotDetails(selectedCoach, selectedScheduleDay, selectedScheduleTime);
+                            if (details1.isFull) {
+                              Swal.fire({
+                                title: 'Kuota Pelatih Penuh',
+                                text: `Slot latihan Coach ${selectedCoach.name} pada hari ${selectedScheduleDay} jam ${selectedScheduleTime} WIB sudah Penuh. Silakan pilih slot lain yang masih tersedia.`,
+                                icon: 'error',
+                                confirmButtonColor: '#0891b2'
+                              });
+                              return;
+                            }
+                          }
+
                           if (scheduleFrequency === '2x Seminggu') {
                             if (!selectedScheduleDay2 || !selectedScheduleTime2) {
                               Swal.fire({
@@ -1725,6 +1740,20 @@ export default function MainPortal({
                                 confirmButtonColor: '#0891b2'
                               });
                               return;
+                            }
+
+                            // Check if Sesi 2 is full
+                            if (selectedCoach) {
+                              const details2 = getSlotDetails(selectedCoach, selectedScheduleDay2, selectedScheduleTime2);
+                              if (details2.isFull) {
+                                Swal.fire({
+                                  title: 'Kuota Pelatih Penuh',
+                                  text: `Slot latihan Sesi 2 Coach ${selectedCoach.name} pada hari ${selectedScheduleDay2} jam ${selectedScheduleTime2} WIB sudah Penuh. Silakan pilih slot lain yang masih tersedia.`,
+                                  icon: 'error',
+                                  confirmButtonColor: '#0891b2'
+                                });
+                                return;
+                              }
                             }
                           }
                           setStep(5);

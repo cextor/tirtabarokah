@@ -850,17 +850,54 @@ export default function AdminDashboard({
   const activeMembers = members.filter(m => m.status === 'Aktif' || m.status === 'Paket Hampir Habis');
   const pendingPayments = members.filter(m => m.status === 'Menunggu Verifikasi' || m.payment.status === 'Menunggu Verifikasi');
   const expiringMembers = members.filter(m => m.sessionsLeft <= 2 && m.status !== 'Menunggu Verifikasi');
-
   const totalRevenue = members
     .filter(m => m.payment.status === 'Pembayaran Berhasil')
     .reduce((sum, m) => sum + m.payment.amount, 0);
 
   // ACTION: VERIFY PAYMENT (WITH CONFIRMATION & NOTIF)
-  const handleVerifyPayment = (memberId: string, isApproved: boolean) => {
+  const handleVerifyPayment = (memberId: string, isApproved: boolean = true) => {
     const memberObj = members.find(m => m.id === memberId);
     if (!memberObj) return;
 
     const studentName = memberObj.student?.fullName || memberId;
+
+    // VALIDATION WHEN APPROVING VERIFICATION: CHECK COACH QUOTA!
+    if (isApproved) {
+      const targetCoach = coaches.find(c => c.id === memberObj.coachId);
+      const studentSchedules = memberObj.schedules && memberObj.schedules.length > 0
+        ? memberObj.schedules
+        : [{ coachId: memberObj.coachId, day: memberObj.scheduleDay, time: memberObj.scheduleTime }];
+
+      for (const s of studentSchedules) {
+        const dayGroup = targetCoach?.schedule?.find(d => d.day === s.day);
+        const slot = dayGroup?.timeSlots?.find(ts => ts.time === s.time);
+        const maxSlots = slot?.maxSlots || targetCoach?.maxQuota || 6;
+
+        // Count current active students in this slot excluding current member
+        const activeInSlot = members.filter(m => {
+          if (m.id === memberObj.id) return false;
+          if (m.status !== 'Aktif' && m.status !== 'Paket Hampir Habis') return false;
+          if (m.isActive === false) return false;
+
+          const mScheds = m.schedules && m.schedules.length > 0
+            ? m.schedules
+            : [{ coachId: m.coachId, day: m.scheduleDay, time: m.scheduleTime }];
+
+          return mScheds.some(sched => sched.coachId === memberObj.coachId && sched.day === s.day && sched.time === s.time);
+        }).length;
+
+        if (activeInSlot >= maxSlots) {
+          Swal.fire({
+            title: 'Kuota Pelatih Penuh!',
+            html: `Pendaftaran <strong>${studentName}</strong> tidak dapat disetujui karena kuota latihan untuk <strong>Coach ${targetCoach?.name || ''}</strong> pada hari <strong>${s.day}</strong> jam <strong>${s.time} WIB</strong> sudah penuh (<strong>${activeInSlot}/${maxSlots} slot</strong> terisi).<br/><br/><span class="text-xs text-slate-500">Silakan ubah jadwal siswa atau pindahkan ke pelatih lain sebelum menyetujui verifikasi.</span>`,
+            icon: 'error',
+            confirmButtonColor: '#06b6d4',
+            confirmButtonText: 'Tutup'
+          });
+          return;
+        }
+      }
+    }
 
     Swal.fire({
       title: isApproved ? 'Setujui Pembayaran?' : 'Tolak Pembayaran?',

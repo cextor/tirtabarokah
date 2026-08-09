@@ -762,6 +762,42 @@ class ApiController extends BaseController
         $member = $this->db->table('members')->where('id', $json->id)->get()->getRowArray();
         $studentName = $member ? $member['student_name'] : $json->id;
 
+        if ($isApproved) {
+            $memberSchedules = $this->db->table('member_schedules')->where('member_id', $json->id)->get()->getResultArray();
+            foreach ($memberSchedules as $ms) {
+                $cId = $ms['coach_id'];
+                $day = $ms['day'];
+                $time = $ms['time'];
+
+                // Check slot max quota
+                $schedRow = $this->db->table('coach_schedules')
+                    ->where('coach_id', $cId)
+                    ->where('day', $day)
+                    ->where('time', $time)
+                    ->get()
+                    ->getRowArray();
+
+                $maxSlots = (int)($schedRow['max_slots'] ?? 6);
+
+                // Count active students in this slot excluding current member
+                $activeCount = $this->db->table('member_schedules')
+                    ->join('members', 'members.id = member_schedules.member_id')
+                    ->where('member_schedules.coach_id', $cId)
+                    ->where('member_schedules.day', $day)
+                    ->where('member_schedules.time', $time)
+                    ->where('member_schedules.member_id !=', $json->id)
+                    ->whereNotIn('members.status', ['Selesai', 'Menunggu Verifikasi', 'Menunggu Pembayaran', 'Ditolak'])
+                    ->where('members.is_active !=', 0)
+                    ->countAllResults();
+
+                if ($activeCount >= $maxSlots) {
+                    $coachRow = $this->db->table('coaches')->where('id', $cId)->get()->getRowArray();
+                    $coachName = $coachRow ? $coachRow['name'] : 'pelatih';
+                    return $this->fail("Kuota pelatih penuh! Slot jam latihan untuk Coach {$coachName} pada hari {$day} jam {$time} WIB sudah penuh ({$activeCount}/{$maxSlots} slot terisi). Verification failed.");
+                }
+            }
+        }
+
         $this->db->transStart();
         $this->db->table('payments')->where('member_id', $json->id)->update([
             'status' => $isApproved ? 'Pembayaran Berhasil' : 'Pembayaran Gagal',
