@@ -1,5 +1,19 @@
 <?php
 
+// Early CORS handling for cross-origin frontend requests
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+if (!headers_sent()) {
+    header("Access-Control-Allow-Origin: {$origin}");
+    header("Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Client-Key");
+    header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+    header("Access-Control-Allow-Credentials: true");
+}
+
+if (isset($_SERVER['REQUEST_METHOD']) && strtolower($_SERVER['REQUEST_METHOD']) === 'options') {
+    http_response_code(200);
+    exit(0);
+}
+
 use CodeIgniter\Boot;
 use Config\Paths;
 
