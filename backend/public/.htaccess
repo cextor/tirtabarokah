@@ -12,11 +12,11 @@ Options -Indexes
     Header always set Access-Control-Allow-Credentials "true"
 </IfModule>
 
-# Handle OPTIONS Preflight Requests before hitting CodeIgniter
+# Handle OPTIONS Preflight Requests by routing to index.php
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteCond %{REQUEST_METHOD} OPTIONS
-    RewriteRule ^(.*)$ - [R=200,L]
+    RewriteRule ^(.*)$ index.php/$1 [L,NC,QSA]
 </IfModule>
 
 
