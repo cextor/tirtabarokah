@@ -10,9 +10,21 @@ class ApiAuthFilter implements FilterInterface
 {
     public function before(RequestInterface $request, $arguments = null)
     {
-        // Handle preflight CORS requests automatically
+        // Always emit CORS headers for cross-domain API calls (e.g. demo.tirtabarokah.id -> apidemo.tirtabarokah.id)
+        $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*';
+        if (function_exists('header') && !headers_sent()) {
+            header("Access-Control-Allow-Origin: {$origin}");
+            header("Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Client-Key");
+            header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+            header("Access-Control-Allow-Credentials: true");
+        }
+
+        // Handle preflight CORS requests automatically (terminate with 200 OK)
         if (strtolower($request->getMethod()) === 'options') {
-            return;
+            if (function_exists('http_response_code')) {
+                http_response_code(200);
+            }
+            exit(0);
         }
 
         // Get request path relative to index.php (e.g. api/coaches)
