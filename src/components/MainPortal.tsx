@@ -477,7 +477,7 @@ export default function MainPortal({
       </div>
 
           {/* Mengapa Memilih Section */}
-          <section className="space-y-6">
+          <section className="space-y-6 bg-gradient-to-br from-cyan-50/70 via-sky-50/50 to-blue-50/70 border border-cyan-100/80 rounded-3xl p-6 md:p-8 shadow-xs">
             <div className="text-center max-w-xl mx-auto space-y-2">
               <h2 className="text-2xl md:text-3xl font-black text-slate-800">
                 {settings.why_choose_heading || 'Mengapa Memilih Private Renang Tirta Barokah Palembang?'}
@@ -499,7 +499,7 @@ export default function MainPortal({
           </section>
 
           {/* Kurikulum / Tingkatan Level Program Section */}
-          <section id="program-info" className="space-y-8">
+          <section id="program-info" className="space-y-8 bg-white rounded-3xl p-6 md:p-8 border border-slate-200/70 shadow-xs">
             <div className="text-center max-w-xl mx-auto space-y-2">
               <div className="inline-flex items-center gap-1.5 bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
                 🎓 Jenjang Latihan
@@ -541,7 +541,7 @@ export default function MainPortal({
           </section>
 
           {/* Paket & Biaya Latihan Section */}
-          <section id="pricing-section" className="space-y-8 bg-slate-50/50 rounded-3xl p-6 md:p-8 border border-slate-100">
+          <section id="pricing-section" className="space-y-8 bg-gradient-to-br from-cyan-50/70 via-sky-50/50 to-blue-50/70 rounded-3xl p-6 md:p-8 border border-cyan-100/80 shadow-xs">
             <div className="text-center max-w-xl mx-auto space-y-2">
               <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
                 💰 Paket Pilihan & Biaya
@@ -653,7 +653,7 @@ export default function MainPortal({
           </section>
 
           {/* Swimming Pools Info Section */}
-          <section id="swimming-pools-section" className="space-y-8 pt-4">
+          <section id="swimming-pools-section" className="space-y-8 bg-white rounded-3xl p-6 md:p-8 border border-slate-200/70 shadow-xs">
             <div className="text-center max-w-xl mx-auto space-y-2">
               <span className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border border-cyan-200/60 inline-flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-cyan-600" />
@@ -740,7 +740,7 @@ export default function MainPortal({
           </section>
 
           {/* Coaches Showcase Section (ID CARD STYLE) */}
-          <section id="coaches-section" className="space-y-8">
+          <section id="coaches-section" className="space-y-8 bg-gradient-to-br from-cyan-50/70 via-sky-50/50 to-blue-50/70 rounded-3xl p-6 md:p-8 border border-cyan-100/80 shadow-xs">
             <div className="text-center max-w-xl mx-auto space-y-2">
               <span className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border border-cyan-200/60 inline-block">
                 🪪 TIM PELATIH TERTIFIED
@@ -871,7 +871,7 @@ export default function MainPortal({
           </section>
 
           {/* Event & Berita Kegiatan Section */}
-          <section id="events-section" className="space-y-8 bg-slate-50/50 border border-slate-100 p-8 rounded-3xl">
+          <section id="events-section" className="space-y-8 bg-white rounded-3xl p-6 md:p-8 border border-slate-200/70 shadow-xs">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-1.5 bg-cyan-50 text-cyan-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider mb-2">
                 📢 Update Terkini

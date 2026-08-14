@@ -273,8 +273,8 @@ export default function App() {
   const lastFetchRef = useRef<{ tab: string; time: number } | null>(null);
 
   // STRICT TARGETED FETCHING WITH DEDUPLICATION GUARD
-  const loadTabData = (tabNameOrForce?: string | boolean) => {
-    const isForce = tabNameOrForce === true;
+  const loadTabData = (tabNameOrForce?: string | boolean, forceBool?: boolean) => {
+    const isForce = tabNameOrForce === true || forceBool === true;
     const tabName = typeof tabNameOrForce === 'string' ? tabNameOrForce : 'dashboard';
     const now = Date.now();
 
@@ -617,7 +617,7 @@ export default function App() {
     try {
       const res: any = await api.addCoach(coachData);
       lastFetchRef.current = null;
-      await loadTabData('pelatih');
+      await loadTabData('pelatih', true);
       return { success: true, id: res?.id };
     } catch (e: any) {
       console.error("Failed to add coach to backend:", e);
@@ -629,7 +629,7 @@ export default function App() {
     try {
       await api.updateCoach(coachData);
       lastFetchRef.current = null;
-      await loadTabData('pelatih');
+      await loadTabData('pelatih', true);
       return { success: true };
     } catch (e: any) {
       console.error("Failed to update coach in backend:", e);
@@ -641,7 +641,7 @@ export default function App() {
     try {
       await api.deleteCoach(id);
       lastFetchRef.current = null;
-      await loadTabData('pelatih');
+      await loadTabData('pelatih', true);
       return { success: true };
     } catch (e: any) {
       console.error("Failed to delete coach in backend:", e);

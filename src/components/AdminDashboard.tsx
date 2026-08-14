@@ -1405,6 +1405,8 @@ export default function AdminDashboard({
     const updatedCoach = {
       ...targetCoach,
       schedule: baseSchedule.map(d => {
+        if (d.day === dayName) {
+          if (d.timeSlots.some(ts => ts.time.trim() === timeStr.trim())) return d;
           const coachPkgs = (pricingPackages || []).filter(p => (p.coachIds || []).includes(targetCoach.id));
           const defaultMaxSlots = coachPkgs.length > 0 && coachPkgs[0].max_students ? coachPkgs[0].max_students : (targetCoach.maxQuota || 6);
 
@@ -1418,6 +1420,7 @@ export default function AdminDashboard({
               swimmingPoolId: poolId || undefined 
             }].sort((a, b) => a.time.localeCompare(b.time))
           };
+        }
         return d;
       })
     };
