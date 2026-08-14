@@ -477,9 +477,9 @@ export default function MainPortal({
       </div>
 
           {/* Mengapa Memilih Section */}
-          <section className="space-y-6 bg-gradient-to-br from-cyan-50/70 via-sky-50/50 to-blue-50/70 border border-cyan-100/80 rounded-3xl p-6 md:p-8 shadow-xs">
+          <section className="space-y-6 bg-gradient-to-br from-cyan-950 via-blue-900 to-indigo-950 text-white rounded-3xl p-6 md:p-8 border border-cyan-800/60 shadow-xl">
             <div className="text-center max-w-xl mx-auto space-y-2">
-              <h2 className="text-2xl md:text-3xl font-black text-slate-800">
+              <h2 className="text-2xl md:text-3xl font-black text-white">
                 {settings.why_choose_heading || 'Mengapa Memilih Private Renang Tirta Barokah Palembang?'}
               </h2>
             </div>
@@ -490,9 +490,9 @@ export default function MainPortal({
                 { title: settings.why_choose_3_title || 'Pendekatan Personal', desc: settings.why_choose_3_desc || 'Setiap peserta memperoleh perhatian lebih intensif.' },
                 { title: settings.why_choose_4_title || 'Aman & Menyenangkan', desc: settings.why_choose_4_desc || 'Membangun rasa percaya diri dengan pendekatan sabar.' }
               ].map((item, idx) => (
-                <div key={idx} className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-2 hover:border-cyan-200 transition">
-                  <h4 className="font-bold text-sm text-slate-800">{item.title}</h4>
-                  <p className="text-slate-500 text-[11px] leading-relaxed">{item.desc}</p>
+                <div key={idx} className="bg-slate-900/80 rounded-2xl border border-slate-700/80 p-6 shadow-md space-y-2 hover:border-cyan-400 transition">
+                  <h4 className="font-bold text-sm text-cyan-300">{item.title}</h4>
+                  <p className="text-slate-300 text-[11px] leading-relaxed">{item.desc}</p>
                 </div>
               ))}
             </div>
@@ -541,13 +541,13 @@ export default function MainPortal({
           </section>
 
           {/* Paket & Biaya Latihan Section */}
-          <section id="pricing-section" className="space-y-8 bg-gradient-to-br from-cyan-50/70 via-sky-50/50 to-blue-50/70 rounded-3xl p-6 md:p-8 border border-cyan-100/80 shadow-xs">
+          <section id="pricing-section" className="space-y-8 bg-gradient-to-br from-slate-900 via-blue-950 to-cyan-950 text-white rounded-3xl p-6 md:p-8 border border-blue-900/80 shadow-xl">
             <div className="text-center max-w-xl mx-auto space-y-2">
-              <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+              <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
                 💰 Paket Pilihan & Biaya
               </div>
-              <h2 className="text-2xl md:text-3xl font-black text-slate-800">Paket & Biaya Latihan</h2>
-              <p className="text-slate-500 text-xs md:text-sm">
+              <h2 className="text-2xl md:text-3xl font-black text-white">Paket & Biaya Latihan</h2>
+              <p className="text-slate-300 text-xs md:text-sm">
                 Investasi terbaik untuk masa depan buah hati Anda dengan belajar renang bersama kami.
               </p>
             </div>
@@ -602,7 +602,7 @@ export default function MainPortal({
                 }
 
                 return packagesList.map((pkg: any, idx: number) => (
-                  <div key={idx} className="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-6 flex flex-col justify-between hover:border-cyan-300 hover:shadow-md transition">
+                  <div key={idx} className="bg-white rounded-2xl border border-slate-200/90 shadow-md p-6 flex flex-col justify-between hover:border-cyan-400 hover:shadow-xl transition text-slate-900">
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded ${
@@ -641,10 +641,10 @@ export default function MainPortal({
               })()}
             </div>
 
-            <div className="bg-cyan-50/50 border border-cyan-100 p-4 rounded-2xl text-[11px] text-cyan-800 flex items-start gap-2.5">
-              <AlertCircle className="w-5 h-5 text-cyan-600 shrink-0 mt-0.5" />
+            <div className="bg-cyan-950/70 border border-cyan-800/80 p-4 rounded-2xl text-[11px] text-cyan-200 flex items-start gap-2.5 shadow-sm">
+              <AlertCircle className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
               <div className="space-y-1 leading-relaxed">
-                <p className="font-bold">Informasi Tambahan Penting:</p>
+                <p className="font-bold text-white">Informasi Tambahan Penting:</p>
                 <p>• Biaya di atas hanya untuk <strong>biaya pelatihan saja</strong>, belum termasuk tiket masuk kolam renang peserta.</p>
                 <p>• Untuk paket reguler, 1 pelatih dapat mengajar kelompok berisi 1-6 anak secara fleksibel.</p>
                 <p>• Untuk paket private, pelatih bersifat eksklusif (khusus) mengajar jumlah anak sesuai paket pilihan Anda.</p>
@@ -740,13 +740,13 @@ export default function MainPortal({
           </section>
 
           {/* Coaches Showcase Section (ID CARD STYLE) */}
-          <section id="coaches-section" className="space-y-8 bg-gradient-to-br from-cyan-50/70 via-sky-50/50 to-blue-50/70 rounded-3xl p-6 md:p-8 border border-cyan-100/80 shadow-xs">
+          <section id="coaches-section" className="space-y-8 bg-gradient-to-br from-cyan-950 via-blue-900 to-indigo-950 text-white rounded-3xl p-6 md:p-8 border border-cyan-800/60 shadow-xl">
             <div className="text-center max-w-xl mx-auto space-y-2">
-              <span className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border border-cyan-200/60 inline-block">
+              <span className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-block">
                 🪪 TIM PELATIH TERTIFIED
               </span>
-              <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Daftar Pelatih Profesional Kami</h2>
-              <p className="text-slate-500 text-sm">
+              <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">Daftar Pelatih Profesional Kami</h2>
+              <p className="text-slate-300 text-sm">
                 Setiap pelatih memiliki kartu identitas resmi demi efektivitas pengajaran.
               </p>
             </div>
