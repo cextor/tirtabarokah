@@ -1326,9 +1326,50 @@ export default function AdminDashboard({
   };
 
   const handleDeleteEditPackage = (id: string) => {
+    const pkgToDelete = editCoachPackages.find(p => p.id === id);
+    if (!pkgToDelete) return;
+
+    const coachObj = coaches.find(c => c.id === selectedEditCoachId);
+    const coachName = coachObj ? coachObj.name : 'pelatih ini';
+
+    // Find if any student (member) is assigned to this coach AND using this package
+    const assignedMembers = (members || []).filter(m => {
+      const isCoachMatch = m.coachId === selectedEditCoachId || 
+        (m.schedules || []).some(s => s.coachId === selectedEditCoachId);
+      if (!isCoachMatch) return false;
+
+      const pId = (pkgToDelete.id || '').toLowerCase();
+      const pName = (pkgToDelete.name || '').toLowerCase();
+      const mPkgId = (m.packageId || '').toLowerCase();
+
+      const isPkgMatch = 
+        mPkgId === pId ||
+        (pId && mPkgId.includes(pId)) ||
+        (pName && mPkgId === pName) ||
+        (pName && mPkgId.includes(pName)) ||
+        (pName.includes('promo') && mPkgId.includes('promo')) ||
+        (pName.includes('reguler') && mPkgId.includes('reguler')) ||
+        (pName.includes('private') && mPkgId.includes('private'));
+
+      return isPkgMatch;
+    });
+
+    if (assignedMembers.length > 0) {
+      const studentList = assignedMembers.slice(0, 4).map(m => `• <strong>${m.student?.fullName || m.id}</strong>`).join('<br/>');
+      const extraText = assignedMembers.length > 4 ? `<br/>...dan <strong>${assignedMembers.length - 4} siswa lainnya</strong>` : '';
+
+      Swal.fire({
+        title: 'Paket Tidak Dapat Dihapus!',
+        html: `Paket <strong>"${pkgToDelete.name}"</strong> tidak dapat dihapus dari Coach <strong>${coachName}</strong> karena masih digunakan oleh <strong>${assignedMembers.length} siswa</strong>:<br/><br/><div style="text-align: left; font-size: 11px; background: #fff1f2; padding: 10px; border-radius: 10px; border: 1px solid #fecdd3; color: #9f1239;">${studentList}${extraText}</div><br/>Harap ubah atau hapus data siswa yang menggunakan paket ini terlebih dahulu.`,
+        icon: 'error',
+        confirmButtonColor: '#e11d48'
+      });
+      return;
+    }
+
     Swal.fire({
       title: 'Apakah Anda yakin?',
-      text: 'Apakah Anda yakin ingin menghapus paket belajar ini?',
+      text: `Apakah Anda yakin ingin menghapus paket "${pkgToDelete.name}" dari pelatih ini?`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
@@ -1340,7 +1381,7 @@ export default function AdminDashboard({
         setEditCoachPackages(prev => prev.filter(p => p.id !== id));
         Swal.fire({
           title: 'Terhapus!',
-          text: 'Paket berhasil dihapus.',
+          text: 'Paket berhasil dihapus dari daftar pelatih.',
           icon: 'success',
           confirmButtonColor: '#06b6d4'
         });

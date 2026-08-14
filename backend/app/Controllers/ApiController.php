@@ -310,8 +310,17 @@ class ApiController extends BaseController
             // Delete packages that are no longer in the payload
             $idsToDelete = array_diff($existingIds, $keepIds);
             foreach ($idsToDelete as $deleteId) {
-                // Clear member foreign key reference if any, then delete package
-                $this->db->table('members')->where('package_id', $deleteId)->update(['package_id' => null]);
+                // Check if any student is assigned to this coach with this package
+                $assignedCount = $this->db->table('members')
+                    ->where('package_id', $deleteId)
+                    ->countAllResults();
+
+                if ($assignedCount > 0) {
+                    $pkgRow = $this->db->table('packages')->where('id', $deleteId)->get()->getRowArray();
+                    $pkgName = $pkgRow ? $pkgRow['name'] : $deleteId;
+                    return $this->fail("Paket '{$pkgName}' tidak dapat dihapus dari pelatih ini karena masih digunakan oleh {$assignedCount} siswa. Harap ubah/hapus data siswa terlebih dahulu.");
+                }
+
                 $this->db->table('packages')->where('id', $deleteId)->delete();
             }
 
