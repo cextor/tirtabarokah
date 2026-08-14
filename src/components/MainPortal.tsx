@@ -501,9 +501,6 @@ export default function MainPortal({
           {/* Kurikulum / Tingkatan Level Program Section */}
           <section id="program-info" className="space-y-8 bg-white rounded-3xl p-6 md:p-8 border border-slate-200/70 shadow-xs">
             <div className="text-center max-w-xl mx-auto space-y-2">
-              <div className="inline-flex items-center gap-1.5 bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                🎓 Jenjang Latihan
-              </div>
               <h2 className="text-2xl md:text-3xl font-black text-slate-800">Kurikulum & Informasi Program</h2>
               <p className="text-slate-500 text-xs md:text-sm">Bimbingan belajar bertahap dari kemampuan nol (Level 1) hingga mandiri & pengembangan keterampilan (Level 9).</p>
             </div>
@@ -543,9 +540,6 @@ export default function MainPortal({
           {/* Paket & Biaya Latihan Section */}
           <section id="pricing-section" className="space-y-8 bg-gradient-to-br from-slate-900 via-blue-950 to-cyan-950 text-white rounded-3xl p-6 md:p-8 border border-blue-900/80 shadow-xl">
             <div className="text-center max-w-xl mx-auto space-y-2">
-              <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                💰 Paket Pilihan & Biaya
-              </div>
               <h2 className="text-2xl md:text-3xl font-black text-white">Paket & Biaya Latihan</h2>
               <p className="text-slate-300 text-xs md:text-sm">
                 Investasi terbaik untuk masa depan buah hati Anda dengan belajar renang bersama kami.
@@ -655,10 +649,6 @@ export default function MainPortal({
           {/* Swimming Pools Info Section */}
           <section id="swimming-pools-section" className="space-y-8 bg-white rounded-3xl p-6 md:p-8 border border-slate-200/70 shadow-xs">
             <div className="text-center max-w-xl mx-auto space-y-2">
-              <span className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border border-cyan-200/60 inline-flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-cyan-600" />
-                LOKASI & LATIHAN
-              </span>
               <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Lokasi Kolam Renang Latihan</h2>
               <p className="text-slate-500 text-sm">
                 Informasi kolam renang mitra tempat berlangsungnya kegiatan latihan renang Tirta Barokah.
@@ -873,9 +863,6 @@ export default function MainPortal({
           {/* Event & Berita Kegiatan Section */}
           <section id="events-section" className="space-y-8 bg-white rounded-3xl p-6 md:p-8 border border-slate-200/70 shadow-xs">
             <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-1.5 bg-cyan-50 text-cyan-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider mb-2">
-                📢 Update Terkini
-              </div>
               <h2 className="text-2xl font-black text-slate-800 tracking-tight">Event & Berita Kegiatan</h2>
               <p className="text-slate-500 text-xs mt-1">Saksikan kegiatan seru seperti fun swimming, lomba internal, dan pengumuman kegiatan terbaru dari Tirta Barokah.</p>
             </div>
