@@ -122,6 +122,7 @@ export default function MainPortal({
         name: 'Paket Reguler PROMO 5x latihan',
         price: 220000,
         sessions: 5,
+        max_students: 6,
         active_period: '1 Bulan',
         description: '1 pelatih mengajar 1-6 anak. Masa aktif 1 bulan, jika tidak habis maka hangus.'
       },
@@ -131,6 +132,7 @@ export default function MainPortal({
         name: 'Paket Reguler 5x latihan',
         price: 250000,
         sessions: 5,
+        max_students: 6,
         active_period: '3 Bulan',
         description: '1 pelatih mengajar 1-6 anak. Masa aktif 3 bulan, jika tidak habis maka hangus.'
       },
@@ -140,6 +142,7 @@ export default function MainPortal({
         name: 'Paket Private 2 anak',
         price: 1300000,
         sessions: 8,
+        max_students: 2,
         active_period: '2 Bulan',
         description: '1 pelatih KHUSUS mengajar 2 anak.'
       },
@@ -149,6 +152,7 @@ export default function MainPortal({
         name: 'Paket Private 3 anak',
         price: 1500000,
         sessions: 8,
+        max_students: 3,
         active_period: '2 Bulan',
         description: '1 pelatih KHUSUS mengajar 3 anak.'
       }
@@ -295,7 +299,7 @@ export default function MainPortal({
     return false;
   };
 
-  const getSlotDetails = (coach: Coach, dayName: string, timeStr: string) => {
+  const getSlotDetails = (coach: Coach, dayName: string, timeStr: string, customPkg?: PricingPackage) => {
     const day = coach.schedule.find(d => d.day === dayName);
     const slot = day?.timeSlots.find(ts => ts.time === timeStr);
     
@@ -308,20 +312,33 @@ export default function MainPortal({
       return mSchedules.some(s => s.coachId === coach.id && s.day === dayName && s.time === timeStr);
     });
 
+    // Referensi kuota dari paket harga
+    const targetPkg = customPkg || selectedPricingPackage;
+    let pkgQuota = targetPkg?.max_students;
+
+    if (!pkgQuota && coach) {
+      // Look up pricing packages assigned to this coach
+      const coachPkgs = (pricingPackages || []).filter(p => (p.coachIds || []).includes(coach.id));
+      if (coachPkgs.length > 0 && coachPkgs[0].max_students) {
+        pkgQuota = coachPkgs[0].max_students;
+      }
+    }
+
     const activeCount = Math.max(slot?.currentSlots || 0, currentMembersInThisSlot.length);
-    const maxSlots = slot?.maxSlots || coach.maxQuota;
+    const maxSlots = pkgQuota || slot?.maxSlots || coach.maxQuota || 6;
     const isFull = activeCount >= maxSlots;
 
     return {
       current: activeCount,
       max: maxSlots,
       isFull,
-      remaining: maxSlots - activeCount
+      remaining: Math.max(0, maxSlots - activeCount)
     };
   };
 
   // Helper: check coach overall status
-  const getCoachOverallQuota = (coach: Coach) => {
+  const getCoachOverallQuota = (coach: Coach, customPkg?: PricingPackage) => {
+    const targetPkg = customPkg || selectedPricingPackage;
     if (coach.schedule && coach.schedule.length > 0) {
       let totalMaxSlots = 0;
       let totalActiveInSlots = 0;
@@ -329,7 +346,7 @@ export default function MainPortal({
 
       for (const dayGroup of coach.schedule) {
         for (const slot of dayGroup.timeSlots) {
-          const cap = getSlotDetails(coach, dayGroup.day, slot.time);
+          const cap = getSlotDetails(coach, dayGroup.day, slot.time, targetPkg);
           totalMaxSlots += cap.max;
           totalActiveInSlots += cap.current;
           if (!cap.isFull) {
@@ -360,7 +377,8 @@ export default function MainPortal({
         }).length 
       : (coach.currentQuota || 0);
 
-    const maxQuota = coach.maxQuota || 6;
+    const pkgQuota = targetPkg?.max_students;
+    const maxQuota = pkgQuota || coach.maxQuota || 6;
     const isFull = activeStudents >= maxQuota;
 
     return {
@@ -546,6 +564,7 @@ export default function MainPortal({
                       name: 'Paket Reguler PROMO 5x latihan',
                       price: 220000,
                       sessions: 5,
+                      max_students: 6,
                       active_period: '1 Bulan',
                       description: '1 pelatih mengajar 1-6 anak. Masa aktif 1 bulan, jika tidak habis maka hangus.'
                     },
@@ -555,6 +574,7 @@ export default function MainPortal({
                       name: 'Paket Reguler 5x latihan',
                       price: 250000,
                       sessions: 5,
+                      max_students: 6,
                       active_period: '3 Bulan',
                       description: '1 pelatih mengajar 1-6 anak. Masa aktif 3 bulan, jika tidak habis maka hangus.'
                     },
@@ -564,6 +584,7 @@ export default function MainPortal({
                       name: 'Paket Private 2 anak',
                       price: 1300000,
                       sessions: 8,
+                      max_students: 2,
                       active_period: '2 Bulan',
                       description: '1 pelatih KHUSUS mengajar 2 anak.'
                     },
@@ -573,6 +594,7 @@ export default function MainPortal({
                       name: 'Paket Private 3 anak',
                       price: 1500000,
                       sessions: 8,
+                      max_students: 3,
                       active_period: '2 Bulan',
                       description: '1 pelatih KHUSUS mengajar 3 anak.'
                     }
@@ -601,6 +623,7 @@ export default function MainPortal({
 
                       <div className="space-y-1.5 text-[11px] text-slate-600 border-t border-slate-100 pt-3 leading-relaxed">
                         <p>• <strong>{pkg.sessions}x</strong> Pertemuan Latihan</p>
+                        <p>• Kuota: <strong>{pkg.max_students || 6} Anak</strong></p>
                         {pkg.description && <p>• {pkg.description}</p>}
                       </div>
                     </div>
@@ -881,7 +904,7 @@ export default function MainPortal({
                   <div key={event.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-xs flex flex-col hover:border-cyan-200 transition">
                     <div className="h-52 bg-slate-100 relative">
                       <img 
-                        src={event.imageUrl} 
+                        src={getMediaUrl(event.imageUrl)} 
                         alt={event.title} 
                         className="w-full h-full object-cover" 
                         referrerPolicy="no-referrer"
@@ -1375,7 +1398,7 @@ export default function MainPortal({
                                 }`}
                               >
                                 <div className="w-12 h-12 rounded-lg bg-slate-200 overflow-hidden flex-shrink-0">
-                                  <img src={coach.photo} alt={coach.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  <img src={getMediaUrl(coach.photo)} alt={coach.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                 </div>
                                 <div className="space-y-1">
                                   <h4 className="font-bold text-sm text-slate-800">{coach.name}</h4>
@@ -2085,7 +2108,7 @@ export default function MainPortal({
                   </object>
                 ) : (
                   <img 
-                    src={previewCertUrl} 
+                    src={getMediaUrl(previewCertUrl)} 
                     alt="Sertifikat Pelatih" 
                     className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-200" 
                   />

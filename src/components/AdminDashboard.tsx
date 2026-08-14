@@ -405,6 +405,7 @@ export default function AdminDashboard({
     name: '',
     price: 0,
     sessions: 5,
+    max_students: 6,
     active_period: '',
     description: '',
     coachIds: []
@@ -563,16 +564,19 @@ export default function AdminDashboard({
       );
 
       let hasAvailableSlot = false;
+      const coachPkgs = (pricingPackages || []).filter(p => (p.coachIds || []).includes(c.id));
+      const pkgQuota = coachPkgs.length > 0 && coachPkgs[0].max_students ? coachPkgs[0].max_students : undefined;
+
       for (const dayGroup of updatedSchedule) {
         for (const slot of dayGroup.timeSlots) {
-          const maxS = slot.maxSlots || c.maxQuota || 6;
+          const maxS = pkgQuota || slot.maxSlots || c.maxQuota || 6;
           if ((slot.currentSlots || 0) < maxS) {
             hasAvailableSlot = true;
           }
         }
       }
 
-      const isOverallFull = updatedSchedule.length > 0 ? !hasAvailableSlot : activeCount >= (c.maxQuota || 6);
+      const isOverallFull = updatedSchedule.length > 0 ? !hasAvailableSlot : activeCount >= (pkgQuota || c.maxQuota || 6);
 
       return {
         ...c,
@@ -868,10 +872,12 @@ export default function AdminDashboard({
         ? memberObj.schedules
         : [{ coachId: memberObj.coachId, day: memberObj.scheduleDay, time: memberObj.scheduleTime }];
 
+      const memberPkg = (pricingPackages || []).find(p => p.id === memberObj.packageId || (memberObj.packageId && memberObj.packageId.includes(p.id)));
+
       for (const s of studentSchedules) {
         const dayGroup = targetCoach?.schedule?.find(d => d.day === s.day);
         const slot = dayGroup?.timeSlots?.find(ts => ts.time === s.time);
-        const maxSlots = slot?.maxSlots || targetCoach?.maxQuota || 6;
+        const maxSlots = memberPkg?.max_students || slot?.maxSlots || targetCoach?.maxQuota || 6;
 
         // Count current active students in this slot excluding current member
         const activeInSlot = members.filter(m => {
@@ -1399,19 +1405,19 @@ export default function AdminDashboard({
     const updatedCoach = {
       ...targetCoach,
       schedule: baseSchedule.map(d => {
-        if (d.day === dayName) {
-          if (d.timeSlots.some(ts => ts.time.trim() === timeStr.trim())) return d;
+          const coachPkgs = (pricingPackages || []).filter(p => (p.coachIds || []).includes(targetCoach.id));
+          const defaultMaxSlots = coachPkgs.length > 0 && coachPkgs[0].max_students ? coachPkgs[0].max_students : (targetCoach.maxQuota || 6);
+
           return {
             ...d,
             timeSlots: [...d.timeSlots, { 
               time: timeStr, 
-              maxSlots: targetCoach.maxQuota || 6, 
+              maxSlots: defaultMaxSlots, 
               currentSlots: 0, 
               students: [],
               swimmingPoolId: poolId || undefined 
             }].sort((a, b) => a.time.localeCompare(b.time))
           };
-        }
         return d;
       })
     };
@@ -4667,7 +4673,7 @@ export default function AdminDashboard({
                   {[...events].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(event => (
                     <div key={event.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between hover:border-cyan-200 hover:shadow-md transition duration-200">
                       <div className="h-36 bg-slate-100 relative">
-                        <img src={event.imageUrl} alt={event.title} className="w-full h-full object-cover" />
+                        <img src={getMediaUrl(event.imageUrl)} alt={event.title} className="w-full h-full object-cover" />
                         <span className="absolute top-3 left-3 bg-cyan-600 text-white font-extrabold text-[8px] uppercase px-2 py-0.5 rounded shadow-sm">
                           {event.category}
                         </span>
@@ -4785,7 +4791,7 @@ export default function AdminDashboard({
                       <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
                         <div className="w-12 h-12 bg-white rounded-lg overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center">
                           {newEventImageUrl ? (
-                            <img src={newEventImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                            <img src={getMediaUrl(newEventImageUrl)} alt="Preview" className="w-full h-full object-cover" />
                           ) : (
                             <ImageIcon className="w-6 h-6 text-slate-300" />
                           )}
@@ -5146,7 +5152,7 @@ export default function AdminDashboard({
                               return (
                                 <button
                                   type="button"
-                                  onClick={() => setPreviewCertUrl(coach.certificateUrl!)}
+                                  onClick={() => setPreviewCertUrl(getMediaUrl(coach.certificateUrl!))}
                                   className="inline-flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1 rounded-xl font-bold text-xs shadow-2xs hover:shadow-sm transition cursor-pointer"
                                   title="Klik untuk melihat Sertifikat Pelatih"
                                 >
@@ -5154,7 +5160,7 @@ export default function AdminDashboard({
                                     {isPdf ? (
                                       <FileText className="w-3.5 h-3.5 text-rose-600" />
                                     ) : (
-                                      <img src={coach.certificateUrl} alt="Sertifikat" className="w-full h-full object-cover" />
+                                      <img src={getMediaUrl(coach.certificateUrl)} alt="Sertifikat" className="w-full h-full object-cover" />
                                     )}
                                   </div>
                                   <span>{isPdf ? '📄 Sertifikat PDF' : '📜 Sertifikat Pelatih'}</span>
@@ -5417,13 +5423,13 @@ export default function AdminDashboard({
                         <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-3 rounded-xl">
                           <div 
                             className="w-14 h-14 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center cursor-pointer relative group"
-                            onClick={() => newCoachCertificate && setPreviewCertUrl(newCoachCertificate)}
+                            onClick={() => newCoachCertificate && setPreviewCertUrl(getMediaUrl(newCoachCertificate))}
                           >
                             {newCoachCertificate ? (
                               newCoachCertificate.toLowerCase().includes('.pdf') || newCoachCertificate.startsWith('data:application/pdf') ? (
                                 <FileText className="w-7 h-7 text-rose-600" />
                               ) : (
-                                <img src={newCoachCertificate} alt="Preview Sertifikat" className="w-full h-full object-cover" />
+                                <img src={getMediaUrl(newCoachCertificate)} alt="Preview Sertifikat" className="w-full h-full object-cover" />
                               )
                             ) : (
                               <Award className="w-6 h-6 text-slate-300" />
@@ -5677,13 +5683,13 @@ export default function AdminDashboard({
                       <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-3 rounded-xl">
                         <div 
                           className="w-12 h-12 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 flex items-center justify-center cursor-pointer relative group"
-                          onClick={() => editCoachCertificate && setPreviewCertUrl(editCoachCertificate)}
+                          onClick={() => editCoachCertificate && setPreviewCertUrl(getMediaUrl(editCoachCertificate))}
                         >
                           {editCoachCertificate ? (
                             editCoachCertificate.toLowerCase().includes('.pdf') || editCoachCertificate.startsWith('data:application/pdf') ? (
                               <FileText className="w-6 h-6 text-rose-600" />
                             ) : (
-                              <img src={editCoachCertificate} alt="Preview Sertifikat" className="w-full h-full object-cover" />
+                              <img src={getMediaUrl(editCoachCertificate)} alt="Preview Sertifikat" className="w-full h-full object-cover" />
                             )
                           ) : (
                             <Award className="w-6 h-6 text-slate-300" />
@@ -6206,6 +6212,7 @@ export default function AdminDashboard({
                     name: '',
                     price: 0,
                     sessions: 5,
+                    max_students: 6,
                     active_period: '',
                     description: '',
                     coachIds: []
@@ -6241,6 +6248,7 @@ export default function AdminDashboard({
                       <p className="font-mono text-xl font-black text-violet-700">Rp {(Number(pkg.price) || 0).toLocaleString('id-ID')}</p>
                       <div className="space-y-1.5 text-slate-600 text-xs leading-relaxed border-t border-slate-100 pt-3">
                         <p>• <strong>{pkg.sessions}x</strong> Pertemuan Latihan</p>
+                        <p>• Kuota: <strong>{pkg.max_students || 6} Siswa / Anak</strong></p>
                         {pkg.description && <p>• {pkg.description}</p>}
                       </div>
                     </div>
@@ -6347,16 +6355,30 @@ export default function AdminDashboard({
                         </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-slate-600 block">Masa Aktif (Contoh: 1 Bulan, 3 Bulan, 2 Bulan)</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Masa aktif"
-                          value={pricingForm.active_period}
-                          onChange={(e) => setPricingForm({ ...pricingForm, active_period: e.target.value })}
-                          className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
-                        />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-600 block">Masa Aktif (Contoh: 1 Bulan)</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Masa aktif"
+                            value={pricingForm.active_period}
+                            onChange={(e) => setPricingForm({ ...pricingForm, active_period: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-600 block">Kuota Jumlah Siswa</label>
+                          <input
+                            type="number"
+                            required
+                            min={1}
+                            placeholder="Jumlah kuota"
+                            value={pricingForm.max_students || ''}
+                            onChange={(e) => setPricingForm({ ...pricingForm, max_students: parseInt(e.target.value) || 1 })}
+                            className="w-full bg-slate-50 border border-slate-205 px-3 py-2 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition"
+                          />
+                        </div>
                       </div>
 
                       <div className="space-y-1">
@@ -6834,7 +6856,7 @@ export default function AdminDashboard({
                   </object>
                 ) : (
                   <img 
-                    src={previewCertUrl} 
+                    src={getMediaUrl(previewCertUrl)} 
                     alt="Sertifikat Pelatih" 
                     className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-200" 
                   />

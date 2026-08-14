@@ -48,6 +48,7 @@ try {
         price INT NOT NULL,
         sessions INT NOT NULL,
         active_period VARCHAR(50) NOT NULL,
+        max_students INT NOT NULL DEFAULT 6,
         description TEXT DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
@@ -75,14 +76,15 @@ try {
         if (is_array($packages)) {
             foreach ($packages as $pkg) {
                 // Insert into pricing_packages
-                $insertPkg = $pdo->prepare("INSERT INTO pricing_packages (id, category, name, price, sessions, active_period, description) 
-                    VALUES (:id, :category, :name, :price, :sessions, :active_period, :description)
+                $insertPkg = $pdo->prepare("INSERT INTO pricing_packages (id, category, name, price, sessions, active_period, max_students, description) 
+                    VALUES (:id, :category, :name, :price, :sessions, :active_period, :max_students, :description)
                     ON DUPLICATE KEY UPDATE 
                         category = :category2,
                         name = :name2,
                         price = :price2,
                         sessions = :sessions2,
                         active_period = :active_period2,
+                        max_students = :max_students2,
                         description = :description2");
 
                 $insertPkg->execute([
@@ -92,12 +94,14 @@ try {
                     ':price' => $pkg['price'],
                     ':sessions' => $pkg['sessions'],
                     ':active_period' => $pkg['active_period'],
+                    ':max_students' => $pkg['max_students'] ?? 6,
                     ':description' => $pkg['description'] ?? '',
                     ':category2' => $pkg['category'],
                     ':name2' => $pkg['name'],
                     ':price2' => $pkg['price'],
                     ':sessions2' => $pkg['sessions'],
                     ':active_period2' => $pkg['active_period'],
+                    ':max_students2' => $pkg['max_students'] ?? 6,
                     ':description2' => $pkg['description'] ?? ''
                 ]);
 

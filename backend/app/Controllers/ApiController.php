@@ -79,6 +79,20 @@ class ApiController extends BaseController
             $coachActiveStudents[$cId][$mId] = true;
         }
 
+        // Fetch pricing package quotas per coach
+        $coachPkgQuotas = [];
+        $cppRows = $this->db->table('coach_pricing_packages')
+            ->join('pricing_packages', 'pricing_packages.id = coach_pricing_packages.pricing_package_id')
+            ->select('coach_pricing_packages.coach_id, pricing_packages.max_students')
+            ->get()
+            ->getResultArray();
+        foreach ($cppRows as $cpp) {
+            $cId = $cpp['coach_id'];
+            if (!isset($coachPkgQuotas[$cId]) || (int)$cpp['max_students'] < $coachPkgQuotas[$cId]) {
+                $coachPkgQuotas[$cId] = (int)$cpp['max_students'];
+            }
+        }
+
         // Group schedules by coach
         $schedulesByCoach = [];
         foreach ($allSchedules as $sched) {
@@ -94,10 +108,11 @@ class ApiController extends BaseController
             }
 
             $studentsInThisSlot = $slotStudents[$cId][$dayName][$time] ?? [];
+            $pkgQuota = $coachPkgQuotas[$cId] ?? null;
 
             $schedulesByCoach[$cId][$dayName]['timeSlots'][] = [
                 'time' => $time,
-                'maxSlots' => (int)($sched['max_slots'] ?? 6),
+                'maxSlots' => (int)($pkgQuota ?? $sched['max_slots'] ?? 6),
                 'swimmingPoolId' => $sched['swimming_pool_id'] ?? null,
                 'currentSlots' => count($studentsInThisSlot),
                 'students' => $studentsInThisSlot
@@ -764,6 +779,23 @@ class ApiController extends BaseController
 
         if ($isApproved) {
             $memberSchedules = $this->db->table('member_schedules')->where('member_id', $json->id)->get()->getResultArray();
+            
+            // Reference quota from member's pricing package
+            $memberPkgId = $member['package_id'] ?? '';
+            $pkgRow = null;
+            if (!empty($memberPkgId)) {
+                $pkgRow = $this->db->table('pricing_packages')->where('id', $memberPkgId)->get()->getRowArray();
+                if (!$pkgRow) {
+                    $allPkgs = $this->db->table('pricing_packages')->get()->getResultArray();
+                    foreach ($allPkgs as $p) {
+                        if (strpos($memberPkgId, $p['id']) !== false) {
+                            $pkgRow = $p;
+                            break;
+                        }
+                    }
+                }
+            }
+
             foreach ($memberSchedules as $ms) {
                 $cId = $ms['coach_id'];
                 $day = $ms['day'];
@@ -777,7 +809,7 @@ class ApiController extends BaseController
                     ->get()
                     ->getRowArray();
 
-                $maxSlots = (int)($schedRow['max_slots'] ?? 6);
+                $maxSlots = (int)($pkgRow['max_students'] ?? $schedRow['max_slots'] ?? 6);
 
                 // Count active students in this slot excluding current member
                 $activeCount = $this->db->table('member_schedules')
@@ -793,7 +825,7 @@ class ApiController extends BaseController
                 if ($activeCount >= $maxSlots) {
                     $coachRow = $this->db->table('coaches')->where('id', $cId)->get()->getRowArray();
                     $coachName = $coachRow ? $coachRow['name'] : 'pelatih';
-                    return $this->fail("Kuota pelatih penuh! Slot jam latihan untuk Coach {$coachName} pada hari {$day} jam {$time} WIB sudah penuh ({$activeCount}/{$maxSlots} slot terisi). Verification failed.");
+                    return $this->fail("Kuota pelatih/paket penuh! Slot jam latihan untuk Coach {$coachName} pada hari {$day} jam {$time} WIB sudah penuh ({$activeCount}/{$maxSlots} slot terisi). Verification failed.");
                 }
             }
         }
@@ -1835,6 +1867,7 @@ class ApiController extends BaseController
         foreach ($packages as &$pkg) {
             $pkg['price'] = (int)$pkg['price'];
             $pkg['sessions'] = (int)$pkg['sessions'];
+            $pkg['max_students'] = isset($pkg['max_students']) ? (int)$pkg['max_students'] : 6;
             $pkg['coachIds'] = $relationsGrouped[$pkg['id']] ?? [];
         }
 
@@ -1854,6 +1887,7 @@ class ApiController extends BaseController
         $price = (int)$json->price;
         $sessions = (int)($json->sessions ?? 5);
         $activePeriod = $json->active_period ?? '';
+        $maxStudents = (int)($json->max_students ?? $json->maxStudents ?? 6);
         $description = $json->description ?? '';
         $coachIds = $json->coachIds ?? [];
 
@@ -1867,6 +1901,7 @@ class ApiController extends BaseController
             'price' => $price,
             'sessions' => $sessions,
             'active_period' => $activePeriod,
+            'max_students' => $maxStudents,
             'description' => $description
         ]);
 
@@ -1904,6 +1939,7 @@ class ApiController extends BaseController
         $price = (int)$json->price;
         $sessions = (int)($json->sessions ?? 5);
         $activePeriod = $json->active_period ?? '';
+        $maxStudents = (int)($json->max_students ?? $json->maxStudents ?? 6);
         $description = $json->description ?? '';
         $coachIds = $json->coachIds ?? [];
 
@@ -1916,6 +1952,7 @@ class ApiController extends BaseController
             'price' => $price,
             'sessions' => $sessions,
             'active_period' => $activePeriod,
+            'max_students' => $maxStudents,
             'description' => $description
         ]);
 

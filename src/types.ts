@@ -163,6 +163,7 @@ export interface PricingPackage {
   name: string;
   price: number;
   sessions: number;
+  max_students?: number;
   active_period: string;
   description: string;
   coachIds?: string[];

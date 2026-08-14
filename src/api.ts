@@ -31,7 +31,13 @@ export const API_BASE_URL = (() => {
 
 export function getMediaUrl(url?: string | null): string {
   if (!url) return '/images/default_coach.jpg';
-  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+  if (url.startsWith('data:')) {
+    return url;
+  }
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    if ((url.includes('tirtabarokah.id/images/') || url.includes('tirtabarokah.id/uploads/')) && !url.includes('api.tirtabarokah.id') && API_BASE_URL) {
+      return url.replace(/https?:\/\/(www\.)?tirtabarokah\.id/, API_BASE_URL);
+    }
     return url;
   }
   const cleanPath = url.startsWith('/') ? url : `/${url}`;
