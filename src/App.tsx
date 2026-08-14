@@ -595,6 +595,20 @@ export default function App() {
   };
 
   useEffect(() => {
+    const handleUnauthorized = () => {
+      setIsAdminLoggedIn(false);
+      setIsCoachLoggedIn(false);
+      setLoggedCoachId('');
+      const path = window.location.pathname;
+      if (path === '/belakang' || path === '/coachs') {
+        setCurrentPath('/');
+        window.history.pushState({}, '', '/');
+        loadTabData('public');
+      }
+    };
+
+    window.addEventListener('unauthorized_access', handleUnauthorized);
+
     const role = localStorage.getItem('user_role');
     const path = window.location.pathname;
     if (path === '/belakang') {
@@ -610,7 +624,10 @@ export default function App() {
       setCurrentPath(window.location.pathname);
     };
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('unauthorized_access', handleUnauthorized);
+    };
   }, []);
 
   const handleAddCoach = async (coachData: any) => {

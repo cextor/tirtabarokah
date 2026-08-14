@@ -97,6 +97,16 @@ async function request(endpoint: string, options: RequestInit = {}) {
           errorMsg = errorText;
         }
       }
+      if (response.status === 401) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('user_name');
+        localStorage.removeItem('auth_user');
+        localStorage.removeItem('coach_data');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('unauthorized_access'));
+        }
+      }
       const err: any = new Error(errorMsg);
       err.status = response.status;
       throw err;

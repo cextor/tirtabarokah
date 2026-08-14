@@ -83,12 +83,7 @@ class ApiAuthFilter implements FilterInterface
         $expectedClientKey = 'TirtaBarokahClientSecret2026';
 
         if (!$clientKey || $clientKey !== $expectedClientKey) {
-            $response = service('response');
-            $response->setStatusCode(401);
-            return $response->setJSON([
-                'status' => 'error',
-                'message' => 'Akses ditolak: Klien tidak sah.'
-            ]);
+            return $this->sendUnauthorized('Akses ditolak: Klien tidak sah.');
         }
 
         // 2. Enforce User Authorization Token for protected endpoints
@@ -102,12 +97,7 @@ class ApiAuthFilter implements FilterInterface
         }
 
         if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
-            $response = service('response');
-            $response->setStatusCode(401);
-            return $response->setJSON([
-                'status' => 'error',
-                'message' => 'Akses ditolak: Token otentikasi diperlukan.'
-            ]);
+            return $this->sendUnauthorized('Akses ditolak: Token otentikasi diperlukan.');
         }
 
         $token = substr($authHeader, 7); // Strip 'Bearer '
@@ -120,25 +110,14 @@ class ApiAuthFilter implements FilterInterface
             ->getRowArray();
 
         if (!$tokenRecord) {
-            $response = service('response');
-            $response->setStatusCode(401);
-            return $response->setJSON([
-                'status' => 'error',
-                'message' => 'Akses ditolak: Token tidak valid.'
-            ]);
+            return $this->sendUnauthorized('Akses ditolak: Token tidak valid.');
         }
 
         // Check expiration
         if (strtotime($tokenRecord['expires_at']) < time()) {
             // Delete expired token
             $db->table('user_tokens')->where('token', $token)->delete();
-            
-            $response = service('response');
-            $response->setStatusCode(401);
-            return $response->setJSON([
-                'status' => 'error',
-                'message' => 'Akses ditolak: Token telah kedaluwarsa.'
-            ]);
+            return $this->sendUnauthorized('Akses ditolak: Token telah kedaluwarsa.');
         }
 
         // 3. Enforce Role-based Authorization
@@ -224,5 +203,20 @@ class ApiAuthFilter implements FilterInterface
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
     {
         // No action needed
+    }
+
+    private function sendUnauthorized(string $message)
+    {
+        $response = service('response');
+        $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*';
+        $response->setHeader('Access-Control-Allow-Origin', $origin);
+        $response->setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Client-Key');
+        $response->setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        $response->setHeader('Access-Control-Allow-Credentials', 'true');
+        $response->setStatusCode(401);
+        return $response->setJSON([
+            'status' => 'error',
+            'message' => $message
+        ]);
     }
 }
