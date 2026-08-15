@@ -5397,27 +5397,21 @@ export default function AdminDashboard({
                             </div>
                           ) : (
                             /* SECOND VIEW: JADWAL 7 HARI TERFILTER BERDASARKAN PAKET */
-                            <div className="space-y-3">
-                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-cyan-50/60 p-3 rounded-2xl border border-cyan-200/80">
-                                <div className="flex items-center gap-3">
+                            <div className="space-y-4">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 text-white p-4 rounded-2xl border border-blue-600 shadow-sm">
+                                <div className="flex items-center gap-3 flex-wrap">
                                   <button
                                     type="button"
                                     onClick={() => setActiveSchedulePackageCategory(prev => ({ ...prev, [coach.id]: null }))}
-                                    className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+                                    className="bg-white/10 hover:bg-white/20 text-white border border-white/30 px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
                                   >
                                     <ArrowLeft className="w-3.5 h-3.5" />
                                     Kembali ke Daftar Paket
                                   </button>
                                   <div>
-                                    <h5 className="font-extrabold text-xs text-slate-900 flex items-center gap-2 flex-wrap">
+                                    <h5 className="font-extrabold text-xs text-white flex items-center gap-2 flex-wrap">
                                       <span>🗓️ Jadwal 7 Hari Pelatih:</span>
-                                      <span className={`px-2 py-0.5 rounded-full border font-black text-xs ${
-                                        selectedCategory === 'REGULER'
-                                          ? 'bg-cyan-100 text-cyan-900 border-cyan-300'
-                                          : selectedCategory === 'PRIVATE_2'
-                                          ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
-                                          : 'bg-purple-100 text-purple-900 border-purple-300'
-                                      }`}>
+                                      <span className="bg-white/20 text-white border border-white/30 px-3 py-1 rounded-full font-black text-xs">
                                         {selectedCategory === 'REGULER' ? '👥 Paket Reguler (Maks 6 Siswa)' : selectedCategory === 'PRIVATE_2' ? '🔒 Paket Private 2 Anak (Maks 2 Siswa)' : '🔒 Paket Private 3 Anak (Maks 3 Siswa)'}
                                       </span>
                                     </h5>
@@ -5431,9 +5425,9 @@ export default function AdminDashboard({
                                   const filteredSlots = dayObj.timeSlots.filter(s => (s.packageCategory || 'REGULER') === selectedCategory);
 
                                   return (
-                                    <div key={dayName} className="bg-white rounded-xl border border-slate-200/60 p-3 space-y-2">
-                                      <div className="flex justify-between items-center border-b border-slate-100 pb-1">
-                                        <span className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">{dayName}</span>
+                                    <div key={dayName} className="bg-blue-50/70 rounded-2xl border border-blue-200/90 p-3.5 space-y-2.5 shadow-2xs hover:border-blue-300 transition">
+                                      <div className="flex justify-between items-center border-b border-blue-200/60 pb-1.5">
+                                        <span className="font-black text-xs text-blue-950 uppercase tracking-wider">{dayName}</span>
                                         <button
                                           onClick={() => {
                                             setAddSlotCoachId(coach.id);
@@ -5445,15 +5439,15 @@ export default function AdminDashboard({
                                             setAddSlotPoolId(swimmingPools.length > 0 ? swimmingPools[0].id : '');
                                             setShowAddSlotModal(true);
                                           }}
-                                          className="text-[10px] font-extrabold text-cyan-600 hover:underline flex items-center gap-0.5 cursor-pointer"
+                                          className="text-[10px] font-black text-blue-700 hover:text-blue-900 hover:underline flex items-center gap-0.5 cursor-pointer"
                                         >
                                           + Tambah Jam
                                         </button>
                                       </div>
 
-                                      <div className="space-y-1.5">
+                                      <div className="space-y-2">
                                         {filteredSlots.length === 0 ? (
-                                          <p className="text-[10px] text-slate-400 italic py-2 text-center">Libur / Belum ada slot jam paket ini</p>
+                                          <p className="text-[10px] text-blue-400 italic py-3 text-center font-medium">Libur / Belum ada slot jam paket ini</p>
                                         ) : (
                                           filteredSlots.map((slot) => {
                                             // Live slot calculate
@@ -5467,19 +5461,19 @@ export default function AdminDashboard({
                                             const isFull = usageCount >= slot.maxSlots;
 
                                             return (
-                                              <div key={slot.time} className="flex flex-col gap-1 bg-slate-50 p-2 rounded-lg border border-slate-200/50">
+                                              <div key={slot.time} className="flex flex-col gap-1 bg-white p-2.5 rounded-xl border border-blue-150 shadow-2xs">
                                                 <div className="flex justify-between items-center">
                                                   <div>
-                                                    <p className="font-mono text-xs font-bold text-slate-800 flex items-center gap-1">
+                                                    <p className="font-mono text-xs font-black text-blue-950 flex items-center gap-1">
                                                       {slot.time} WIB
                                                     </p>
                                                     {slot.swimmingPoolId && (
-                                                      <p className="text-[9px] font-bold text-cyan-600 flex items-center gap-0.5 mt-0.5 truncate">
-                                                        <MapPin className="w-2.5 h-2.5 shrink-0" />
+                                                      <p className="text-[9px] font-bold text-blue-700 flex items-center gap-0.5 mt-0.5 truncate">
+                                                        <MapPin className="w-2.5 h-2.5 shrink-0 text-blue-600" />
                                                         <span className="truncate">{swimmingPools.find(p => p.id === slot.swimmingPoolId)?.name || 'Kolam Renang'}</span>
                                                       </p>
                                                     )}
-                                                    <p className={`text-[9px] font-semibold ${isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'}`}>
+                                                    <p className={`text-[9px] font-extrabold ${isFull ? 'text-rose-600 font-extrabold' : 'text-blue-800'}`}>
                                                       Slot: {usageCount} / {slot.maxSlots} {isFull ? '(PENUH)' : ''}
                                                     </p>
                                                   </div>
@@ -5491,13 +5485,13 @@ export default function AdminDashboard({
                                                     <Trash className="w-3.5 h-3.5" />
                                                   </button>
                                                 </div>
-                                                <div className="flex items-center justify-between gap-1.5 border-t border-slate-200/60 pt-1 mt-1">
-                                                  <span className="text-[8px] font-bold text-slate-400">Kuota Slot:</span>
+                                                <div className="flex items-center justify-between gap-1.5 border-t border-blue-100 pt-1 mt-1">
+                                                  <span className="text-[8px] font-bold text-blue-600">Kuota Slot:</span>
                                                   <input 
                                                     type="number"
                                                     value={slot.maxSlots}
                                                     onChange={(e) => handleUpdateScheduleSlotMax(coach.id, dayName, slot.time, Number(e.target.value))}
-                                                    className="w-10 bg-white border border-slate-200 rounded px-1 py-0.5 text-[9px] font-mono text-center font-bold text-slate-800"
+                                                    className="w-10 bg-blue-50/50 border border-blue-200 rounded px-1 py-0.5 text-[9px] font-mono text-center font-bold text-blue-950"
                                                     title="Ubah kuota slot spesifik ini"
                                                   />
                                                 </div>

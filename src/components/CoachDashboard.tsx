@@ -672,26 +672,20 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                   ) : (
                     /* SECOND VIEW: JADWAL 7 HARI TERFILTER BERDASARKAN PAKET */
                     <div className="space-y-4">
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-cyan-50/60 p-3.5 rounded-2xl border border-cyan-200/80">
-                        <div className="flex items-center gap-3">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 text-white p-4 rounded-2xl border border-blue-600 shadow-sm">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <button
                             type="button"
                             onClick={() => setSelectedScheduleCategory(null)}
-                            className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+                            className="bg-white/10 hover:bg-white/20 text-white border border-white/30 px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
                           >
                             <ArrowLeft className="w-3.5 h-3.5" />
                             Kembali ke Daftar Paket
                           </button>
                           <div>
-                            <h5 className="font-extrabold text-xs text-slate-900 flex items-center gap-2 flex-wrap">
+                            <h5 className="font-extrabold text-xs text-white flex items-center gap-2 flex-wrap">
                               <span>🗓️ Jadwal 7 Hari:</span>
-                              <span className={`px-2.5 py-0.5 rounded-full border font-black text-xs ${
-                                selectedScheduleCategory === 'REGULER'
-                                  ? 'bg-cyan-100 text-cyan-900 border-cyan-300'
-                                  : selectedScheduleCategory === 'PRIVATE_2'
-                                  ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
-                                  : 'bg-purple-100 text-purple-900 border-purple-300'
-                              }`}>
+                              <span className="bg-white/20 text-white border border-white/30 px-3 py-1 rounded-full font-black text-xs">
                                 {selectedScheduleCategory === 'REGULER' ? '👥 Paket Reguler (Maks 6 Siswa)' : selectedScheduleCategory === 'PRIVATE_2' ? '🔒 Paket Private 2 Anak (Maks 2 Siswa)' : '🔒 Paket Private 3 Anak (Maks 3 Siswa)'}
                               </span>
                             </h5>
@@ -704,17 +698,17 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                           const filteredSlots = day.timeSlots.filter(s => (s.packageCategory || 'REGULER') === selectedScheduleCategory);
 
                           return (
-                            <div key={day.day} className="bg-slate-50/60 rounded-2xl border border-slate-200/80 p-4 space-y-3">
-                              <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
-                                <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">Hari {day.day}</span>
-                                <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2.5 py-0.5 rounded-full border border-cyan-100">
+                            <div key={day.day} className="bg-blue-50/70 rounded-2xl border border-blue-200/90 p-4 space-y-3 shadow-2xs hover:border-blue-300 transition">
+                              <div className="flex justify-between items-center border-b border-blue-200/60 pb-2">
+                                <span className="text-xs font-black text-blue-950 uppercase tracking-wide">Hari {day.day}</span>
+                                <span className="text-[10px] font-extrabold text-blue-800 bg-blue-100/80 px-2.5 py-0.5 rounded-full border border-blue-200">
                                   {filteredSlots.length} Slot Jam Paket Ini
                                 </span>
                               </div>
                               
                               <div className="space-y-3">
                                 {filteredSlots.length === 0 ? (
-                                  <p className="text-[11px] text-slate-400 italic py-2 text-center">Libur / Belum ada slot jam paket ini pada hari {day.day}</p>
+                                  <p className="text-[11px] text-blue-400 italic py-2 text-center font-medium">Libur / Belum ada slot jam paket ini pada hari {day.day}</p>
                                 ) : (
                                   filteredSlots.map(slot => {
                                     // Find all active students in this specific day & time slot
@@ -730,34 +724,34 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                                     );
 
                                     return (
-                                      <div key={slot.time} className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2.5 text-xs shadow-2xs">
+                                      <div key={slot.time} className="bg-white p-3.5 rounded-xl border border-blue-150 space-y-2.5 text-xs shadow-2xs">
                                         <div className="flex justify-between items-center">
                                           <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className="font-mono font-extrabold text-slate-800 flex items-center gap-1.5 text-xs">
-                                              <Clock className="w-3.5 h-3.5 text-cyan-600" /> {slot.time} WIB
+                                            <span className="font-mono font-black text-blue-950 flex items-center gap-1.5 text-xs">
+                                              <Clock className="w-3.5 h-3.5 text-blue-600" /> {slot.time} WIB
                                             </span>
                                           </div>
                                           <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
                                             slotStudents.length >= (slot.maxSlots || 6)
                                               ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                              : 'bg-cyan-50 text-cyan-800 border border-cyan-100'
+                                              : 'bg-blue-100 text-blue-900 border border-blue-200'
                                           }`}>
                                             {slotStudents.length} / {slot.maxSlots || 6} Siswa
                                           </span>
                                         </div>
 
                                         {/* Student Names in this Slot */}
-                                        <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Daftar Siswa Terdaftar:</span>
+                                        <div className="pt-2 border-t border-blue-100 space-y-1.5">
+                                          <span className="text-[10px] font-black text-blue-600 uppercase tracking-wider block">Daftar Siswa Terdaftar:</span>
                                           {slotStudents.length === 0 ? (
-                                            <span className="text-[11px] text-slate-400 italic block py-0.5">Belum ada siswa terdaftar di slot ini.</span>
+                                            <span className="text-[11px] text-blue-400 italic block py-0.5 font-medium">Belum ada siswa terdaftar di slot ini.</span>
                                           ) : (
                                             <div className="flex flex-wrap gap-1.5 pt-0.5">
                                               {slotStudents.map(student => (
-                                                <div key={student.id} className="inline-flex items-center gap-1.5 bg-slate-50 hover:bg-cyan-50 border border-slate-200 hover:border-cyan-200 px-2.5 py-1 rounded-xl text-[11px] font-bold text-slate-800 transition">
-                                                  <UserCheck className="w-3 h-3 text-cyan-600 shrink-0" />
+                                                <div key={student.id} className="inline-flex items-center gap-1.5 bg-blue-50/70 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-xl text-[11px] font-bold text-blue-950 transition">
+                                                  <UserCheck className="w-3 h-3 text-blue-600 shrink-0" />
                                                   <span>{student.student.fullName}</span>
-                                                  <span className="text-[9px] text-slate-500 font-mono">({student.sessionsLeft} sesi)</span>
+                                                  <span className="text-[9px] text-blue-700 font-mono">({student.sessionsLeft} sesi)</span>
                                                   {(student as any).isTransfer && (
                                                     <span className="text-[8px] bg-amber-100 text-amber-800 px-1 rounded font-extrabold">TF</span>
                                                   )}
