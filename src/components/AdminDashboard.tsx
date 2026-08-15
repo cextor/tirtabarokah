@@ -9,7 +9,7 @@ import { Coach, Member, Package, ScheduleDay, EventItem, SiteSettings, ProgramLe
 import { 
   Users, DollarSign, Award, Calendar, ShieldCheck, TrendingUp, AlertTriangle, 
   Plus, PlusCircle, Edit, Trash, Check, X, Bell, BarChart2, PieChart as PieIcon, Settings, Phone, CheckSquare, Sparkles, Image as ImageIcon,
-  LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, Key, CreditCard, FileText, FileSpreadsheet
+  LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, Key, CreditCard, FileText, FileSpreadsheet, Package as PackageIcon, ArrowLeft
 } from 'lucide-react';
 import { api, getMediaUrl } from '../api';
 import { 
@@ -373,6 +373,7 @@ export default function AdminDashboard({
   const [newSlotTime, setNewSlotTime] = useState<string>('');
   const [addSlotPoolId, setAddSlotPoolId] = useState<string>('');
   const [addSlotPackageCategory, setAddSlotPackageCategory] = useState<string>('REGULER');
+  const [activeSchedulePackageCategory, setActiveSchedulePackageCategory] = useState<Record<string, string | null>>({});
 
   // Master Kolam Renang State
   const [showPoolModal, setShowPoolModal] = useState<boolean>(false);
@@ -5273,109 +5274,243 @@ export default function AdminDashboard({
                     </div>
 
                     {/* Schedule manager inside coach card */}
-                    {expandedCoachScheduleId === coach.id && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="border-t border-slate-200 pt-3 space-y-3"
-                      >
-                        <p className="text-[11px] font-bold text-slate-700">Waktu Jadwal & Pengisian Slot (7 Hari):</p>
-                        <div className="grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mt-2">
-                          {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((dayName) => {
-                            const dayObj = coach.schedule.find(d => d.day === dayName) || { day: dayName, timeSlots: [] };
-                            return (
-                              <div key={dayName} className="bg-white rounded-xl border border-slate-200/60 p-3 space-y-2">
-                                <div className="flex justify-between items-center border-b border-slate-100 pb-1">
-                                  <span className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">{dayName}</span>
-                                  <button
-                                    onClick={() => handleOpenAddSlotModal(coach.id, dayName)}
-                                    className="text-[10px] font-bold text-cyan-600 hover:underline flex items-center gap-0.5 cursor-pointer"
-                                  >
-                                    + Tambah Jam
-                                  </button>
-                                </div>
+                    {expandedCoachScheduleId === coach.id && (() => {
+                      const selectedCategory = activeSchedulePackageCategory[coach.id] || null;
 
-                                <div className="space-y-1.5">
-                                  {dayObj.timeSlots.length === 0 ? (
-                                    <p className="text-[10px] text-slate-400 italic">Libur / Tidak ada kelas</p>
-                                  ) : (
-                                    dayObj.timeSlots.map((slot) => {
-                                      // Live slot calculate
-                                      const slotStudents = members.filter(m => 
-                                        m.coachId === coach.id && 
-                                        ((m.scheduleDay === dayName && m.scheduleTime === slot.time) || 
-                                         (m.scheduleFrequency === '2x Seminggu' && m.scheduleDay2 === dayName && m.scheduleTime2 === slot.time)) && 
-                                        m.status !== 'Selesai'
-                                      );
-                                      const usageCount = slotStudents.length;
-                                      const isFull = usageCount >= slot.maxSlots;
+                      // Helper to group packages for this coach
+                      const coachPkgs = (coach.packages && coach.packages.length > 0)
+                        ? coach.packages
+                        : [
+                            { id: 'pkg-reg', name: 'Paket Reguler (Kelompok)', category: 'REGULER', price: (coach as any).price4x || 250000, sessions: 4, max_students: 6 },
+                            { id: 'pkg-priv2', name: 'Paket Private 2 Anak', category: 'PRIVATE_2', price: 450000, sessions: 4, max_students: 2 },
+                            { id: 'pkg-priv3', name: 'Paket Private 3 Anak', category: 'PRIVATE_3', price: 600000, sessions: 4, max_students: 3 }
+                          ];
 
-                                      return (
-                                        <div key={slot.time} className="flex flex-col gap-1 bg-slate-50 p-2 rounded-lg border border-slate-200/50">
-                                          <div className="flex justify-between items-center">
-                                            <div>
-                                              <p className="font-mono text-xs font-bold text-slate-800 flex items-center gap-1">
-                                                {slot.time} WIB
-                                              </p>
-                                              {slot.packageCategory === 'REGULER' && (
-                                                <span className="inline-block bg-cyan-100 text-cyan-800 text-[8px] font-extrabold px-1.5 py-0.5 rounded mt-0.5 border border-cyan-200">
-                                                  👥 Reguler (Max 6)
-                                                </span>
-                                              )}
-                                              {slot.packageCategory === 'PRIVATE_2' && (
-                                                <span className="inline-block bg-indigo-100 text-indigo-800 text-[8px] font-extrabold px-1.5 py-0.5 rounded mt-0.5 border border-indigo-200">
-                                                  🔒 Privat 2 Anak
-                                                </span>
-                                              )}
-                                              {slot.packageCategory === 'PRIVATE_3' && (
-                                                <span className="inline-block bg-purple-100 text-purple-800 text-[8px] font-extrabold px-1.5 py-0.5 rounded mt-0.5 border border-purple-200">
-                                                  🔒 Privat 3 Anak
-                                                </span>
-                                              )}
-                                              {(!slot.packageCategory || slot.packageCategory === 'ALL') && (
-                                                <span className="inline-block bg-slate-100 text-slate-600 text-[8px] font-semibold px-1.5 py-0.5 rounded mt-0.5 border border-slate-200">
-                                                  👥 Reguler (Max 6)
-                                                </span>
-                                              )}
-                                              {slot.swimmingPoolId && (
-                                                <p className="text-[9px] font-bold text-cyan-600 flex items-center gap-0.5 mt-0.5 truncate">
-                                                  <MapPin className="w-2.5 h-2.5 shrink-0" />
-                                                  <span className="truncate">{swimmingPools.find(p => p.id === slot.swimmingPoolId)?.name || 'Kolam Renang'}</span>
-                                                </p>
-                                              )}
-                                              <p className={`text-[9px] font-semibold ${isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'}`}>
-                                                Slot: {usageCount} / {slot.maxSlots} {isFull ? '(PENUH)' : ''}
-                                              </p>
-                                            </div>
-                                            <button
-                                              onClick={() => handleRemoveScheduleSlot(coach.id, dayName, slot.time)}
-                                              className="text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                                              title="Hapus Slot Jam"
-                                            >
-                                              <Trash className="w-3.5 h-3.5" />
-                                            </button>
-                                          </div>
-                                          <div className="flex items-center justify-between gap-1.5 border-t border-slate-200/60 pt-1 mt-1">
-                                            <span className="text-[8px] font-bold text-slate-400">Kuota Slot:</span>
-                                            <input 
-                                              type="number"
-                                              value={slot.maxSlots}
-                                              onChange={(e) => handleUpdateScheduleSlotMax(coach.id, dayName, slot.time, Number(e.target.value))}
-                                              className="w-10 bg-white border border-slate-200 rounded px-1 py-0.5 text-[9px] font-mono text-center font-bold text-slate-800"
-                                              title="Ubah kuota slot spesifik ini"
-                                            />
-                                          </div>
-                                        </div>
-                                      );
-                                    })
-                                  )}
+                      // Normalize packages list with categories
+                      const packageCategoriesList = [
+                        { category: 'REGULER', name: 'Paket Reguler (Kelompok)', maxStudents: 6, color: 'cyan' },
+                        { category: 'PRIVATE_2', name: 'Paket Private 2 Anak', maxStudents: 2, color: 'indigo' },
+                        { category: 'PRIVATE_3', name: 'Paket Private 3 Anak', maxStudents: 3, color: 'purple' }
+                      ].map(catItem => {
+                        const matchingPkg = coachPkgs.find((p: any) => {
+                          const pName = (p.name || '').toLowerCase();
+                          if (catItem.category === 'PRIVATE_2') return pName.includes('2 anak') || pName.includes('private 2') || pName.includes('privat 2');
+                          if (catItem.category === 'PRIVATE_3') return pName.includes('3 anak') || pName.includes('private 3') || pName.includes('privat 3');
+                          return !pName.includes('private 2') && !pName.includes('private 3') && !pName.includes('privat 2') && !pName.includes('privat 3');
+                        });
+                        return {
+                          ...catItem,
+                          displayName: matchingPkg ? matchingPkg.name : catItem.name,
+                          price: matchingPkg ? (matchingPkg.price || 0) : 0,
+                          sessions: matchingPkg ? (matchingPkg.sessions || 4) : 4
+                        };
+                      });
+
+                      return (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="border-t border-slate-200 pt-4 space-y-4"
+                        >
+                          {!selectedCategory ? (
+                            /* FIRST VIEW: DAFTAR PAKET BELAJAR PELATIH */
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+                                <div>
+                                  <h5 className="font-extrabold text-xs text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                    <PackageIcon className="w-4 h-4 text-cyan-600" />
+                                    Pilih Paket Belajar Pelatih untuk Melihat / Mengatur Jadwal (7 Hari):
+                                  </h5>
+                                  <p className="text-[10px] text-slate-500 mt-0.5">Klik "Lihat / Atur Jadwal Paket" pada paket di bawah untuk mengelola jam latihan 7 hari (Senin-Minggu).</p>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </motion.div>
-                    )}
+
+                              <div className="grid md:grid-cols-3 gap-4">
+                                {packageCategoriesList.map(pkg => {
+                                  // Count time slots and active students for this package category
+                                  let slotCount = 0;
+                                  let studentCount = 0;
+
+                                  (coach.schedule || []).forEach(d => {
+                                    (d.timeSlots || []).forEach(s => {
+                                      const sCat = s.packageCategory || 'REGULER';
+                                      if (sCat === pkg.category) {
+                                        slotCount++;
+                                        const slotStudents = members.filter(m =>
+                                          m.coachId === coach.id &&
+                                          ((m.scheduleDay === d.day && m.scheduleTime === s.time) ||
+                                           (m.scheduleFrequency === '2x Seminggu' && m.scheduleDay2 === d.day && m.scheduleTime2 === s.time)) &&
+                                          m.status !== 'Selesai'
+                                        );
+                                        studentCount += slotStudents.length;
+                                      }
+                                    });
+                                  });
+
+                                  return (
+                                    <div key={pkg.category} className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-3 shadow-xs hover:border-cyan-400 transition flex flex-col justify-between">
+                                      <div className="space-y-2">
+                                        <div className="flex justify-between items-start">
+                                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
+                                            pkg.category === 'REGULER'
+                                              ? 'bg-cyan-50 text-cyan-800 border-cyan-200'
+                                              : pkg.category === 'PRIVATE_2'
+                                              ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                                              : 'bg-purple-50 text-purple-800 border-purple-200'
+                                          }`}>
+                                            {pkg.category === 'REGULER' ? '👥 Paket Reguler' : pkg.category === 'PRIVATE_2' ? '🔒 Privat 2 Anak' : '🔒 Privat 3 Anak'}
+                                          </span>
+                                          <span className="text-[10px] font-mono font-extrabold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200/60">
+                                            Maks {pkg.maxStudents} Siswa
+                                          </span>
+                                        </div>
+
+                                        <h4 className="font-black text-sm text-slate-900 leading-snug">{pkg.displayName}</h4>
+                                        {pkg.price > 0 && (
+                                          <p className="text-xs font-extrabold text-cyan-700">
+                                            Rp {pkg.price.toLocaleString('id-ID')} ({pkg.sessions}x Sesi)
+                                          </p>
+                                        )}
+
+                                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-bold">
+                                          <span>📅 {slotCount} Slot Jam</span>
+                                          <span>👥 {studentCount} Siswa</span>
+                                        </div>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveSchedulePackageCategory(prev => ({ ...prev, [coach.id]: pkg.category }))}
+                                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold py-2.5 px-3 rounded-xl transition text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                                      >
+                                        <Calendar className="w-3.5 h-3.5" />
+                                        Lihat / Atur Jadwal Paket
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            /* SECOND VIEW: JADWAL 7 HARI TERFILTER BERDASARKAN PAKET */
+                            <div className="space-y-3">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-cyan-50/60 p-3 rounded-2xl border border-cyan-200/80">
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveSchedulePackageCategory(prev => ({ ...prev, [coach.id]: null }))}
+                                    className="bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+                                  >
+                                    <ArrowLeft className="w-3.5 h-3.5" />
+                                    Kembali ke Daftar Paket
+                                  </button>
+                                  <div>
+                                    <h5 className="font-extrabold text-xs text-slate-900 flex items-center gap-2 flex-wrap">
+                                      <span>🗓️ Jadwal 7 Hari Pelatih:</span>
+                                      <span className={`px-2 py-0.5 rounded-full border font-black text-xs ${
+                                        selectedCategory === 'REGULER'
+                                          ? 'bg-cyan-100 text-cyan-900 border-cyan-300'
+                                          : selectedCategory === 'PRIVATE_2'
+                                          ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
+                                          : 'bg-purple-100 text-purple-900 border-purple-300'
+                                      }`}>
+                                        {selectedCategory === 'REGULER' ? '👥 Paket Reguler (Maks 6 Siswa)' : selectedCategory === 'PRIVATE_2' ? '🔒 Paket Private 2 Anak (Maks 2 Siswa)' : '🔒 Paket Private 3 Anak (Maks 3 Siswa)'}
+                                      </span>
+                                    </h5>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mt-2">
+                                {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((dayName) => {
+                                  const dayObj = coach.schedule.find(d => d.day === dayName) || { day: dayName, timeSlots: [] };
+                                  const filteredSlots = dayObj.timeSlots.filter(s => (s.packageCategory || 'REGULER') === selectedCategory);
+
+                                  return (
+                                    <div key={dayName} className="bg-white rounded-xl border border-slate-200/60 p-3 space-y-2">
+                                      <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                                        <span className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">{dayName}</span>
+                                        <button
+                                          onClick={() => {
+                                            setAddSlotCoachId(coach.id);
+                                            setAddSlotDayName(dayName);
+                                            setNewSlotStartTime('16:15');
+                                            setNewSlotEndTime('17:30');
+                                            setNewSlotTime('');
+                                            setAddSlotPackageCategory(selectedCategory);
+                                            setAddSlotPoolId(swimmingPools.length > 0 ? swimmingPools[0].id : '');
+                                            setShowAddSlotModal(true);
+                                          }}
+                                          className="text-[10px] font-extrabold text-cyan-600 hover:underline flex items-center gap-0.5 cursor-pointer"
+                                        >
+                                          + Tambah Jam
+                                        </button>
+                                      </div>
+
+                                      <div className="space-y-1.5">
+                                        {filteredSlots.length === 0 ? (
+                                          <p className="text-[10px] text-slate-400 italic py-2 text-center">Libur / Belum ada slot jam paket ini</p>
+                                        ) : (
+                                          filteredSlots.map((slot) => {
+                                            // Live slot calculate
+                                            const slotStudents = members.filter(m => 
+                                              m.coachId === coach.id && 
+                                              ((m.scheduleDay === dayName && m.scheduleTime === slot.time) || 
+                                               (m.scheduleFrequency === '2x Seminggu' && m.scheduleDay2 === dayName && m.scheduleTime2 === slot.time)) && 
+                                              m.status !== 'Selesai'
+                                            );
+                                            const usageCount = slotStudents.length;
+                                            const isFull = usageCount >= slot.maxSlots;
+
+                                            return (
+                                              <div key={slot.time} className="flex flex-col gap-1 bg-slate-50 p-2 rounded-lg border border-slate-200/50">
+                                                <div className="flex justify-between items-center">
+                                                  <div>
+                                                    <p className="font-mono text-xs font-bold text-slate-800 flex items-center gap-1">
+                                                      {slot.time} WIB
+                                                    </p>
+                                                    {slot.swimmingPoolId && (
+                                                      <p className="text-[9px] font-bold text-cyan-600 flex items-center gap-0.5 mt-0.5 truncate">
+                                                        <MapPin className="w-2.5 h-2.5 shrink-0" />
+                                                        <span className="truncate">{swimmingPools.find(p => p.id === slot.swimmingPoolId)?.name || 'Kolam Renang'}</span>
+                                                      </p>
+                                                    )}
+                                                    <p className={`text-[9px] font-semibold ${isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'}`}>
+                                                      Slot: {usageCount} / {slot.maxSlots} {isFull ? '(PENUH)' : ''}
+                                                    </p>
+                                                  </div>
+                                                  <button
+                                                    onClick={() => handleRemoveScheduleSlot(coach.id, dayName, slot.time)}
+                                                    className="text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                                                    title="Hapus Slot Jam"
+                                                  >
+                                                    <Trash className="w-3.5 h-3.5" />
+                                                  </button>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-1.5 border-t border-slate-200/60 pt-1 mt-1">
+                                                  <span className="text-[8px] font-bold text-slate-400">Kuota Slot:</span>
+                                                  <input 
+                                                    type="number"
+                                                    value={slot.maxSlots}
+                                                    onChange={(e) => handleUpdateScheduleSlotMax(coach.id, dayName, slot.time, Number(e.target.value))}
+                                                    className="w-10 bg-white border border-slate-200 rounded px-1 py-0.5 text-[9px] font-mono text-center font-bold text-slate-800"
+                                                    title="Ubah kuota slot spesifik ini"
+                                                  />
+                                                </div>
+                                              </div>
+                                            );
+                                          })
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </motion.div>
+                      );
+                    })()}
                   </div>
                 );
               })}
