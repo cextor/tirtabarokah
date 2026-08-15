@@ -597,7 +597,7 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                         </h4>
                       </div>
 
-                      <div className="grid md:grid-cols-3 gap-4">
+                      <div className="space-y-3">
                         {packageCategoriesList.map(pkg => {
                           let slotCount = 0;
                           let studentCount = 0;
@@ -622,9 +622,12 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                           });
 
                           return (
-                            <div key={pkg.category} className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-3 shadow-xs hover:border-cyan-400 transition flex flex-col justify-between">
-                              <div className="space-y-2">
-                                <div className="flex justify-between items-start">
+                            <div 
+                              key={pkg.category} 
+                              className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs hover:border-cyan-400 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                            >
+                              <div className="space-y-1.5 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full border ${
                                     pkg.category === 'REGULER' 
                                       ? 'bg-cyan-50 text-cyan-800 border-cyan-200' 
@@ -635,27 +638,28 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                                     {pkg.category === 'REGULER' ? '👥 Paket Reguler' : pkg.category === 'PRIVATE_2' ? '🔒 Privat 2 Anak' : '🔒 Privat 3 Anak'}
                                   </span>
                                   <span className="text-[10px] font-mono font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
-                                    Maks {pkg.maxStudents} Siswa
+                                    Maks {pkg.maxStudents} Siswa / Slot
                                   </span>
                                 </div>
 
                                 <h4 className="font-black text-sm text-slate-900 leading-snug">{pkg.displayName}</h4>
-                                {pkg.price > 0 && (
-                                  <p className="text-xs font-bold text-cyan-700">
-                                    Rp {pkg.price.toLocaleString('id-ID')} ({pkg.sessions}x Sesi)
-                                  </p>
-                                )}
-
-                                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-bold">
+                                <div className="flex items-center gap-3 text-xs font-bold text-slate-600 flex-wrap">
+                                  {pkg.price > 0 && (
+                                    <span className="text-cyan-700 font-extrabold">
+                                      Rp {pkg.price.toLocaleString('id-ID')} ({pkg.sessions}x Sesi)
+                                    </span>
+                                  )}
+                                  <span className="text-slate-300">•</span>
                                   <span>📅 {slotCount} Slot Jam</span>
-                                  <span>👥 {studentCount} Siswa</span>
+                                  <span className="text-slate-300">•</span>
+                                  <span>👥 {studentCount} Siswa Terdaftar</span>
                                 </div>
                               </div>
 
                               <button
                                 type="button"
                                 onClick={() => setSelectedScheduleCategory(pkg.category)}
-                                className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold py-2.5 px-3 rounded-xl transition text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                                className="bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold py-2.5 px-4 rounded-xl transition text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap shrink-0"
                               >
                                 <Calendar className="w-3.5 h-3.5" />
                                 Lihat Detail Jadwal Paket
