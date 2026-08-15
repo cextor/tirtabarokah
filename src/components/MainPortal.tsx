@@ -1577,7 +1577,11 @@ export default function MainPortal({
                                     const targetCoachType: 'Reguler' | 'Privat' = selectedPricingPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
                                     const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
                                     const isSelected = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
-                                    const isDisabled = details.isFull || conflictInfo.isConflict || (selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time);
+                                    
+                                    const isCategoryMismatch = (selectedPricingPackage?.category === 'PRIVATE' && slot.packageCategory === 'REGULER') ||
+                                      (selectedPricingPackage?.category === 'REGULER' && (slot.packageCategory === 'PRIVATE_2' || slot.packageCategory === 'PRIVATE_3'));
+
+                                    const isDisabled = details.isFull || conflictInfo.isConflict || isCategoryMismatch || (selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time);
                                     return (
                                       <button
                                         type="button"
@@ -1599,10 +1603,19 @@ export default function MainPortal({
                                           <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
                                           {isSelected && <span className="text-xs">✓</span>}
                                         </div>
-                                        <span className={`text-[9px] mt-1.5 font-bold ${
-                                          isSelected ? 'text-cyan-100' : conflictInfo.isConflict || details.isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'
+                                        {slot.packageCategory === 'REGULER' && (
+                                          <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
+                                        )}
+                                        {slot.packageCategory === 'PRIVATE_2' && (
+                                          <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'}`}>🔒 Privat 2 Anak</span>
+                                        )}
+                                        {slot.packageCategory === 'PRIVATE_3' && (
+                                          <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'}`}>🔒 Privat 3 Anak</span>
+                                        )}
+                                        <span className={`text-[9px] mt-1 font-bold ${
+                                          isSelected ? 'text-cyan-100' : conflictInfo.isConflict || details.isFull || isCategoryMismatch ? 'text-rose-600 font-extrabold' : 'text-slate-500'
                                         }`}>
-                                          {conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
+                                          {isCategoryMismatch ? `🚫 Khusus ${slot.packageCategory === 'REGULER' ? 'Reguler' : 'Privat'}` : conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
                                         </span>
                                       </button>
                                     );
@@ -1646,7 +1659,11 @@ export default function MainPortal({
                                       const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
                                       const isSelected = selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time;
                                       const isSameAsSesi1 = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
-                                      const isDisabled = details.isFull || conflictInfo.isConflict || isSameAsSesi1;
+                                      
+                                      const isCategoryMismatch = (selectedPricingPackage?.category === 'PRIVATE' && slot.packageCategory === 'REGULER') ||
+                                        (selectedPricingPackage?.category === 'REGULER' && (slot.packageCategory === 'PRIVATE_2' || slot.packageCategory === 'PRIVATE_3'));
+
+                                      const isDisabled = details.isFull || conflictInfo.isConflict || isCategoryMismatch || isSameAsSesi1;
                                       return (
                                         <button
                                           type="button"
@@ -1668,10 +1685,19 @@ export default function MainPortal({
                                             <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
                                             {isSelected && <span className="text-xs">✓</span>}
                                           </div>
-                                          <span className={`text-[9px] mt-1.5 font-bold ${
-                                            isSelected ? 'text-indigo-100' : isSameAsSesi1 ? 'text-amber-600 font-semibold' : conflictInfo.isConflict || details.isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'
+                                          {slot.packageCategory === 'REGULER' && (
+                                            <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
+                                          )}
+                                          {slot.packageCategory === 'PRIVATE_2' && (
+                                            <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'}`}>🔒 Privat 2 Anak</span>
+                                          )}
+                                          {slot.packageCategory === 'PRIVATE_3' && (
+                                            <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'}`}>🔒 Privat 3 Anak</span>
+                                          )}
+                                          <span className={`text-[9px] mt-1 font-bold ${
+                                            isSelected ? 'text-indigo-100' : isSameAsSesi1 ? 'text-amber-600 font-semibold' : conflictInfo.isConflict || details.isFull || isCategoryMismatch ? 'text-rose-600 font-extrabold' : 'text-slate-500'
                                           }`}>
-                                            {isSameAsSesi1 ? '⚠️ Dipilih di Sesi 1' : conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
+                                            {isSameAsSesi1 ? '⚠️ Dipilih di Sesi 1' : isCategoryMismatch ? `🚫 Khusus ${slot.packageCategory === 'REGULER' ? 'Reguler' : 'Privat'}` : conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
                                           </span>
                                         </button>
                                       );

@@ -584,9 +584,31 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                           return (
                             <div key={slot.time} className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2.5 text-xs shadow-2xs">
                               <div className="flex justify-between items-center">
-                                <span className="font-mono font-extrabold text-slate-800 flex items-center gap-1.5 text-xs">
-                                  <Clock className="w-3.5 h-3.5 text-cyan-600" /> {slot.time} WIB
-                                </span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-mono font-extrabold text-slate-800 flex items-center gap-1.5 text-xs">
+                                    <Clock className="w-3.5 h-3.5 text-cyan-600" /> {slot.time} WIB
+                                  </span>
+                                  {slot.packageCategory === 'REGULER' && (
+                                    <span className="text-[9px] font-extrabold bg-cyan-100 text-cyan-800 border border-cyan-200 px-2 py-0.5 rounded-md">
+                                      👥 Reguler (Max 6)
+                                    </span>
+                                  )}
+                                  {slot.packageCategory === 'PRIVATE_2' && (
+                                    <span className="text-[9px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200 px-2 py-0.5 rounded-md">
+                                      🔒 Privat 2 Anak
+                                    </span>
+                                  )}
+                                  {slot.packageCategory === 'PRIVATE_3' && (
+                                    <span className="text-[9px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200 px-2 py-0.5 rounded-md">
+                                      🔒 Privat 3 Anak
+                                    </span>
+                                  )}
+                                  {(!slot.packageCategory || slot.packageCategory === 'ALL') && (
+                                    <span className="text-[9px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md">
+                                      🌐 Fleksibel
+                                    </span>
+                                  )}
+                                </div>
                                 <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
                                   slotStudents.length >= (slot.maxSlots || 6)
                                     ? 'bg-rose-100 text-rose-800 border border-rose-200'

@@ -372,6 +372,7 @@ export default function AdminDashboard({
   const [addSlotDayName, setAddSlotDayName] = useState<string>('');
   const [newSlotTime, setNewSlotTime] = useState<string>('');
   const [addSlotPoolId, setAddSlotPoolId] = useState<string>('');
+  const [addSlotPackageCategory, setAddSlotPackageCategory] = useState<string>('ALL');
 
   // Master Kolam Renang State
   const [showPoolModal, setShowPoolModal] = useState<boolean>(false);
@@ -1402,6 +1403,7 @@ export default function AdminDashboard({
     setNewSlotStartTime('16:15');
     setNewSlotEndTime('17:30');
     setNewSlotTime('');
+    setAddSlotPackageCategory('ALL');
     setAddSlotPoolId(swimmingPools.length > 0 ? swimmingPools[0].id : '');
     setShowAddSlotModal(true);
   };
@@ -1428,12 +1430,12 @@ export default function AdminDashboard({
       return;
     }
 
-    handleAddScheduleSlot(addSlotCoachId, addSlotDayName, timeStr, addSlotPoolId);
+    handleAddScheduleSlot(addSlotCoachId, addSlotDayName, timeStr, addSlotPoolId, addSlotPackageCategory);
     setShowAddSlotModal(false);
   };
 
   // ACTION: ADD TIME SLOT TO SCHEDULE
-  const handleAddScheduleSlot = async (coachId: string, dayName: string, timeStr: string, poolId?: string) => {
+  const handleAddScheduleSlot = async (coachId: string, dayName: string, timeStr: string, poolId?: string, packageCategory?: string) => {
     const targetCoach = coaches.find(c => c.id === coachId);
     if (!targetCoach) return;
 
@@ -1443,22 +1445,31 @@ export default function AdminDashboard({
       baseSchedule.push({ day: dayName, timeSlots: [] });
     }
 
+    const cat = packageCategory || 'ALL';
+    let computedMaxSlots = 6;
+    if (cat === 'PRIVATE_2') computedMaxSlots = 2;
+    else if (cat === 'PRIVATE_3') computedMaxSlots = 3;
+    else if (cat === 'REGULER') computedMaxSlots = 6;
+    else {
+      const coachPkgs = (pricingPackages || []).filter(p => (p.coachIds || []).includes(targetCoach.id));
+      computedMaxSlots = coachPkgs.length > 0 && coachPkgs[0].max_students ? coachPkgs[0].max_students : (targetCoach.maxQuota || 6);
+    }
+
     const updatedCoach = {
       ...targetCoach,
       schedule: baseSchedule.map(d => {
         if (d.day === dayName) {
           if (d.timeSlots.some(ts => ts.time.trim() === timeStr.trim())) return d;
-          const coachPkgs = (pricingPackages || []).filter(p => (p.coachIds || []).includes(targetCoach.id));
-          const defaultMaxSlots = coachPkgs.length > 0 && coachPkgs[0].max_students ? coachPkgs[0].max_students : (targetCoach.maxQuota || 6);
 
           return {
             ...d,
             timeSlots: [...d.timeSlots, { 
               time: timeStr, 
-              maxSlots: defaultMaxSlots, 
+              maxSlots: computedMaxSlots, 
               currentSlots: 0, 
               students: [],
-              swimmingPoolId: poolId || undefined 
+              swimmingPoolId: poolId || undefined,
+              packageCategory: cat
             }].sort((a, b) => a.time.localeCompare(b.time))
           };
         }
@@ -5303,7 +5314,29 @@ export default function AdminDashboard({
                                         <div key={slot.time} className="flex flex-col gap-1 bg-slate-50 p-2 rounded-lg border border-slate-200/50">
                                           <div className="flex justify-between items-center">
                                             <div>
-                                              <p className="font-mono text-xs font-bold text-slate-800">{slot.time} WIB</p>
+                                              <p className="font-mono text-xs font-bold text-slate-800 flex items-center gap-1">
+                                                {slot.time} WIB
+                                              </p>
+                                              {slot.packageCategory === 'REGULER' && (
+                                                <span className="inline-block bg-cyan-100 text-cyan-800 text-[8px] font-extrabold px-1.5 py-0.5 rounded mt-0.5 border border-cyan-200">
+                                                  👥 Reguler (Max 6)
+                                                </span>
+                                              )}
+                                              {slot.packageCategory === 'PRIVATE_2' && (
+                                                <span className="inline-block bg-indigo-100 text-indigo-800 text-[8px] font-extrabold px-1.5 py-0.5 rounded mt-0.5 border border-indigo-200">
+                                                  🔒 Privat 2 Anak
+                                                </span>
+                                              )}
+                                              {slot.packageCategory === 'PRIVATE_3' && (
+                                                <span className="inline-block bg-purple-100 text-purple-800 text-[8px] font-extrabold px-1.5 py-0.5 rounded mt-0.5 border border-purple-200">
+                                                  🔒 Privat 3 Anak
+                                                </span>
+                                              )}
+                                              {(!slot.packageCategory || slot.packageCategory === 'ALL') && (
+                                                <span className="inline-block bg-slate-100 text-slate-600 text-[8px] font-semibold px-1.5 py-0.5 rounded mt-0.5 border border-slate-200">
+                                                  🌐 Fleksibel
+                                                </span>
+                                              )}
                                               {slot.swimmingPoolId && (
                                                 <p className="text-[9px] font-bold text-cyan-600 flex items-center gap-0.5 mt-0.5 truncate">
                                                   <MapPin className="w-2.5 h-2.5 shrink-0" />
@@ -5920,13 +5953,27 @@ export default function AdminDashboard({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="font-bold text-slate-600">Pilih Kolam Renang <span className="text-rose-500">*</span></label>
+                      <label className="font-bold text-slate-600 block">Pilih Kolam Renang <span className="text-rose-500">*</span></label>
                       <SearchableSelect
                         options={swimmingPools.map(p => ({ value: p.id, label: p.name }))}
                         value={addSlotPoolId}
                         onChange={(val) => setAddSlotPoolId(val)}
                         placeholder="-- Pilih Kolam Renang --"
                       />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="font-bold text-slate-600 block">Peruntukan Paket Belajar <span className="text-rose-500">*</span></label>
+                      <select
+                        value={addSlotPackageCategory}
+                        onChange={(e) => setAddSlotPackageCategory(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition cursor-pointer"
+                      >
+                        <option value="ALL">🌐 Semua Paket (Fleksibel)</option>
+                        <option value="REGULER">👥 Khusus Paket Reguler (Maks 6 Siswa)</option>
+                        <option value="PRIVATE_2">🔒 Khusus Paket Private 2 Anak (Maks 2 Siswa)</option>
+                        <option value="PRIVATE_3">🔒 Khusus Paket Private 3 Anak (Maks 3 Siswa)</option>
+                      </select>
                     </div>
 
                     {/* Modal Footer Actions */}

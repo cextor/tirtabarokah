@@ -108,12 +108,27 @@ class ApiController extends BaseController
             }
 
             $studentsInThisSlot = $slotStudents[$cId][$dayName][$time] ?? [];
-            $pkgQuota = $coachPkgQuotas[$cId] ?? null;
+            $pkgCategory = $sched['package_category'] ?? 'ALL';
+            $pricingPkgId = $sched['pricing_package_id'] ?? null;
+            
+            // Determine effective maxSlots
+            $maxSlotsVal = (int)($sched['max_slots'] ?? 6);
+            if ($pkgCategory === 'PRIVATE_2') {
+                $maxSlotsVal = 2;
+            } elseif ($pkgCategory === 'PRIVATE_3') {
+                $maxSlotsVal = 3;
+            } elseif ($pkgCategory === 'REGULER') {
+                $maxSlotsVal = 6;
+            } elseif ($pkgQuota !== null) {
+                $maxSlotsVal = (int)$pkgQuota;
+            }
 
             $schedulesByCoach[$cId][$dayName]['timeSlots'][] = [
                 'time' => $time,
-                'maxSlots' => (int)($pkgQuota ?? $sched['max_slots'] ?? 6),
+                'maxSlots' => $maxSlotsVal,
                 'swimmingPoolId' => $sched['swimming_pool_id'] ?? null,
+                'packageCategory' => $pkgCategory,
+                'pricingPackageId' => $pricingPkgId,
                 'currentSlots' => count($studentsInThisSlot),
                 'students' => $studentsInThisSlot
             ];
@@ -208,12 +223,16 @@ class ApiController extends BaseController
                 $dayName = $dayGroup->day;
                 if (isset($dayGroup->timeSlots) && is_array($dayGroup->timeSlots)) {
                     foreach ($dayGroup->timeSlots as $slot) {
+                        $pkgCat = $slot->packageCategory ?? ($slot->package_category ?? 'ALL');
+                        $pricingPkgId = $slot->pricingPackageId ?? ($slot->pricing_package_id ?? null);
                         $this->db->table('coach_schedules')->insert([
                             'coach_id' => $id,
                             'day' => $dayName,
                             'time' => $slot->time,
                             'max_slots' => isset($slot->maxSlots) ? (int)$slot->maxSlots : 6,
-                            'swimming_pool_id' => $slot->swimmingPoolId ?? null
+                            'swimming_pool_id' => $slot->swimmingPoolId ?? null,
+                            'package_category' => $pkgCat,
+                            'pricing_package_id' => $pricingPkgId
                         ]);
                     }
                 }
@@ -390,12 +409,17 @@ class ApiController extends BaseController
                             $poolId = $slot->swimming_pool_id;
                         }
 
+                        $pkgCat = $slot->packageCategory ?? ($slot->package_category ?? 'ALL');
+                        $pricingPkgId = $slot->pricingPackageId ?? ($slot->pricing_package_id ?? null);
+
                         $this->db->table('coach_schedules')->insert([
                             'coach_id' => $id,
                             'day' => $dayName,
                             'time' => $slot->time,
                             'max_slots' => isset($slot->maxSlots) ? (int)$slot->maxSlots : 6,
-                            'swimming_pool_id' => $poolId
+                            'swimming_pool_id' => $poolId,
+                            'package_category' => $pkgCat,
+                            'pricing_package_id' => $pricingPkgId
                         ]);
                     }
                 }
