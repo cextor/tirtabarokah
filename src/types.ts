@@ -84,7 +84,7 @@ export interface ScheduleTimeSlot {
   currentSlots: number;
   students: string[]; // Member IDs
   swimmingPoolId?: string;
-  packageCategory?: 'ALL' | 'REGULER' | 'PRIVATE_2' | 'PRIVATE_3' | string;
+  packageCategory?: 'REGULER' | 'PRIVATE_2' | 'PRIVATE_3' | string;
   pricingPackageId?: string;
 }
 

@@ -372,7 +372,7 @@ export default function AdminDashboard({
   const [addSlotDayName, setAddSlotDayName] = useState<string>('');
   const [newSlotTime, setNewSlotTime] = useState<string>('');
   const [addSlotPoolId, setAddSlotPoolId] = useState<string>('');
-  const [addSlotPackageCategory, setAddSlotPackageCategory] = useState<string>('ALL');
+  const [addSlotPackageCategory, setAddSlotPackageCategory] = useState<string>('REGULER');
 
   // Master Kolam Renang State
   const [showPoolModal, setShowPoolModal] = useState<boolean>(false);
@@ -1403,7 +1403,7 @@ export default function AdminDashboard({
     setNewSlotStartTime('16:15');
     setNewSlotEndTime('17:30');
     setNewSlotTime('');
-    setAddSlotPackageCategory('ALL');
+    setAddSlotPackageCategory('REGULER');
     setAddSlotPoolId(swimmingPools.length > 0 ? swimmingPools[0].id : '');
     setShowAddSlotModal(true);
   };
@@ -5334,7 +5334,7 @@ export default function AdminDashboard({
                                               )}
                                               {(!slot.packageCategory || slot.packageCategory === 'ALL') && (
                                                 <span className="inline-block bg-slate-100 text-slate-600 text-[8px] font-semibold px-1.5 py-0.5 rounded mt-0.5 border border-slate-200">
-                                                  🌐 Fleksibel
+                                                  👥 Reguler (Max 6)
                                                 </span>
                                               )}
                                               {slot.swimmingPoolId && (
@@ -5969,7 +5969,6 @@ export default function AdminDashboard({
                         onChange={(e) => setAddSlotPackageCategory(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition cursor-pointer"
                       >
-                        <option value="ALL">🌐 Semua Paket (Fleksibel)</option>
                         <option value="REGULER">👥 Khusus Paket Reguler (Maks 6 Siswa)</option>
                         <option value="PRIVATE_2">🔒 Khusus Paket Private 2 Anak (Maks 2 Siswa)</option>
                         <option value="PRIVATE_3">🔒 Khusus Paket Private 3 Anak (Maks 3 Siswa)</option>

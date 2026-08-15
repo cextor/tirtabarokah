@@ -108,7 +108,8 @@ class ApiController extends BaseController
             }
 
             $studentsInThisSlot = $slotStudents[$cId][$dayName][$time] ?? [];
-            $pkgCategory = $sched['package_category'] ?? 'ALL';
+            $pkgCategory = $sched['package_category'] ?? 'REGULER';
+            if ($pkgCategory === 'ALL' || !$pkgCategory) $pkgCategory = 'REGULER';
             $pricingPkgId = $sched['pricing_package_id'] ?? null;
             $pkgQuota = $coachPkgQuotas[$cId] ?? null;
             
@@ -224,7 +225,8 @@ class ApiController extends BaseController
                 $dayName = $dayGroup->day;
                 if (isset($dayGroup->timeSlots) && is_array($dayGroup->timeSlots)) {
                     foreach ($dayGroup->timeSlots as $slot) {
-                        $pkgCat = $slot->packageCategory ?? ($slot->package_category ?? 'ALL');
+                        $pkgCat = $slot->packageCategory ?? ($slot->package_category ?? 'REGULER');
+                        if ($pkgCat === 'ALL' || !$pkgCat) $pkgCat = 'REGULER';
                         $pricingPkgId = $slot->pricingPackageId ?? ($slot->pricing_package_id ?? null);
                         $this->db->table('coach_schedules')->insert([
                             'coach_id' => $id,
@@ -410,7 +412,8 @@ class ApiController extends BaseController
                             $poolId = $slot->swimming_pool_id;
                         }
 
-                        $pkgCat = $slot->packageCategory ?? ($slot->package_category ?? 'ALL');
+                        $pkgCat = $slot->packageCategory ?? ($slot->package_category ?? 'REGULER');
+                        if ($pkgCat === 'ALL' || !$pkgCat) $pkgCat = 'REGULER';
                         $pricingPkgId = $slot->pricingPackageId ?? ($slot->pricing_package_id ?? null);
 
                         $this->db->table('coach_schedules')->insert([

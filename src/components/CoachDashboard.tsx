@@ -604,8 +604,8 @@ export default function CoachDashboard({ coaches, members, absences, onReloadDat
                                     </span>
                                   )}
                                   {(!slot.packageCategory || slot.packageCategory === 'ALL') && (
-                                    <span className="text-[9px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-md">
-                                      🌐 Fleksibel
+                                    <span className="text-[9px] font-extrabold bg-cyan-100 text-cyan-800 border border-cyan-200 px-2 py-0.5 rounded-md">
+                                      👥 Reguler (Max 6)
                                     </span>
                                   )}
                                 </div>
