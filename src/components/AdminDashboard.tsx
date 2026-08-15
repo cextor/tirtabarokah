@@ -1446,7 +1446,7 @@ export default function AdminDashboard({
       baseSchedule.push({ day: dayName, timeSlots: [] });
     }
 
-    const cat = packageCategory || 'ALL';
+    const cat = packageCategory || 'REGULER';
     let computedMaxSlots = 6;
     if (cat === 'PRIVATE_2') computedMaxSlots = 2;
     else if (cat === 'PRIVATE_3') computedMaxSlots = 3;
@@ -1456,12 +1456,22 @@ export default function AdminDashboard({
       computedMaxSlots = coachPkgs.length > 0 && coachPkgs[0].max_students ? coachPkgs[0].max_students : (targetCoach.maxQuota || 6);
     }
 
+    // Check duplicate specifically for this category
+    const dayObj = baseSchedule.find(d => d.day === dayName);
+    if (dayObj && dayObj.timeSlots.some(ts => ts.time.trim() === timeStr.trim() && (ts.packageCategory || 'REGULER') === cat)) {
+      Swal.fire({
+        title: 'Slot Sudah Terdaftar!',
+        text: `Slot waktu ${timeStr} untuk kategori paket ini sudah ada pada hari ${dayName}.`,
+        icon: 'warning',
+        confirmButtonColor: '#06b6d4'
+      });
+      return;
+    }
+
     const updatedCoach = {
       ...targetCoach,
       schedule: baseSchedule.map(d => {
         if (d.day === dayName) {
-          if (d.timeSlots.some(ts => ts.time.trim() === timeStr.trim())) return d;
-
           return {
             ...d,
             timeSlots: [...d.timeSlots, { 
@@ -1640,10 +1650,11 @@ export default function AdminDashboard({
   };
 
   // ACTION: UPDATE TIME SLOT MAX SLOTS
-  const handleUpdateScheduleSlotMax = async (coachId: string, dayName: string, timeStr: string, newMax: number) => {
+  const handleUpdateScheduleSlotMax = async (coachId: string, dayName: string, timeStr: string, newMax: number, packageCategory?: string) => {
     const targetCoach = coaches.find(c => c.id === coachId);
     if (!targetCoach) return;
 
+    const cat = packageCategory || 'REGULER';
     const updatedCoach = {
       ...targetCoach,
       schedule: targetCoach.schedule.map(d => {
@@ -1651,7 +1662,7 @@ export default function AdminDashboard({
           return {
             ...d,
             timeSlots: d.timeSlots.map(ts => {
-              if (ts.time === timeStr) {
+              if (ts.time === timeStr && (ts.packageCategory || 'REGULER') === cat) {
                 return { ...ts, maxSlots: newMax };
               }
               return ts;
@@ -1675,7 +1686,7 @@ export default function AdminDashboard({
   };
 
   // ACTION: REMOVE SLOT
-  const handleRemoveScheduleSlot = async (coachId: string, dayName: string, timeStr: string) => {
+  const handleRemoveScheduleSlot = async (coachId: string, dayName: string, timeStr: string, packageCategory?: string) => {
     const result = await Swal.fire({
       title: 'Apakah Anda yakin?',
       text: `Apakah Anda yakin ingin menghapus slot waktu ${timeStr} pada hari ${dayName}?`,
@@ -1691,13 +1702,14 @@ export default function AdminDashboard({
       const targetCoach = coaches.find(c => c.id === coachId);
       if (!targetCoach) return;
 
+      const cat = packageCategory || 'REGULER';
       const updatedCoach = {
         ...targetCoach,
         schedule: targetCoach.schedule.map(d => {
           if (d.day === dayName) {
             return {
               ...d,
-              timeSlots: d.timeSlots.filter(ts => ts.time !== timeStr)
+              timeSlots: d.timeSlots.filter(ts => !(ts.time === timeStr && (ts.packageCategory || 'REGULER') === cat))
             };
           }
           return d;
@@ -5478,7 +5490,7 @@ export default function AdminDashboard({
                                                     </p>
                                                   </div>
                                                   <button
-                                                    onClick={() => handleRemoveScheduleSlot(coach.id, dayName, slot.time)}
+                                                    onClick={() => handleRemoveScheduleSlot(coach.id, dayName, slot.time, selectedCategory)}
                                                     className="text-slate-400 hover:text-rose-600 transition cursor-pointer"
                                                     title="Hapus Slot Jam"
                                                   >
@@ -5490,7 +5502,7 @@ export default function AdminDashboard({
                                                   <input 
                                                     type="number"
                                                     value={slot.maxSlots}
-                                                    onChange={(e) => handleUpdateScheduleSlotMax(coach.id, dayName, slot.time, Number(e.target.value))}
+                                                    onChange={(e) => handleUpdateScheduleSlotMax(coach.id, dayName, slot.time, Number(e.target.value), selectedCategory)}
                                                     className="w-10 bg-blue-50/50 border border-blue-200 rounded px-1 py-0.5 text-[9px] font-mono text-center font-bold text-blue-950"
                                                     title="Ubah kuota slot spesifik ini"
                                                   />
