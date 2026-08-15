@@ -110,6 +110,7 @@ class ApiController extends BaseController
             $studentsInThisSlot = $slotStudents[$cId][$dayName][$time] ?? [];
             $pkgCategory = $sched['package_category'] ?? 'ALL';
             $pricingPkgId = $sched['pricing_package_id'] ?? null;
+            $pkgQuota = $coachPkgQuotas[$cId] ?? null;
             
             // Determine effective maxSlots
             $maxSlotsVal = (int)($sched['max_slots'] ?? 6);
