@@ -795,6 +795,11 @@ export default function MainPortal({
                               alt={coach.name} 
                               className="w-full h-full object-cover"
                               referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                target.onerror = null;
+                                target.src = '/images/coach_amel.jpg';
+                              }}
                             />
                           </div>
                         </div>
@@ -895,6 +900,11 @@ export default function MainPortal({
                         alt={event.title} 
                         className="w-full h-full object-cover" 
                         referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.onerror = null;
+                          target.src = event.category === 'Lomba' ? '/images/event_lomba.png' : '/images/event_fun.png';
+                        }}
                       />
                       <span className="absolute top-4 left-4 bg-cyan-600 text-white font-extrabold text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg">
                         {event.category}
