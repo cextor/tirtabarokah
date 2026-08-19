@@ -1161,8 +1161,8 @@ export default function AdminDashboard({
     const newId = `coach-${newCoachName.toLowerCase().replace(/\s+/g, '-')}`;
 
     // Load global packages to construct local packages
-    let globalPricingPackages: PricingPackage[] = [];
-    if (settings.pricing_packages) {
+    let globalPricingPackages: PricingPackage[] = (pricingPackages && pricingPackages.length > 0) ? pricingPackages : [];
+    if (globalPricingPackages.length === 0 && settings.pricing_packages) {
       try {
         globalPricingPackages = JSON.parse(settings.pricing_packages);
       } catch (err) {}
@@ -5289,34 +5289,43 @@ export default function AdminDashboard({
                     {expandedCoachScheduleId === coach.id && (() => {
                       const selectedCategory = activeSchedulePackageCategory[coach.id] || null;
 
-                      // Helper to group packages for this coach
-                      const coachPkgs = (coach.packages && coach.packages.length > 0)
-                        ? coach.packages
-                        : [
-                            { id: 'pkg-reg', name: 'Paket Reguler (Kelompok)', category: 'REGULER', price: (coach as any).price4x || 250000, sessions: 4, max_students: 6 },
-                            { id: 'pkg-priv2', name: 'Paket Private 2 Anak', category: 'PRIVATE_2', price: 450000, sessions: 4, max_students: 2 },
-                            { id: 'pkg-priv3', name: 'Paket Private 3 Anak', category: 'PRIVATE_3', price: 600000, sessions: 4, max_students: 3 }
-                          ];
+                      // Strictly use packages configured in "Kelola Paket Belajar Pelatih / Daftar Paket Aktif Pelatih"
+                      const coachPackagesList = (coach.packages || []).map(pkg => {
+                        const pName = (pkg.name || '').toLowerCase();
+                        let category = 'REGULER';
+                        let maxStudents = (pkg as any).max_students || (pkg as any).maxStudents || 6;
+                        let color = 'cyan';
 
-                      // Normalize packages list with categories
-                      const packageCategoriesList = [
-                        { category: 'REGULER', name: 'Paket Reguler (Kelompok)', maxStudents: 6, color: 'cyan' },
-                        { category: 'PRIVATE_2', name: 'Paket Private 2 Anak', maxStudents: 2, color: 'indigo' },
-                        { category: 'PRIVATE_3', name: 'Paket Private 3 Anak', maxStudents: 3, color: 'purple' }
-                      ].map(catItem => {
-                        const matchingPkg = coachPkgs.find((p: any) => {
-                          const pName = (p.name || '').toLowerCase();
-                          if (catItem.category === 'PRIVATE_2') return pName.includes('2 anak') || pName.includes('private 2') || pName.includes('privat 2');
-                          if (catItem.category === 'PRIVATE_3') return pName.includes('3 anak') || pName.includes('private 3') || pName.includes('privat 3');
-                          return !pName.includes('private 2') && !pName.includes('private 3') && !pName.includes('privat 2') && !pName.includes('privat 3');
-                        });
+                        if ((pkg as any).category === 'PRIVATE_2' || pName.includes('2 anak') || pName.includes('private 2') || pName.includes('privat 2')) {
+                          category = 'PRIVATE_2';
+                          maxStudents = 2;
+                          color = 'indigo';
+                        } else if ((pkg as any).category === 'PRIVATE_3' || pName.includes('3 anak') || pName.includes('private 3') || pName.includes('privat 3')) {
+                          category = 'PRIVATE_3';
+                          maxStudents = 3;
+                          color = 'purple';
+                        } else if (pName.includes('promo')) {
+                          category = 'REGULER';
+                          maxStudents = 6;
+                          color = 'amber';
+                        } else {
+                          category = (pkg as any).category || 'REGULER';
+                          maxStudents = (pkg as any).max_students || (pkg as any).maxStudents || 6;
+                          color = 'cyan';
+                        }
+
                         return {
-                          ...catItem,
-                          displayName: matchingPkg ? matchingPkg.name : catItem.name,
-                          price: matchingPkg ? (matchingPkg.price || 0) : 0,
-                          sessions: matchingPkg ? (matchingPkg.sessions || 4) : 4
+                          id: pkg.id,
+                          category: category,
+                          displayName: pkg.name,
+                          price: pkg.price || 0,
+                          sessions: pkg.sessions || 0,
+                          maxStudents: maxStudents,
+                          color: color
                         };
                       });
+
+                      const selectedPkgInfo = coachPackagesList.find(p => p.category === selectedCategory);
 
                       return (
                         <motion.div
@@ -5324,7 +5333,29 @@ export default function AdminDashboard({
                           animate={{ opacity: 1, height: 'auto' }}
                           className="border-t border-slate-200 pt-4 space-y-4"
                         >
-                          {!selectedCategory ? (
+                          {coachPackagesList.length === 0 ? (
+                            <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-6 text-center space-y-3">
+                              <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto">
+                                <PackageIcon className="w-5 h-5" />
+                              </div>
+                              <div className="space-y-1">
+                                <h5 className="font-extrabold text-xs text-amber-900">Belum Ada Paket Belajar Aktif untuk {coach.name}</h5>
+                                <p className="text-[11px] text-amber-700 max-w-md mx-auto leading-relaxed">
+                                  Pelatih ini belum memiliki paket belajar pada <strong>Daftar Paket Aktif Pelatih</strong>. Silakan klik tombol <strong>"Edit Profil, Kuota & Harga"</strong> di atas untuk menambahkan paket yang diajar oleh pelatih ini.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleEditCoachSettings(coach.id);
+                                  setExpandedCoachScheduleId('');
+                                }}
+                                className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
+                              >
+                                <Edit className="w-3.5 h-3.5" /> Atur Paket Belajar {coach.name}
+                              </button>
+                            </div>
+                          ) : !selectedCategory ? (
                             /* FIRST VIEW: DAFTAR PAKET BELAJAR PELATIH */
                             <div className="space-y-3">
                               <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 text-white p-4 rounded-2xl border border-blue-600 shadow-sm">
@@ -5338,7 +5369,7 @@ export default function AdminDashboard({
                               </div>
 
                               <div className="space-y-3">
-                                {packageCategoriesList.map(pkg => {
+                                {coachPackagesList.map((pkg, pIdx) => {
                                   // Count time slots and active students for this package category
                                   let slotCount = 0;
                                   let studentCount = 0;
@@ -5361,7 +5392,7 @@ export default function AdminDashboard({
 
                                   return (
                                     <div 
-                                      key={pkg.category} 
+                                      key={pkg.id || pIdx} 
                                       className="bg-gradient-to-br from-blue-50/90 via-blue-50/40 to-white rounded-2xl border border-blue-200/90 p-4 shadow-2xs hover:border-blue-400 hover:shadow-sm transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                                     >
                                       <div className="space-y-1.5 flex-1">
@@ -5424,7 +5455,7 @@ export default function AdminDashboard({
                                     <h5 className="font-extrabold text-xs text-white flex items-center gap-2 flex-wrap">
                                       <span>🗓️ Jadwal 7 Hari Pelatih:</span>
                                       <span className="bg-white/20 text-white border border-white/30 px-3 py-1 rounded-full font-black text-xs">
-                                        {selectedCategory === 'REGULER' ? '👥 Paket Reguler (Maks 6 Siswa)' : selectedCategory === 'PRIVATE_2' ? '🔒 Paket Private 2 Anak (Maks 2 Siswa)' : '🔒 Paket Private 3 Anak (Maks 3 Siswa)'}
+                                        {selectedPkgInfo ? `${selectedPkgInfo.displayName} (Maks ${selectedPkgInfo.maxStudents} Siswa)` : (selectedCategory === 'REGULER' ? '👥 Paket Reguler (Maks 6 Siswa)' : selectedCategory === 'PRIVATE_2' ? '🔒 Paket Private 2 Anak (Maks 2 Siswa)' : '🔒 Paket Private 3 Anak (Maks 3 Siswa)')}
                                       </span>
                                     </h5>
                                   </div>

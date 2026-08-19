@@ -1320,6 +1320,7 @@ export default function App() {
                   coaches={coaches}
                   members={members}
                   absences={absences}
+                  pricingPackages={pricingPackages}
                   onReloadData={loadTabData}
                   onUpdateMembers={updateMembersState}
                   loggedCoachId={loggedCoachId}
