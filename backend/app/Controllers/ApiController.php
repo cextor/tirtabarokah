@@ -46,11 +46,21 @@ class ApiController extends BaseController
             $packagesByCoach[$pkg['coach_id']][] = $pkg;
         }
 
-        // 2. Bulk Fetch Schedules for all coaches
-        $allSchedules = $this->db->table('coach_schedules')
-            ->whereIn('coach_id', $coachIds)
-            ->get()
-            ->getResultArray();
+        // 2. Bulk Fetch Schedules for all coaches from package_schedules (fallback to coach_schedules)
+        $allSchedules = [];
+        if ($this->db->tableExists('package_schedules')) {
+            $allSchedules = $this->db->table('package_schedules')
+                ->select('package_schedules.*, pricing_packages.category as package_category')
+                ->join('pricing_packages', 'pricing_packages.id = package_schedules.pricing_package_id', 'left')
+                ->whereIn('package_schedules.coach_id', $coachIds)
+                ->get()
+                ->getResultArray();
+        } elseif ($this->db->tableExists('coach_schedules')) {
+            $allSchedules = $this->db->table('coach_schedules')
+                ->whereIn('coach_id', $coachIds)
+                ->get()
+                ->getResultArray();
+        }
 
         // 3. Bulk Fetch Active Member Schedules for all coaches
         $allMemberSchedules = [];
@@ -614,9 +624,11 @@ class ApiController extends BaseController
             $formattedSchedules = [];
             foreach ($schedulesList as $sched) {
                 $formattedSchedules[] = [
+                    'scheduleId' => !empty($sched['schedule_id']) ? (int)$sched['schedule_id'] : null,
                     'coachId' => $sched['coach_id'],
                     'day' => $sched['day'],
-                    'time' => $sched['time']
+                    'time' => $sched['time'],
+                    'swimmingPoolId' => $sched['swimming_pool_id'] ?? null
                 ];
             }
 
@@ -640,6 +652,8 @@ class ApiController extends BaseController
                 ],
                 'coachId' => $firstSched ? $firstSched['coachId'] : '',
                 'packageId' => $m['package_id'],
+                'scheduleId' => $firstSched ? $firstSched['scheduleId'] : null,
+                'scheduleId2' => $secondSched ? $secondSched['scheduleId'] : null,
                 'scheduleFrequency' => count($formattedSchedules) > 1 ? '2x Seminggu' : '1x Seminggu',
                 'scheduleDay' => $firstSched ? $firstSched['day'] : '',
                 'scheduleTime' => $firstSched ? $firstSched['time'] : '',
@@ -675,25 +689,31 @@ class ApiController extends BaseController
         if (isset($json->schedules) && is_array($json->schedules)) {
             foreach ($json->schedules as $s) {
                 $schedules[] = [
-                    'coach_id' => $s->coachId,
-                    'day' => $s->day,
-                    'time' => $s->time
+                    'schedule_id' => $s->scheduleId ?? $s->schedule_id ?? null,
+                    'coach_id' => $s->coachId ?? $s->coach_id ?? '',
+                    'day' => $s->day ?? '',
+                    'time' => $s->time ?? '',
+                    'swimming_pool_id' => $s->swimmingPoolId ?? $s->swimming_pool_id ?? null
                 ];
             }
         } else {
             // Fallback to legacy fields
             if (!empty($json->scheduleDay) && !empty($json->scheduleTime) && !empty($json->coachId)) {
                 $schedules[] = [
+                    'schedule_id' => $json->scheduleId ?? $json->schedule_id ?? null,
                     'coach_id' => $json->coachId,
                     'day' => $json->scheduleDay,
-                    'time' => $json->scheduleTime
+                    'time' => $json->scheduleTime,
+                    'swimming_pool_id' => $json->swimmingPoolId ?? $json->swimming_pool_id ?? null
                 ];
             }
             if (isset($json->scheduleFrequency) && $json->scheduleFrequency === '2x Seminggu' && !empty($json->scheduleDay2) && !empty($json->scheduleTime2) && !empty($json->coachId)) {
                 $schedules[] = [
+                    'schedule_id' => $json->scheduleId2 ?? $json->schedule_id2 ?? null,
                     'coach_id' => $json->coachId,
                     'day' => $json->scheduleDay2,
-                    'time' => $json->scheduleTime2
+                    'time' => $json->scheduleTime2,
+                    'swimming_pool_id' => $json->swimmingPoolId2 ?? $json->swimming_pool_id2 ?? null
                 ];
             }
         }
@@ -768,11 +788,28 @@ class ApiController extends BaseController
 
         // Insert schedules to member_schedules table
         foreach ($schedules as $s) {
+            $schedId = $s['schedule_id'] ?? null;
+            $poolId = $s['swimming_pool_id'] ?? null;
+
+            if (!$schedId && $this->db->tableExists('package_schedules')) {
+                $matchedPs = $this->db->table('package_schedules')
+                    ->where('coach_id', $s['coach_id'])
+                    ->where('day', $s['day'])
+                    ->where('time', $s['time'])
+                    ->get()->getRowArray();
+                if ($matchedPs) {
+                    $schedId = $matchedPs['id'];
+                    if (!$poolId) $poolId = $matchedPs['swimming_pool_id'];
+                }
+            }
+
             $this->db->table('member_schedules')->insert([
                 'member_id' => $id,
+                'schedule_id' => $schedId,
                 'coach_id' => $s['coach_id'],
                 'day' => $s['day'],
-                'time' => $s['time']
+                'time' => $s['time'],
+                'swimming_pool_id' => $poolId
             ]);
         }
 
@@ -899,25 +936,31 @@ class ApiController extends BaseController
         if (isset($json->schedules) && is_array($json->schedules)) {
             foreach ($json->schedules as $s) {
                 $schedules[] = [
-                    'coach_id' => $s->coachId,
-                    'day' => $s->day,
-                    'time' => $s->time
+                    'schedule_id' => $s->scheduleId ?? $s->schedule_id ?? null,
+                    'coach_id' => $s->coachId ?? $s->coach_id ?? '',
+                    'day' => $s->day ?? '',
+                    'time' => $s->time ?? '',
+                    'swimming_pool_id' => $s->swimmingPoolId ?? $s->swimming_pool_id ?? null
                 ];
             }
         } else {
             // Fallback to legacy fields
             if (!empty($json->scheduleDay) && !empty($json->scheduleTime) && !empty($json->coachId)) {
                 $schedules[] = [
+                    'schedule_id' => $json->scheduleId ?? $json->schedule_id ?? null,
                     'coach_id' => $json->coachId,
                     'day' => $json->scheduleDay,
-                    'time' => $json->scheduleTime
+                    'time' => $json->scheduleTime,
+                    'swimming_pool_id' => $json->swimmingPoolId ?? $json->swimming_pool_id ?? null
                 ];
             }
             if (isset($json->scheduleFrequency) && $json->scheduleFrequency === '2x Seminggu' && !empty($json->scheduleDay2) && !empty($json->scheduleTime2) && !empty($json->coachId)) {
                 $schedules[] = [
+                    'schedule_id' => $json->scheduleId2 ?? $json->schedule_id2 ?? null,
                     'coach_id' => $json->coachId,
                     'day' => $json->scheduleDay2,
-                    'time' => $json->scheduleTime2
+                    'time' => $json->scheduleTime2,
+                    'swimming_pool_id' => $json->swimmingPoolId2 ?? $json->swimming_pool_id2 ?? null
                 ];
             }
         }
@@ -956,11 +999,28 @@ class ApiController extends BaseController
         // Sync schedules to member_schedules table
         $this->db->table('member_schedules')->where('member_id', $id)->delete();
         foreach ($schedules as $s) {
+            $schedId = $s['schedule_id'] ?? null;
+            $poolId = $s['swimming_pool_id'] ?? null;
+
+            if (!$schedId && $this->db->tableExists('package_schedules')) {
+                $matchedPs = $this->db->table('package_schedules')
+                    ->where('coach_id', $s['coach_id'])
+                    ->where('day', $s['day'])
+                    ->where('time', $s['time'])
+                    ->get()->getRowArray();
+                if ($matchedPs) {
+                    $schedId = $matchedPs['id'];
+                    if (!$poolId) $poolId = $matchedPs['swimming_pool_id'];
+                }
+            }
+
             $this->db->table('member_schedules')->insert([
                 'member_id' => $id,
+                'schedule_id' => $schedId,
                 'coach_id' => $s['coach_id'],
                 'day' => $s['day'],
-                'time' => $s['time']
+                'time' => $s['time'],
+                'swimming_pool_id' => $poolId
             ]);
         }
 
@@ -2264,4 +2324,267 @@ class ApiController extends BaseController
         $saved = $this->saveUploadedFile($cert, 'certificates', 'cert', $coachName);
         return $saved ?? (!empty($cert) && strpos($cert, 'data:') !== 0 ? $cert : null);
     }
+
+    // ==========================================
+    // SCHEDULES (PENJADWALAN) API
+    // ==========================================
+
+    public function getSchedules()
+    {
+        if (!$this->db->tableExists('package_schedules')) {
+            return $this->response->setJSON([]);
+        }
+
+        $schedules = $this->db->table('package_schedules')
+            ->select('package_schedules.*, pricing_packages.name as package_name, pricing_packages.category as package_category, coaches.name as coach_name, coaches.photo as coach_photo, swimming_pools.name as swimming_pool_name')
+            ->join('pricing_packages', 'pricing_packages.id = package_schedules.pricing_package_id', 'left')
+            ->join('coaches', 'coaches.id = package_schedules.coach_id', 'left')
+            ->join('swimming_pools', 'swimming_pools.id = package_schedules.swimming_pool_id', 'left')
+            ->orderBy('package_schedules.day', 'ASC')
+            ->orderBy('package_schedules.time', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        // Fetch active students on member_schedules
+        $slotStudents = [];
+        $slotStudentNames = [];
+        if ($this->db->tableExists('member_schedules') && $this->db->tableExists('members')) {
+            $memberSchedules = $this->db->table('member_schedules')
+                ->select('member_schedules.schedule_id, member_schedules.coach_id, member_schedules.day, member_schedules.time, member_schedules.member_id, members.student_name, members.status')
+                ->join('members', 'members.id = member_schedules.member_id')
+                ->whereNotIn('members.status', ['Selesai', 'Menunggu Verifikasi', 'Menunggu Pembayaran', 'Ditolak'])
+                ->where('members.is_active !=', 0)
+                ->get()
+                ->getResultArray();
+
+            foreach ($memberSchedules as $ms) {
+                $schedId = $ms['schedule_id'];
+                $mId = $ms['member_id'];
+                $sName = $ms['student_name'];
+
+                if ($schedId) {
+                    $slotStudents[$schedId][] = $mId;
+                    $slotStudentNames[$schedId][] = $sName;
+                } else {
+                    $key = "{$ms['coach_id']}_{$ms['day']}_{$ms['time']}";
+                    $slotStudents[$key][] = $mId;
+                    $slotStudentNames[$key][] = $sName;
+                }
+            }
+        }
+
+        $formatted = [];
+        foreach ($schedules as $s) {
+            $id = (int)$s['id'];
+            $fallbackKey = "{$s['coach_id']}_{$s['day']}_{$s['time']}";
+            $students = $slotStudents[$id] ?? $slotStudents[$fallbackKey] ?? [];
+            $studentNames = $slotStudentNames[$id] ?? $slotStudentNames[$fallbackKey] ?? [];
+
+            $formatted[] = [
+                'id' => $id,
+                'pricingPackageId' => $s['pricing_package_id'],
+                'packageName' => $s['package_name'] ?? 'Paket',
+                'packageCategory' => $s['package_category'] ?? 'REGULER',
+                'coachId' => $s['coach_id'],
+                'coachName' => $s['coach_name'] ?? 'Pelatih',
+                'coachPhoto' => $s['coach_photo'] ?? null,
+                'day' => $s['day'],
+                'time' => $s['time'],
+                'swimmingPoolId' => $s['swimming_pool_id'],
+                'swimmingPoolName' => $s['swimming_pool_name'] ?? 'Kolam Renang',
+                'maxSlots' => (int)$s['max_slots'],
+                'currentSlots' => count($students),
+                'students' => $students,
+                'studentNames' => $studentNames,
+                'created_at' => $s['created_at'] ?? null
+            ];
+        }
+
+        return $this->response->setJSON($formatted);
+    }
+
+    public function addSchedule()
+    {
+        $json = $this->request->getJSON();
+        if (!$json) {
+            return $this->fail('Data jadwal tidak valid.');
+        }
+
+        $pricingPackageId = $json->pricingPackageId ?? $json->pricing_package_id ?? '';
+        $coachId = $json->coachId ?? $json->coach_id ?? '';
+        $day = trim($json->day ?? '');
+        $time = trim($json->time ?? '');
+        $swimmingPoolId = $json->swimmingPoolId ?? $json->swimming_pool_id ?? '';
+
+        if (empty($pricingPackageId) || empty($coachId) || empty($day) || empty($time) || empty($swimmingPoolId)) {
+            return $this->fail('Semua field (Paket, Pelatih, Hari, Jam, Kolam Renang) wajib diisi.');
+        }
+
+        // Fetch package to auto-determine max_slots
+        $pkg = $this->db->table('pricing_packages')->where('id', $pricingPackageId)->get()->getRowArray();
+        if (!$pkg) {
+            return $this->fail('Paket latihan tidak ditemukan.');
+        }
+        $maxSlots = !empty($pkg['max_students']) ? (int)$pkg['max_students'] : 6;
+        if (!empty($json->maxSlots)) {
+            $maxSlots = (int)$json->maxSlots;
+        }
+
+        // VALIDATION: Coach conflict (Same coach cannot teach at the same day & time across packages/pools)
+        $coachConflict = $this->db->table('package_schedules')
+            ->where('coach_id', $coachId)
+            ->where('day', $day)
+            ->where('time', $time)
+            ->get()
+            ->getRowArray();
+
+        if ($coachConflict) {
+            $coachRow = $this->db->table('coaches')->where('id', $coachId)->get()->getRowArray();
+            $coachName = $coachRow['name'] ?? 'Pelatih';
+            $conflictPkg = $this->db->table('pricing_packages')->where('id', $coachConflict['pricing_package_id'])->get()->getRowArray();
+            $conflictPkgName = $conflictPkg['name'] ?? 'Paket Lain';
+            return $this->fail("Jadwal Tabrakan: Coach {$coachName} sudah memiliki jadwal mengajar pada hari {$day} pukul {$time} ({$conflictPkgName}). Silakan pilih jam atau hari lain.");
+        }
+
+        $insertData = [
+            'pricing_package_id' => $pricingPackageId,
+            'coach_id' => $coachId,
+            'day' => $day,
+            'time' => $time,
+            'swimming_pool_id' => $swimmingPoolId,
+            'max_slots' => $maxSlots,
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+
+        $this->db->table('package_schedules')->insert($insertData);
+        $insertId = $this->db->insertID();
+
+        // Ensure coach_pricing_packages relation exists
+        $relExists = $this->db->table('coach_pricing_packages')
+            ->where('coach_id', $coachId)
+            ->where('pricing_package_id', $pricingPackageId)
+            ->countAllResults();
+        if (!$relExists) {
+            $this->db->table('coach_pricing_packages')->insert([
+                'coach_id' => $coachId,
+                'pricing_package_id' => $pricingPackageId
+            ]);
+        }
+
+        $coachRow = $this->db->table('coaches')->where('id', $coachId)->get()->getRowArray();
+        $coachName = $coachRow['name'] ?? 'Pelatih';
+        $this->logAction('input', 'package_schedules', (string)$insertId, "Menambahkan jadwal baru: {$pkg['name']} - {$coachName} ({$day} @ {$time})");
+
+        return $this->respondCreated([
+            'status' => 201,
+            'message' => 'Jadwal berhasil ditambahkan.',
+            'id' => $insertId
+        ]);
+    }
+
+    public function updateSchedule()
+    {
+        $json = $this->request->getJSON();
+        if (!$json || empty($json->id)) {
+            return $this->fail('ID Jadwal tidak valid.');
+        }
+
+        $id = (int)$json->id;
+        $pricingPackageId = $json->pricingPackageId ?? $json->pricing_package_id ?? '';
+        $coachId = $json->coachId ?? $json->coach_id ?? '';
+        $day = trim($json->day ?? '');
+        $time = trim($json->time ?? '');
+        $swimmingPoolId = $json->swimmingPoolId ?? $json->swimming_pool_id ?? '';
+
+        if (empty($pricingPackageId) || empty($coachId) || empty($day) || empty($time) || empty($swimmingPoolId)) {
+            return $this->fail('Semua field (Paket, Pelatih, Hari, Jam, Kolam Renang) wajib diisi.');
+        }
+
+        $pkg = $this->db->table('pricing_packages')->where('id', $pricingPackageId)->get()->getRowArray();
+        $maxSlots = !empty($pkg['max_students']) ? (int)$pkg['max_students'] : 6;
+        if (!empty($json->maxSlots)) {
+            $maxSlots = (int)$json->maxSlots;
+        }
+
+        // VALIDATION: Coach conflict (Same coach, day, time for other schedule IDs)
+        $coachConflict = $this->db->table('package_schedules')
+            ->where('coach_id', $coachId)
+            ->where('day', $day)
+            ->where('time', $time)
+            ->where('id !=', $id)
+            ->get()
+            ->getRowArray();
+
+        if ($coachConflict) {
+            $coachRow = $this->db->table('coaches')->where('id', $coachId)->get()->getRowArray();
+            $coachName = $coachRow['name'] ?? 'Pelatih';
+            return $this->fail("Jadwal Tabrakan: Coach {$coachName} sudah memiliki jadwal mengajar pada hari {$day} pukul {$time} di paket lain!");
+        }
+
+        $updateData = [
+            'pricing_package_id' => $pricingPackageId,
+            'coach_id' => $coachId,
+            'day' => $day,
+            'time' => $time,
+            'swimming_pool_id' => $swimmingPoolId,
+            'max_slots' => $maxSlots
+        ];
+
+        $this->db->table('package_schedules')->where('id', $id)->update($updateData);
+
+        // Update corresponding member_schedules records
+        if ($this->db->tableExists('member_schedules')) {
+            $this->db->table('member_schedules')->where('schedule_id', $id)->update([
+                'coach_id' => $coachId,
+                'day' => $day,
+                'time' => $time,
+                'swimming_pool_id' => $swimmingPoolId
+            ]);
+        }
+
+        // Ensure relation in coach_pricing_packages
+        $relExists = $this->db->table('coach_pricing_packages')
+            ->where('coach_id', $coachId)
+            ->where('pricing_package_id', $pricingPackageId)
+            ->countAllResults();
+        if (!$relExists) {
+            $this->db->table('coach_pricing_packages')->insert([
+                'coach_id' => $coachId,
+                'pricing_package_id' => $pricingPackageId
+            ]);
+        }
+
+        $this->logAction('edit', 'package_schedules', (string)$id, "Mengubah data jadwal ID #{$id}");
+
+        return $this->respond([
+            'status' => 200,
+            'message' => 'Jadwal berhasil diperbarui.'
+        ]);
+    }
+
+    public function deleteSchedule($id = null)
+    {
+        if (!$id) {
+            return $this->fail('ID Jadwal tidak valid.');
+        }
+
+        $schedule = $this->db->table('package_schedules')->where('id', $id)->get()->getRowArray();
+        if (!$schedule) {
+            return $this->failNotFound('Data jadwal tidak ditemukan.');
+        }
+
+        // Nullify or clean up member_schedules linked to this schedule
+        if ($this->db->tableExists('member_schedules')) {
+            $this->db->table('member_schedules')->where('schedule_id', $id)->update(['schedule_id' => null]);
+        }
+
+        $this->db->table('package_schedules')->where('id', $id)->delete();
+        $this->logAction('hapus', 'package_schedules', (string)$id, "Menghapus jadwal ID #{$id}");
+
+        return $this->respondDeleted([
+            'status' => 200,
+            'message' => 'Jadwal berhasil dihapus.'
+        ]);
+    }
 }
+

@@ -50,6 +50,7 @@ class ApiAuthFilter implements FilterInterface
             'api/pricing-packages',
             'api/event-categories',
             'api/swimming-pools',
+            'api/schedules',
             'api/debug/log'
         ];
 

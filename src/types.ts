@@ -38,6 +38,8 @@ export interface Member {
   student: StudentData;
   coachId: string;
   packageId: string;
+  scheduleId?: number | null;
+  scheduleId2?: number | null;
   scheduleFrequency: '1x Seminggu' | '2x Seminggu';
   scheduleDay: string;
   scheduleTime: string;
@@ -63,9 +65,11 @@ export interface Member {
     reason: string;
   }[];
   schedules?: {
+    scheduleId?: number | null;
     coachId: string;
     day: string;
     time: string;
+    swimmingPoolId?: string | null;
   }[];
   isActive?: boolean;
   isTransfer?: boolean;
@@ -207,5 +211,24 @@ export interface SwimmingPool {
   training_days: string[];
   training_hours: string[];
   description?: string;
+}
+
+export interface PackageSchedule {
+  id: number;
+  pricingPackageId: string;
+  packageName?: string;
+  packageCategory?: string;
+  coachId: string;
+  coachName?: string;
+  coachPhoto?: string | null;
+  day: string;
+  time: string;
+  swimmingPoolId: string;
+  swimmingPoolName?: string;
+  maxSlots: number;
+  currentSlots?: number;
+  students?: string[]; // Member IDs
+  studentNames?: string[];
+  created_at?: string;
 }
 

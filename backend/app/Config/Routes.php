@@ -78,6 +78,12 @@ $routes->group('api', function($routes) {
     $routes->post('swimming-pools/update', 'ApiController::updateSwimmingPool');
     $routes->delete('swimming-pools/delete/(:segment)', 'ApiController::deleteSwimmingPool/$1');
 
+    // Schedules (Penjadwalan) API
+    $routes->get('schedules', 'ApiController::getSchedules');
+    $routes->post('schedules/add', 'ApiController::addSchedule');
+    $routes->post('schedules/update', 'ApiController::updateSchedule');
+    $routes->delete('schedules/delete/(:segment)', 'ApiController::deleteSchedule/$1');
+
     // Debug API
     $routes->post('debug/log', 'ApiController::debugLog');
 });

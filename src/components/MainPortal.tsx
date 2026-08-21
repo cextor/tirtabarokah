@@ -5,12 +5,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleTimeSlot, EventItem, SiteSettings, ProgramLevel, PricingPackage, SwimmingPool } from '../types';
+import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleTimeSlot, EventItem, SiteSettings, ProgramLevel, PricingPackage, SwimmingPool, PackageSchedule } from '../types';
 import { getMediaUrl } from '../api';
 import { 
   Award, Shield, Calendar, Users, CheckCircle, ArrowRight, ArrowLeft, 
   CreditCard, Clock, Phone, User, Compass, AlertCircle, MapPin,
-  Gift, Sparkles, Image as ImageIcon, Plus, HeartHandshake, Eye, X, FileText
+  Gift, Sparkles, Image as ImageIcon, Plus, HeartHandshake, Eye, X, FileText, UserPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { checkScheduleSlotConflict } from '../utils/scheduleValidation';
@@ -23,6 +23,7 @@ interface MainPortalProps {
   levels: ProgramLevel[];
   pricingPackages: PricingPackage[];
   swimmingPools?: SwimmingPool[];
+  schedules?: PackageSchedule[];
   onRegister: (newMember: Omit<Member, 'id' | 'registeredAt'>) => Promise<string | null>;
   onUpdateEvents: (events: EventItem[]) => void;
   view?: 'home' | 'register';
@@ -37,6 +38,7 @@ export default function MainPortal({
   levels = [], 
   pricingPackages = [],
   swimmingPools = [],
+  schedules = [],
   onRegister, 
   onUpdateEvents, 
   view = 'home', 
@@ -44,14 +46,54 @@ export default function MainPortal({
 }: MainPortalProps) {
   const currentView = view;
 
+  const [selectedPoolFilter, setSelectedPoolFilter] = useState<string>('ALL');
+
   // Navigation / Scroll helper
-  const scrollToRegister = (pkgId?: string) => {
+  const scrollToRegister = (pkgId?: string, poolId?: string) => {
     if (pkgId) {
       setSelectedPricingPackageId(pkgId);
+    }
+    if (poolId) {
+      setSelectedPoolFilter(poolId);
     }
     if (navigateTo) {
       navigateTo('/daftar');
     }
+  };
+
+  // Helper to dynamically get pool name from swimmingPoolId or day fallback
+  const getPoolName = (poolId?: string, fallbackDay?: string): string => {
+    if (poolId) {
+      const found = swimmingPools.find(p => p.id === poolId);
+      if (found) return found.name;
+    }
+    if (fallbackDay) {
+      const matchedPool = swimmingPools.find(p => p.training_days && p.training_days.includes(fallbackDay));
+      if (matchedPool) return matchedPool.name;
+      if (fallbackDay === 'Selasa') return 'Kolam Renang GHL';
+      return 'Kolam Grand Garden';
+    }
+    return 'Kolam Renang Mitra';
+  };
+
+  // Helper to get all pools a coach has schedules for
+  const getCoachPools = (coach: Coach): SwimmingPool[] => {
+    const poolIds = new Set<string>();
+    if (coach.schedule && Array.isArray(coach.schedule)) {
+      coach.schedule.forEach(day => {
+        if (day.timeSlots && Array.isArray(day.timeSlots)) {
+          day.timeSlots.forEach(slot => {
+            if (slot.swimmingPoolId) {
+              poolIds.add(slot.swimmingPoolId);
+            } else if (day.day) {
+              const matched = swimmingPools.find(p => p.training_days && p.training_days.includes(day.day));
+              if (matched) poolIds.add(matched.id);
+            }
+          });
+        }
+      });
+    }
+    return swimmingPools.filter(p => poolIds.has(p.id));
   };
 
   const [eventCategoryFilter, setEventCategoryFilter] = useState<'Semua' | 'Fun Swimming' | 'Lomba' | 'Latihan Bersama' | 'Pengumuman'>('Semua');
@@ -205,11 +247,34 @@ export default function MainPortal({
     e.preventDefault();
     if (!selectedCoach || !basePackage || !selectedScheduleDay || !selectedScheduleTime) return;
 
-    const schedules = [
-      { coachId: selectedCoachId, day: selectedScheduleDay, time: selectedScheduleTime }
+    const matchedSched1 = (schedules || []).find(s => 
+      s.coachId === selectedCoachId && 
+      s.day === selectedScheduleDay && 
+      s.time === selectedScheduleTime
+    );
+    const matchedSched2 = (schedules || []).find(s => 
+      s.coachId === selectedCoachId && 
+      s.day === selectedScheduleDay2 && 
+      s.time === selectedScheduleTime2
+    );
+
+    const schedulesPayload = [
+      { 
+        scheduleId: matchedSched1 ? matchedSched1.id : undefined,
+        coachId: selectedCoachId, 
+        day: selectedScheduleDay, 
+        time: selectedScheduleTime,
+        swimmingPoolId: matchedSched1?.swimmingPoolId
+      }
     ];
     if (scheduleFrequency === '2x Seminggu' && selectedScheduleDay2 && selectedScheduleTime2) {
-      schedules.push({ coachId: selectedCoachId, day: selectedScheduleDay2, time: selectedScheduleTime2 });
+      schedulesPayload.push({ 
+        scheduleId: matchedSched2 ? matchedSched2.id : undefined,
+        coachId: selectedCoachId, 
+        day: selectedScheduleDay2, 
+        time: selectedScheduleTime2,
+        swimmingPoolId: matchedSched2?.swimmingPoolId
+      });
     }
 
     try {
@@ -218,12 +283,14 @@ export default function MainPortal({
         student: studentData,
         coachId: selectedCoachId,
         packageId: selectedPackageId,
+        scheduleId: matchedSched1 ? matchedSched1.id : undefined,
+        scheduleId2: matchedSched2 ? matchedSched2.id : undefined,
         scheduleFrequency,
         scheduleDay: selectedScheduleDay,
         scheduleTime: selectedScheduleTime,
         scheduleDay2: scheduleFrequency === '2x Seminggu' ? selectedScheduleDay2 : undefined,
         scheduleTime2: scheduleFrequency === '2x Seminggu' ? selectedScheduleTime2 : undefined,
-        schedules,
+        schedules: schedulesPayload,
         coachType,
         status: 'Menunggu Verifikasi', // default till checked by admin
         sessionsLeft: basePackage.sessions,
@@ -392,8 +459,12 @@ export default function MainPortal({
   // Generate WhatsApp text for payment confirmation
   const getWhatsAppMessage = () => {
     if (!selectedCoach || !selectedPricingPackage) return '';
-    const loc1 = selectedScheduleDay === 'Selasa' ? 'Kolam GHL' : 'Grand Garden';
-    const loc2 = selectedScheduleDay2 === 'Selasa' ? 'Kolam GHL' : 'Grand Garden';
+    const selectedSlot1 = selectedCoach.schedule?.find(d => d.day === selectedScheduleDay)?.timeSlots?.find(ts => ts.time === selectedScheduleTime);
+    const loc1 = getPoolName(selectedSlot1?.swimmingPoolId, selectedScheduleDay);
+    
+    const selectedSlot2 = selectedCoach.schedule?.find(d => d.day === selectedScheduleDay2)?.timeSlots?.find(ts => ts.time === selectedScheduleTime2);
+    const loc2 = getPoolName(selectedSlot2?.swimmingPoolId, selectedScheduleDay2);
+
     const scheduleStr = scheduleFrequency === '2x Seminggu' 
       ? `1) Hari ${selectedScheduleDay} (${loc1}) @ ${selectedScheduleTime} WIB dan 2) Hari ${selectedScheduleDay2} (${loc2}) @ ${selectedScheduleTime2} WIB`
       : `Hari ${selectedScheduleDay} (${loc1}) @ ${selectedScheduleTime} WIB`;
@@ -712,6 +783,16 @@ export default function MainPortal({
                           </div>
                         </div>
                       )}
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => scrollToRegister(undefined, pool.id)}
+                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm shadow-cyan-600/10 cursor-pointer"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" /> Daftar di Kolam Ini
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1233,9 +1314,86 @@ export default function MainPortal({
                     className="space-y-6"
                   >
                     <div>
-                      <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Pilih Paket Latihan</h3>
-                      <p className="text-slate-500 text-xs mt-1">Silakan pilih paket latihan yang Anda inginkan. Paket di bawah adalah biaya latihan saja.</p>
+                      <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Pilih Paket Latihan & Lokasi Kolam</h3>
+                      <p className="text-slate-500 text-xs mt-1">Silakan pilih lokasi kolam renang yang diinginkan dan paket latihan yang sesuai.</p>
                     </div>
+
+                    {/* Filter Lokasi Kolam Renang */}
+                    {swimmingPools && swimmingPools.length > 0 && (
+                      <div className="space-y-2 bg-gradient-to-r from-cyan-50/80 via-sky-50/40 to-blue-50/80 border border-cyan-200/70 rounded-2xl p-4">
+                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                          <MapPin className="w-4 h-4 text-cyan-600" /> Filter Berdasarkan Lokasi Kolam Renang:
+                        </label>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPoolFilter('ALL');
+                              setSelectedCoachId('');
+                              setSelectedScheduleDay('');
+                              setSelectedScheduleTime('');
+                              setSelectedScheduleDay2('');
+                              setSelectedScheduleTime2('');
+                            }}
+                            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                              selectedPoolFilter === 'ALL'
+                                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/20 ring-2 ring-cyan-600/20'
+                                : 'bg-white text-slate-700 border border-slate-200 hover:border-cyan-400 hover:bg-cyan-50/40'
+                            }`}
+                          >
+                            🌟 Semua Kolam ({swimmingPools.length} Lokasi)
+                          </button>
+                          {swimmingPools.map((pool) => {
+                            const isPoolActive = selectedPoolFilter === pool.id;
+                            return (
+                              <button
+                                type="button"
+                                key={pool.id}
+                                onClick={() => {
+                                  setSelectedPoolFilter(pool.id);
+                                  setSelectedCoachId('');
+                                  setSelectedScheduleDay('');
+                                  setSelectedScheduleTime('');
+                                  setSelectedScheduleDay2('');
+                                  setSelectedScheduleTime2('');
+                                }}
+                                className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                  isPoolActive
+                                    ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/20 ring-2 ring-cyan-600/20'
+                                    : 'bg-white text-slate-700 border border-slate-200 hover:border-cyan-400 hover:bg-cyan-50/40'
+                                }`}
+                              >
+                                <MapPin className={`w-3.5 h-3.5 ${isPoolActive ? 'text-white' : 'text-cyan-600'}`} />
+                                {pool.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {selectedPoolFilter !== 'ALL' && (() => {
+                          const currentPool = swimmingPools.find(p => p.id === selectedPoolFilter);
+                          if (!currentPool) return null;
+                          return (
+                            <div className="mt-2 pt-2.5 border-t border-cyan-200/60 text-[11px] text-cyan-950 bg-white/90 p-3 rounded-xl border border-cyan-100 space-y-1">
+                              <p className="font-extrabold flex items-center gap-1 text-cyan-900">
+                                📍 {currentPool.name}
+                              </p>
+                              {currentPool.description && (
+                                <p className="text-slate-600 text-[10px] leading-relaxed">{currentPool.description}</p>
+                              )}
+                              <div className="flex flex-wrap gap-3 text-[10px] text-slate-500 pt-0.5 font-medium">
+                                {currentPool.training_days && currentPool.training_days.length > 0 && (
+                                  <span>📅 Hari Tersedia: <strong className="text-slate-800">{currentPool.training_days.join(', ')}</strong></span>
+                                )}
+                                {currentPool.training_hours && currentPool.training_hours.length > 0 && (
+                                  <span>⏰ Sesi Latihan: <strong className="text-slate-800">{currentPool.training_hours.join(', ')}</strong></span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
 
                     <div className="space-y-3">
                       <div className="grid md:grid-cols-4 gap-4">
@@ -1325,7 +1483,10 @@ export default function MainPortal({
                     <div>
                       <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Pilih Pelatih / Coach Pembimbing</h3>
                       <p className="text-slate-500 text-xs mt-1">
-                        Berikut adalah pelatih yang melayani paket <strong>{selectedPricingPackage?.name}</strong> (Rp {selectedPricingPackage?.price.toLocaleString('id-ID')}).
+                        Berikut adalah pelatih yang melayani paket <strong>{selectedPricingPackage?.name}</strong> (Rp {selectedPricingPackage?.price.toLocaleString('id-ID')})
+                        {selectedPoolFilter !== 'ALL' && (
+                          <span> di lokasi <strong>{getPoolName(selectedPoolFilter)}</strong></span>
+                        )}.
                       </p>
                     </div>
 
@@ -1341,14 +1502,22 @@ export default function MainPortal({
                               return false;
                             }
 
-                            // 3. Relational ID Match A: Check if coach ID is listed in selectedPricingPackage.coachIds (from coach_pricing_packages table)
+                            // 3. Pool filter: If a specific pool is selected, check if coach has schedules for this pool
+                            if (selectedPoolFilter !== 'ALL') {
+                              const coachPools = getCoachPools(c);
+                              if (!coachPools.some(p => p.id === selectedPoolFilter)) {
+                                return false;
+                              }
+                            }
+
+                            // 4. Relational ID Match A: Check if coach ID is listed in selectedPricingPackage.coachIds (from coach_pricing_packages table)
                             if (selectedPricingPackage?.coachIds && Array.isArray(selectedPricingPackage.coachIds) && selectedPricingPackage.coachIds.length > 0) {
                               if (selectedPricingPackage.coachIds.some(cid => String(cid) === String(c.id))) {
                                 return true;
                               }
                             }
 
-                            // 4. Relational ID Match B: Check if any item in c.packages matches selectedPricingPackage.id by ID relation
+                            // 5. Relational ID Match B: Check if any item in c.packages matches selectedPricingPackage.id by ID relation
                             if (selectedPricingPackage?.id) {
                               return c.packages.some(cp => {
                                 if (cp.id && (String(cp.id) === String(selectedPricingPackage.id) || cp.id.includes(selectedPricingPackage.id) || selectedPricingPackage.id.includes(cp.id))) {
@@ -1365,8 +1534,17 @@ export default function MainPortal({
 
                           if (matchingCoaches.length === 0) {
                             return (
-                              <div className="col-span-3 text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-xs text-slate-400">
-                                Maaf, saat ini tidak ada pelatih yang tersedia untuk paket harga yang dipilih.
+                              <div className="col-span-3 text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-xs text-slate-400 space-y-2">
+                                <p>Maaf, saat ini tidak ada pelatih yang tersedia untuk paket dan lokasi kolam yang dipilih.</p>
+                                {selectedPoolFilter !== 'ALL' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedPoolFilter('ALL')}
+                                    className="text-cyan-700 font-bold hover:underline inline-block text-[11px]"
+                                  >
+                                    Tampilkan Semua Lokasi Kolam
+                                  </button>
+                                )}
                               </div>
                             );
                           }
@@ -1374,6 +1552,7 @@ export default function MainPortal({
                           return matchingCoaches.map((coach) => {
                             const status = getCoachOverallQuota(coach);
                             const isSelected = selectedCoachId === coach.id;
+                            const coachPools = getCoachPools(coach);
                             return (
                               <button
                                 type="button"
@@ -1386,7 +1565,7 @@ export default function MainPortal({
                                   setSelectedScheduleDay2('');
                                   setSelectedScheduleTime2('');
                                 }}
-                                className={`w-full text-left rounded-xl border p-4 transition flex items-start gap-3 relative cursor-pointer ${
+                                className={`w-full text-left rounded-xl border p-4 transition flex flex-col justify-between relative cursor-pointer ${
                                   status.isFull
                                     ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
                                     : isSelected
@@ -1394,18 +1573,34 @@ export default function MainPortal({
                                     : 'bg-white border-slate-200 hover:border-slate-300'
                                 }`}
                               >
-                                <div className="w-12 h-12 rounded-lg bg-slate-200 overflow-hidden flex-shrink-0">
-                                  <img src={getMediaUrl(coach.photo)} alt={coach.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                <div className="flex items-start gap-3 w-full">
+                                  <div className="w-12 h-12 rounded-lg bg-slate-200 overflow-hidden flex-shrink-0">
+                                    <img src={getMediaUrl(coach.photo)} alt={coach.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  </div>
+                                  <div className="space-y-1 flex-1 min-w-0">
+                                    <h4 className="font-bold text-sm text-slate-800 truncate">{coach.name}</h4>
+                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                      status.isFull ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                                    }`}>
+                                      {status.isFull ? 'PENUH' : 'TERSEDIA'}
+                                    </span>
+                                    <p className="text-[10px] text-slate-500">Kuota: {status.current}/{status.max} siswa</p>
+                                  </div>
                                 </div>
-                                <div className="space-y-1">
-                                  <h4 className="font-bold text-sm text-slate-800">{coach.name}</h4>
-                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                    status.isFull ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
-                                  }`}>
-                                    {status.isFull ? 'PENUH' : 'TERSEDIA'}
-                                  </span>
-                                  <p className="text-[10px] text-slate-500">Kuota: {status.current}/{status.max} siswa</p>
-                                </div>
+
+                                {coachPools.length > 0 && (
+                                  <div className="mt-2.5 pt-2 border-t border-slate-100 w-full space-y-1">
+                                    <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider">Lokasi Kolam:</span>
+                                    <div className="flex flex-wrap gap-1">
+                                      {coachPools.map((cp) => (
+                                        <span key={cp.id} className="text-[8.5px] font-bold bg-cyan-50 text-cyan-800 border border-cyan-200/70 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                                          <MapPin className="w-2.5 h-2.5 text-cyan-600 shrink-0" />
+                                          <span className="truncate">{cp.name}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </button>
                             );
                           });
@@ -1544,191 +1739,223 @@ export default function MainPortal({
                     </div>
 
                     {/* Langkah B: Selection Slots */}
-                    {selectedCoach && (
-                      <div className="space-y-6 pt-2">
-                        {/* SESI PERTAMA */}
-                        <div className="bg-slate-50/60 rounded-2xl border border-slate-200/80 p-5 space-y-4">
-                          <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
-                            <label className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-full bg-cyan-600 text-white text-[10px] flex items-center justify-center font-extrabold">B</span>
-                              {scheduleFrequency === '2x Seminggu' ? 'Pilih Hari & Jam untuk Sesi PERTAMA (Sesi 1):' : 'Pilih Hari & Jam Latihan Rutin Mingguan:'}
-                            </label>
-                            {selectedScheduleDay && selectedScheduleTime && (
-                              <span className="bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1">
-                                ✓ Terpilih: {selectedScheduleDay} ({selectedScheduleDay === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}) @ {selectedScheduleTime} WIB
-                              </span>
-                            )}
-                          </div>
+                    {selectedCoach && (() => {
+                      const selectedSlot1 = selectedCoach.schedule?.find(d => d.day === selectedScheduleDay)?.timeSlots?.find(ts => ts.time === selectedScheduleTime);
+                      const pool1Name = getPoolName(selectedSlot1?.swimmingPoolId, selectedScheduleDay);
 
-                          <div className="space-y-3">
-                            {selectedCoach.schedule.map((day) => (
-                              <div key={day.day} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
-                                <div className="flex justify-between items-center border-b border-slate-100 pb-1">
-                                  <span className="text-xs font-extrabold text-cyan-800 uppercase tracking-wider">
-                                    📅 Hari {day.day}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-md border border-cyan-150">
-                                    📍 {day.day === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}
-                                  </span>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                                  {day.timeSlots.map((slot) => {
-                                    const details = getSlotDetails(selectedCoach, day.day, slot.time);
-                                    const targetCoachType: 'Reguler' | 'Privat' = selectedPricingPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
-                                    const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
-                                    const isSelected = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
-                                    
-                                    const isCategoryMismatch = (selectedPricingPackage?.category === 'PRIVATE' && slot.packageCategory === 'REGULER') ||
-                                      (selectedPricingPackage?.category === 'REGULER' && (slot.packageCategory === 'PRIVATE_2' || slot.packageCategory === 'PRIVATE_3'));
+                      const selectedSlot2 = selectedCoach.schedule?.find(d => d.day === selectedScheduleDay2)?.timeSlots?.find(ts => ts.time === selectedScheduleTime2);
+                      const pool2Name = getPoolName(selectedSlot2?.swimmingPoolId, selectedScheduleDay2);
 
-                                    const isDisabled = details.isFull || conflictInfo.isConflict || isCategoryMismatch || (selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time);
-                                    return (
-                                      <button
-                                        type="button"
-                                        key={slot.time}
-                                        disabled={isDisabled}
-                                        onClick={() => {
-                                          setSelectedScheduleDay(day.day);
-                                          setSelectedScheduleTime(slot.time);
-                                        }}
-                                        className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
-                                          isDisabled
-                                            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
-                                            : isSelected
-                                            ? 'bg-cyan-600 border-cyan-600 text-white shadow-md ring-2 ring-cyan-500/30 font-bold'
-                                            : 'bg-white border-slate-200 text-slate-700 hover:border-cyan-400 hover:bg-cyan-50/20'
-                                        }`}
-                                      >
-                                        <div className="flex justify-between items-center w-full">
-                                          <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
-                                          {isSelected && <span className="text-xs">✓</span>}
-                                        </div>
-                                        {slot.packageCategory === 'REGULER' && (
-                                          <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
-                                        )}
-                                        {slot.packageCategory === 'PRIVATE_2' && (
-                                          <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'}`}>🔒 Privat 2 Anak</span>
-                                        )}
-                                        {slot.packageCategory === 'PRIVATE_3' && (
-                                          <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'}`}>🔒 Privat 3 Anak</span>
-                                        )}
-                                        <span className={`text-[9px] mt-1 font-bold ${
-                                          isSelected ? 'text-cyan-100' : conflictInfo.isConflict || details.isFull || isCategoryMismatch ? 'text-rose-600 font-extrabold' : 'text-slate-500'
-                                        }`}>
-                                          {isCategoryMismatch ? `🚫 Khusus ${slot.packageCategory === 'REGULER' ? 'Reguler' : 'Privat'}` : conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
-                                        </span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* SESI KEDUA (Hanya untuk 2x Seminggu) */}
-                        {scheduleFrequency === '2x Seminggu' && (
+                      return (
+                        <div className="space-y-6 pt-2">
+                          {/* SESI PERTAMA */}
                           <div className="bg-slate-50/60 rounded-2xl border border-slate-200/80 p-5 space-y-4">
                             <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
                               <label className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-extrabold">C</span>
-                                Pilih Hari & Jam untuk Sesi KEDUA (Sesi 2):
+                                <span className="w-5 h-5 rounded-full bg-cyan-600 text-white text-[10px] flex items-center justify-center font-extrabold">B</span>
+                                {scheduleFrequency === '2x Seminggu' ? 'Pilih Hari & Jam untuk Sesi PERTAMA (Sesi 1):' : 'Pilih Hari & Jam Latihan Rutin Mingguan:'}
                               </label>
-                              {selectedScheduleDay2 && selectedScheduleTime2 && (
-                                <span className="bg-indigo-100 border border-indigo-300 text-indigo-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1">
-                                  ✓ Terpilih: {selectedScheduleDay2} ({selectedScheduleDay2 === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}) @ {selectedScheduleTime2} WIB
+                              {selectedScheduleDay && selectedScheduleTime && (
+                                <span className="bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1">
+                                  ✓ Terpilih: {selectedScheduleDay} (📍 {pool1Name}) @ {selectedScheduleTime} WIB
                                 </span>
                               )}
                             </div>
 
                             <div className="space-y-3">
-                              {selectedCoach.schedule.map((day) => (
-                                <div key={day.day} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
-                                  <div className="flex justify-between items-center border-b border-slate-100 pb-1">
-                                    <span className="text-xs font-extrabold text-indigo-800 uppercase tracking-wider">
-                                      📅 Hari {day.day}
-                                    </span>
-                                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-150">
-                                      📍 {day.day === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}
-                                    </span>
-                                  </div>
-                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                                    {day.timeSlots.map((slot) => {
-                                      const details = getSlotDetails(selectedCoach, day.day, slot.time);
-                                      const targetCoachType: 'Reguler' | 'Privat' = selectedPricingPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
-                                      const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
-                                      const isSelected = selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time;
-                                      const isSameAsSesi1 = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
-                                      
-                                      const isCategoryMismatch = (selectedPricingPackage?.category === 'PRIVATE' && slot.packageCategory === 'REGULER') ||
-                                        (selectedPricingPackage?.category === 'REGULER' && (slot.packageCategory === 'PRIVATE_2' || slot.packageCategory === 'PRIVATE_3'));
+                              {selectedCoach.schedule.map((day) => {
+                                const dayPoolIds = Array.from(new Set(day.timeSlots.map(s => s.swimmingPoolId).filter(Boolean)));
+                                const dayPoolNames = dayPoolIds.map(pid => getPoolName(pid, day.day));
+                                const headerPoolLabel = dayPoolNames.length > 0 ? dayPoolNames.join(', ') : getPoolName(undefined, day.day);
 
-                                      const isDisabled = details.isFull || conflictInfo.isConflict || isCategoryMismatch || isSameAsSesi1;
-                                      return (
-                                        <button
-                                          type="button"
-                                          key={slot.time}
-                                          disabled={isDisabled}
-                                          onClick={() => {
-                                            setSelectedScheduleDay2(day.day);
-                                            setSelectedScheduleTime2(slot.time);
-                                          }}
-                                          className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
-                                            isDisabled
-                                              ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
-                                              : isSelected
-                                              ? 'bg-indigo-600 border-indigo-600 text-white shadow-md ring-2 ring-indigo-500/30 font-bold'
-                                              : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/20'
-                                          }`}
-                                        >
-                                          <div className="flex justify-between items-center w-full">
-                                            <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
-                                            {isSelected && <span className="text-xs">✓</span>}
-                                          </div>
-                                          {slot.packageCategory === 'REGULER' && (
-                                            <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
-                                          )}
-                                          {slot.packageCategory === 'PRIVATE_2' && (
-                                            <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'}`}>🔒 Privat 2 Anak</span>
-                                          )}
-                                          {slot.packageCategory === 'PRIVATE_3' && (
-                                            <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-1 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'}`}>🔒 Privat 3 Anak</span>
-                                          )}
-                                          <span className={`text-[9px] mt-1 font-bold ${
-                                            isSelected ? 'text-indigo-100' : isSameAsSesi1 ? 'text-amber-600 font-semibold' : conflictInfo.isConflict || details.isFull || isCategoryMismatch ? 'text-rose-600 font-extrabold' : 'text-slate-500'
-                                          }`}>
-                                            {isSameAsSesi1 ? '⚠️ Dipilih di Sesi 1' : isCategoryMismatch ? `🚫 Khusus ${slot.packageCategory === 'REGULER' ? 'Reguler' : 'Privat'}` : conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
-                                          </span>
-                                        </button>
-                                      );
-                                    })}
+                                return (
+                                  <div key={day.day} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
+                                    <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                                      <span className="text-xs font-extrabold text-cyan-800 uppercase tracking-wider">
+                                        📅 Hari {day.day}
+                                      </span>
+                                      <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-md border border-cyan-150 flex items-center gap-1">
+                                        <MapPin className="w-3 h-3 text-cyan-600 shrink-0" /> {headerPoolLabel}
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                                      {day.timeSlots.map((slot) => {
+                                        const details = getSlotDetails(selectedCoach, day.day, slot.time);
+                                        const targetCoachType: 'Reguler' | 'Privat' = selectedPricingPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
+                                        const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
+                                        const isSelected = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
+                                        
+                                        const isCategoryMismatch = (selectedPricingPackage?.category === 'PRIVATE' && slot.packageCategory === 'REGULER') ||
+                                          (selectedPricingPackage?.category === 'REGULER' && (slot.packageCategory === 'PRIVATE_2' || slot.packageCategory === 'PRIVATE_3'));
+
+                                        const isDisabled = details.isFull || conflictInfo.isConflict || isCategoryMismatch || (selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time);
+                                        const slotPoolName = getPoolName(slot.swimmingPoolId, day.day);
+
+                                        return (
+                                          <button
+                                            type="button"
+                                            key={slot.time}
+                                            disabled={isDisabled}
+                                            onClick={() => {
+                                              setSelectedScheduleDay(day.day);
+                                              setSelectedScheduleTime(slot.time);
+                                            }}
+                                            className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                                              isDisabled
+                                                ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                                                : isSelected
+                                                ? 'bg-cyan-600 border-cyan-600 text-white shadow-md ring-2 ring-cyan-500/30 font-bold'
+                                                : 'bg-white border-slate-200 text-slate-700 hover:border-cyan-400 hover:bg-cyan-50/20'
+                                            }`}
+                                          >
+                                            <div className="flex justify-between items-center w-full">
+                                              <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
+                                              {isSelected && <span className="text-xs">✓</span>}
+                                            </div>
+                                            <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 mt-1 truncate ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-50 text-cyan-800 border border-cyan-150'}`}>
+                                              <MapPin className="w-2.5 h-2.5 text-cyan-600 shrink-0" />
+                                              <span className="truncate">{slotPoolName}</span>
+                                            </span>
+                                            {slot.packageCategory === 'REGULER' && (
+                                              <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
+                                            )}
+                                            {slot.packageCategory === 'PRIVATE_2' && (
+                                              <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'}`}>🔒 Privat 2 Anak</span>
+                                            )}
+                                            {slot.packageCategory === 'PRIVATE_3' && (
+                                              <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'}`}>🔒 Privat 3 Anak</span>
+                                            )}
+                                            <span className={`text-[9px] mt-1 font-bold ${
+                                              isSelected ? 'text-cyan-100' : conflictInfo.isConflict || details.isFull || isCategoryMismatch ? 'text-rose-600 font-extrabold' : 'text-slate-500'
+                                            }`}>
+                                              {isCategoryMismatch ? `🚫 Khusus ${slot.packageCategory === 'REGULER' ? 'Reguler' : 'Privat'}` : conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
-                        )}
 
-                        {/* Summary Box */}
-                        {selectedScheduleDay && selectedScheduleTime && (
-                          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-2">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md">
-                              ✓ Ringkasan Jadwal Terpilih
-                            </span>
-                            <div className="pt-1 text-xs font-bold text-slate-800 space-y-1">
-                              <p className="text-emerald-900">
-                                📌 Sesi 1: <span className="underline">Hari {selectedScheduleDay}</span> (📍 {selectedScheduleDay === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}) Pukul <span className="font-mono">{selectedScheduleTime} WIB</span>
-                              </p>
-                              {scheduleFrequency === '2x Seminggu' && selectedScheduleDay2 && selectedScheduleTime2 && (
-                                <p className="text-indigo-900">
-                                  📌 Sesi 2: <span className="underline">Hari {selectedScheduleDay2}</span> (📍 {selectedScheduleDay2 === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}) Pukul <span className="font-mono">{selectedScheduleTime2} WIB</span>
+                          {/* SESI KEDUA (Hanya untuk 2x Seminggu) */}
+                          {scheduleFrequency === '2x Seminggu' && (
+                            <div className="bg-slate-50/60 rounded-2xl border border-slate-200/80 p-5 space-y-4">
+                              <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
+                                <label className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-extrabold">C</span>
+                                  Pilih Hari & Jam untuk Sesi KEDUA (Sesi 2):
+                                </label>
+                                {selectedScheduleDay2 && selectedScheduleTime2 && (
+                                  <span className="bg-indigo-100 border border-indigo-300 text-indigo-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1">
+                                    ✓ Terpilih: {selectedScheduleDay2} (📍 {pool2Name}) @ {selectedScheduleTime2} WIB
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="space-y-3">
+                                {selectedCoach.schedule.map((day) => {
+                                  const dayPoolIds = Array.from(new Set(day.timeSlots.map(s => s.swimmingPoolId).filter(Boolean)));
+                                  const dayPoolNames = dayPoolIds.map(pid => getPoolName(pid, day.day));
+                                  const headerPoolLabel = dayPoolNames.length > 0 ? dayPoolNames.join(', ') : getPoolName(undefined, day.day);
+
+                                  return (
+                                    <div key={day.day} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
+                                      <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                                        <span className="text-xs font-extrabold text-indigo-800 uppercase tracking-wider">
+                                          📅 Hari {day.day}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-150 flex items-center gap-1">
+                                          <MapPin className="w-3 h-3 text-indigo-600 shrink-0" /> {headerPoolLabel}
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                                        {day.timeSlots.map((slot) => {
+                                          const details = getSlotDetails(selectedCoach, day.day, slot.time);
+                                          const targetCoachType: 'Reguler' | 'Privat' = selectedPricingPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
+                                          const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
+                                          const isSelected = selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time;
+                                          const isSameAsSesi1 = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
+                                          
+                                          const isCategoryMismatch = (selectedPricingPackage?.category === 'PRIVATE' && slot.packageCategory === 'REGULER') ||
+                                            (selectedPricingPackage?.category === 'REGULER' && (slot.packageCategory === 'PRIVATE_2' || slot.packageCategory === 'PRIVATE_3'));
+
+                                          const isDisabled = details.isFull || conflictInfo.isConflict || isCategoryMismatch || isSameAsSesi1;
+                                          const slotPoolName = getPoolName(slot.swimmingPoolId, day.day);
+
+                                          return (
+                                            <button
+                                              type="button"
+                                              key={slot.time}
+                                              disabled={isDisabled}
+                                              onClick={() => {
+                                                setSelectedScheduleDay2(day.day);
+                                                setSelectedScheduleTime2(slot.time);
+                                              }}
+                                              className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                                                isDisabled
+                                                  ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                                                  : isSelected
+                                                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-md ring-2 ring-indigo-500/30 font-bold'
+                                                  : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/20'
+                                              }`}
+                                            >
+                                              <div className="flex justify-between items-center w-full">
+                                                <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
+                                                {isSelected && <span className="text-xs">✓</span>}
+                                              </div>
+                                              <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 mt-1 truncate ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-800 border border-indigo-150'}`}>
+                                                <MapPin className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                                                <span className="truncate">{slotPoolName}</span>
+                                              </span>
+                                              {slot.packageCategory === 'REGULER' && (
+                                                <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
+                                              )}
+                                              {slot.packageCategory === 'PRIVATE_2' && (
+                                                <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'}`}>🔒 Privat 2 Anak</span>
+                                              )}
+                                              {slot.packageCategory === 'PRIVATE_3' && (
+                                                <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'}`}>🔒 Privat 3 Anak</span>
+                                              )}
+                                              <span className={`text-[9px] mt-1 font-bold ${
+                                                isSelected ? 'text-indigo-100' : isSameAsSesi1 ? 'text-amber-600 font-semibold' : conflictInfo.isConflict || details.isFull || isCategoryMismatch ? 'text-rose-600 font-extrabold' : 'text-slate-500'
+                                              }`}>
+                                                {isSameAsSesi1 ? '⚠️ Dipilih di Sesi 1' : isCategoryMismatch ? `🚫 Khusus ${slot.packageCategory === 'REGULER' ? 'Reguler' : 'Privat'}` : conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
+                                              </span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Summary Box */}
+                          {selectedScheduleDay && selectedScheduleTime && (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-2">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md">
+                                ✓ Ringkasan Jadwal Terpilih
+                              </span>
+                              <div className="pt-1 text-xs font-bold text-slate-800 space-y-1">
+                                <p className="text-emerald-900">
+                                  📌 Sesi 1: <span className="underline">Hari {selectedScheduleDay}</span> (📍 {pool1Name}) Pukul <span className="font-mono">{selectedScheduleTime} WIB</span>
                                 </p>
-                              )}
+                                {scheduleFrequency === '2x Seminggu' && selectedScheduleDay2 && selectedScheduleTime2 && (
+                                  <p className="text-indigo-900">
+                                    📌 Sesi 2: <span className="underline">Hari {selectedScheduleDay2}</span> (📍 {pool2Name}) Pukul <span className="font-mono">{selectedScheduleTime2} WIB</span>
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     <div className="flex justify-between pt-4">
                       <button
@@ -1813,253 +2040,269 @@ export default function MainPortal({
                 )}
 
                 {/* STEP 5: Invoice & WhatsApp Direct */}
-                {step === 5 && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    className="space-y-6"
-                  >
-                    <div>
-                      <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Informasi Tagihan & Konfirmasi WhatsApp</h3>
-                      <p className="text-slate-500 text-xs mt-1">Review detail tagihan. Klik tombol WhatsApp untuk mengirimkan rincian konfirmasi langsung ke Admin.</p>
-                    </div>
+                {step === 5 && (() => {
+                  const selectedSlot1 = selectedCoach?.schedule?.find(d => d.day === selectedScheduleDay)?.timeSlots?.find(ts => ts.time === selectedScheduleTime);
+                  const pool1Name = getPoolName(selectedSlot1?.swimmingPoolId, selectedScheduleDay);
 
-                    <div className="grid md:grid-cols-2 gap-6">
-                      {/* Tagihan Summary */}
-                      <div className="bg-slate-50 rounded-2xl p-5 border border-slate-150 space-y-4">
-                        <h4 className="font-bold text-sm text-slate-800">Detail Invoice</h4>
-                        <div className="space-y-2.5 text-xs">
-                          <div className="flex justify-between border-b border-slate-200 pb-2">
-                            <span className="text-slate-500">Siswa / Peserta:</span>
-                            <span className="font-bold text-slate-800">{studentData.fullName}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-slate-200 pb-2">
-                            <span className="text-slate-500">Pelatih:</span>
-                            <span className="font-bold text-slate-800">{selectedCoach?.name}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-slate-200 pb-2">
-                            <span className="text-slate-500">Jenis Latihan:</span>
-                            <span className="font-bold text-cyan-700 font-semibold">{coachType}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-slate-200 pb-2">
-                            <span className="text-slate-500">Paket Pilihan:</span>
-                            <span className="font-bold text-slate-800">{selectedPricingPackage?.name} ({selectedPricingPackage?.sessions}x Sesi)</span>
-                          </div>
-                          <div className="flex justify-between border-b border-slate-200 pb-2">
-                            <span className="text-slate-500">Frekuensi:</span>
-                            <span className="font-bold text-slate-800">{scheduleFrequency}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-slate-200 pb-2">
-                            <span className="text-slate-500">Jadwal Sesi 1:</span>
-                            <span className="font-bold text-slate-800">Hari {selectedScheduleDay} ({selectedScheduleDay === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}) @ Pukul {selectedScheduleTime} WIB</span>
-                          </div>
-                          {scheduleFrequency === '2x Seminggu' && (
+                  const selectedSlot2 = selectedCoach?.schedule?.find(d => d.day === selectedScheduleDay2)?.timeSlots?.find(ts => ts.time === selectedScheduleTime2);
+                  const pool2Name = getPoolName(selectedSlot2?.swimmingPoolId, selectedScheduleDay2);
+
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      className="space-y-6"
+                    >
+                      <div>
+                        <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Informasi Tagihan & Konfirmasi WhatsApp</h3>
+                        <p className="text-slate-500 text-xs mt-1">Review detail tagihan. Klik tombol WhatsApp untuk mengirimkan rincian konfirmasi langsung ke Admin.</p>
+                      </div>
+
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {/* Tagihan Summary */}
+                        <div className="bg-slate-50 rounded-2xl p-5 border border-slate-150 space-y-4">
+                          <h4 className="font-bold text-sm text-slate-800">Detail Invoice</h4>
+                          <div className="space-y-2.5 text-xs">
                             <div className="flex justify-between border-b border-slate-200 pb-2">
-                              <span className="text-slate-500">Jadwal Sesi 2:</span>
-                              <span className="font-bold text-slate-800">Hari {selectedScheduleDay2} ({selectedScheduleDay2 === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}) @ Pukul {selectedScheduleTime2} WIB</span>
+                              <span className="text-slate-500">Siswa / Peserta:</span>
+                              <span className="font-bold text-slate-800">{studentData.fullName}</span>
                             </div>
-                          )}
-                          <div className="flex justify-between text-sm pt-2">
-                            <span className="font-bold text-slate-800">Total Tagihan:</span>
-                            <span className="font-extrabold text-cyan-700">Rp {finalPrice.toLocaleString('id-ID')}</span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2 pt-2">
-                          <label className="text-xs font-semibold text-slate-600 block">Metode Pembayaran Pilihan</label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setPaymentMethod('Transfer BNI')}
-                              className={`py-3 rounded-xl border text-xs font-semibold transition ${
-                                paymentMethod === 'Transfer BNI'
-                                  ? 'bg-cyan-50 text-cyan-700 border-cyan-500'
-                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                              }`}
-                            >
-                              Transfer Bank
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setPaymentMethod('Tunai di Kasir')}
-                              className={`py-3 rounded-xl border text-xs font-semibold transition ${
-                                paymentMethod === 'Tunai di Kasir'
-                                  ? 'bg-cyan-50 text-cyan-700 border-cyan-500'
-                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                              }`}
-                            >
-                              Tunai di Kasir
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Payment Action: WhatsApp Direct Button */}
-                      <div className="space-y-4 flex flex-col justify-center">
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 space-y-3">
-                          <h4 className="font-bold text-sm text-emerald-900 flex items-center gap-1.5">
-                            <Phone className="w-4 h-4 text-emerald-600" /> Konfirmasi WhatsApp Manual
-                          </h4>
-                          <p className="text-slate-600 text-xs leading-relaxed">
-                            Bukti bayar tidak perlu diunggah ke website. Anda cukup melakukan konfirmasi manual dengan klik tombol WhatsApp di bawah. Pesan berisi rincian pendaftaran dan nominal akan terisi otomatis untuk dikirim ke WhatsApp Admin Tirta Barokah.
-                          </p>
-                          {paymentMethod === 'Transfer BNI' && (() => {
-                            let bankAccountsList = [];
-                            if (settings.bank_accounts) {
-                              try {
-                                const parsed = JSON.parse(settings.bank_accounts);
-                                if (Array.isArray(parsed)) {
-                                  bankAccountsList = parsed;
-                                }
-                              } catch (e) {}
-                            }
-                            return (
-                              <div className="space-y-2">
-                                <p className="font-bold text-[11px] text-slate-500 uppercase">Rekening Transfer Pembayaran:</p>
-                                {bankAccountsList.length === 0 ? (
-                                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 italic">
-                                    Belum ada rekening pembayaran aktif. Silakan hubungi Admin untuk konfirmasi pembayaran.
-                                  </div>
-                                ) : (
-                                  bankAccountsList.map((acc) => (
-                                    <div key={acc.id} className="bg-white border border-emerald-100 rounded-xl p-3 text-xs text-slate-700 space-y-1 shadow-xs">
-                                      <p className="font-bold text-[10px] text-emerald-600 uppercase">{acc.bank_name}</p>
-                                      <p className="font-mono text-sm font-bold text-cyan-900">{acc.account_number}</p>
-                                      <p className="font-semibold text-slate-800">a.n. {acc.account_holder}</p>
-                                    </div>
-                                  ))
-                                )}
+                            <div className="flex justify-between border-b border-slate-200 pb-2">
+                              <span className="text-slate-500">Pelatih:</span>
+                              <span className="font-bold text-slate-800">{selectedCoach?.name}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-slate-200 pb-2">
+                              <span className="text-slate-500">Jenis Latihan:</span>
+                              <span className="font-bold text-cyan-700 font-semibold">{coachType}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-slate-200 pb-2">
+                              <span className="text-slate-500">Paket Pilihan:</span>
+                              <span className="font-bold text-slate-800">{selectedPricingPackage?.name} ({selectedPricingPackage?.sessions}x Sesi)</span>
+                            </div>
+                            <div className="flex justify-between border-b border-slate-200 pb-2">
+                              <span className="text-slate-500">Frekuensi:</span>
+                              <span className="font-bold text-slate-800">{scheduleFrequency}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-slate-200 pb-2">
+                              <span className="text-slate-500">Jadwal Sesi 1:</span>
+                              <span className="font-bold text-slate-800">Hari {selectedScheduleDay} (📍 {pool1Name}) @ Pukul {selectedScheduleTime} WIB</span>
+                            </div>
+                            {scheduleFrequency === '2x Seminggu' && (
+                              <div className="flex justify-between border-b border-slate-200 pb-2">
+                                <span className="text-slate-500">Jadwal Sesi 2:</span>
+                                <span className="font-bold text-slate-800">Hari {selectedScheduleDay2} (📍 {pool2Name}) @ Pukul {selectedScheduleTime2} WIB</span>
                               </div>
-                            );
-                          })()}
+                            )}
+                            <div className="flex justify-between text-sm pt-2">
+                              <span className="font-bold text-slate-800">Total Tagihan:</span>
+                              <span className="font-extrabold text-cyan-700">Rp {finalPrice.toLocaleString('id-ID')}</span>
+                            </div>
+                          </div>
 
-                          <a
-                            href={`https://wa.me/${(settings.admin_whatsapp || '6281234567890').trim()}?text=${getWhatsAppMessage()}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 px-4 rounded-xl transition text-xs text-center flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer"
-                          >
-                            <Phone className="w-4.5 h-4.5" /> Kirim Konfirmasi ke WhatsApp Admin
-                          </a>
-                          <p className="text-[10px] text-emerald-700/80 text-center italic">Klik di atas untuk membuka chat WhatsApp baru berisi detail tagihan.</p>
+                          <div className="space-y-2 pt-2">
+                            <label className="text-xs font-semibold text-slate-600 block">Metode Pembayaran Pilihan</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPaymentMethod('Transfer BNI')}
+                                className={`py-3 rounded-xl border text-xs font-semibold transition ${
+                                  paymentMethod === 'Transfer BNI'
+                                    ? 'bg-cyan-50 text-cyan-700 border-cyan-500'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                }`}
+                              >
+                                Transfer Bank
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPaymentMethod('Tunai di Kasir')}
+                                className={`py-3 rounded-xl border text-xs font-semibold transition ${
+                                  paymentMethod === 'Tunai di Kasir'
+                                    ? 'bg-cyan-50 text-cyan-700 border-cyan-500'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                }`}
+                              >
+                                Tunai di Kasir
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Payment Action: WhatsApp Direct Button */}
+                        <div className="space-y-4 flex flex-col justify-center">
+                          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 space-y-3">
+                            <h4 className="font-bold text-sm text-emerald-900 flex items-center gap-1.5">
+                              <Phone className="w-4 h-4 text-emerald-600" /> Konfirmasi WhatsApp Manual
+                            </h4>
+                            <p className="text-slate-600 text-xs leading-relaxed">
+                              Bukti bayar tidak perlu diunggah ke website. Anda cukup melakukan konfirmasi manual dengan klik tombol WhatsApp di bawah. Pesan berisi rincian pendaftaran dan nominal akan terisi otomatis untuk dikirim ke WhatsApp Admin Tirta Barokah.
+                            </p>
+                            {paymentMethod === 'Transfer BNI' && (() => {
+                              let bankAccountsList = [];
+                              if (settings.bank_accounts) {
+                                try {
+                                  const parsed = JSON.parse(settings.bank_accounts);
+                                  if (Array.isArray(parsed)) {
+                                    bankAccountsList = parsed;
+                                  }
+                                } catch (e) {}
+                              }
+                              return (
+                                <div className="space-y-2">
+                                  <p className="font-bold text-[11px] text-slate-500 uppercase">Rekening Transfer Pembayaran:</p>
+                                  {bankAccountsList.length === 0 ? (
+                                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 italic">
+                                      Belum ada rekening pembayaran aktif. Silakan hubungi Admin untuk konfirmasi pembayaran.
+                                    </div>
+                                  ) : (
+                                    bankAccountsList.map((acc) => (
+                                      <div key={acc.id} className="bg-white border border-emerald-100 rounded-xl p-3 text-xs text-slate-700 space-y-1 shadow-xs">
+                                        <p className="font-bold text-[10px] text-emerald-600 uppercase">{acc.bank_name}</p>
+                                        <p className="font-mono text-sm font-bold text-cyan-900">{acc.account_number}</p>
+                                        <p className="font-semibold text-slate-800">a.n. {acc.account_holder}</p>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              );
+                            })()}
+
+                            <a
+                              href={`https://wa.me/${(settings.admin_whatsapp || '6281234567890').trim()}?text=${getWhatsAppMessage()}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 px-4 rounded-xl transition text-xs text-center flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer"
+                            >
+                              <Phone className="w-4.5 h-4.5" /> Kirim Konfirmasi ke WhatsApp Admin
+                            </a>
+                            <p className="text-[10px] text-emerald-700/80 text-center italic">Klik di atas untuk membuka chat WhatsApp baru berisi detail tagihan.</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex justify-between pt-4 border-t border-slate-100">
-                      <button
-                        type="button"
-                        onClick={() => setStep(4)}
-                        className="border border-slate-300 text-slate-600 font-bold px-4 py-2.5 text-xs md:px-6 md:py-3 md:text-sm rounded-xl transition flex items-center gap-2 hover:bg-slate-50 cursor-pointer"
-                      >
-                        <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4" /> Kembali
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSubmit}
-                        className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-2.5 text-xs md:px-8 md:py-3.5 md:text-sm rounded-xl transition flex items-center gap-2 shadow-lg shadow-cyan-600/20 cursor-pointer"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5 md:w-5 md:h-5" /> Selesaikan Pendaftaran
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
+                      <div className="flex justify-between pt-4 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => setStep(4)}
+                          className="border border-slate-300 text-slate-600 font-bold px-4 py-2.5 text-xs md:px-6 md:py-3 md:text-sm rounded-xl transition flex items-center gap-2 hover:bg-slate-50 cursor-pointer"
+                        >
+                          <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4" /> Kembali
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSubmit}
+                          className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-2.5 text-xs md:px-8 md:py-3.5 md:text-sm rounded-xl transition flex items-center gap-2 shadow-lg shadow-cyan-600/20 cursor-pointer"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5 md:w-5 md:h-5" /> Selesaikan Pendaftaran
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })()}
 
                 {/* STEP 6: Success Welcome Screen (Showing Member ID as Referral) */}
-                {step === 6 && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="text-center py-8 space-y-6 max-w-lg mx-auto"
-                  >
-                    <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto border border-emerald-100">
-                      <CheckCircle className="w-8 h-8 text-emerald-500" />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h3 className="text-2xl font-black text-slate-900">Selamat Bergabung!</h3>
-                      <p className="text-slate-600 text-xs">
-                        Pendaftaran Anda di <strong>Private Renang Tirta Barokah Palembang</strong> telah berhasil didaftarkan ke sistem kami.
-                      </p>
-                    </div>
+                {step === 6 && (() => {
+                  const selectedSlot1 = selectedCoach?.schedule?.find(d => d.day === selectedScheduleDay)?.timeSlots?.find(ts => ts.time === selectedScheduleTime);
+                  const pool1Name = getPoolName(selectedSlot1?.swimmingPoolId, selectedScheduleDay);
 
-                    {/* Member ID Display Box */}
-                    <div className="bg-gradient-to-r from-cyan-600 to-indigo-600 p-6 rounded-2xl text-white space-y-2.5 shadow-md">
-                      <span className="text-[10px] bg-white/20 text-white font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-full">
-                        KODE ID MEMBER BARU
-                      </span>
-                      <h4 className="text-3xl font-black font-mono tracking-widest bg-slate-950/25 py-2.5 rounded-xl">
-                        {createdMemberId}
-                      </h4>
-                      <p className="text-[11px] text-cyan-100 max-w-xs mx-auto leading-normal">
-                        Simpan Kode ID di atas sebagai bukti pendaftaran resmi.
-                      </p>
-                    </div>
+                  const selectedSlot2 = selectedCoach?.schedule?.find(d => d.day === selectedScheduleDay2)?.timeSlots?.find(ts => ts.time === selectedScheduleTime2);
+                  const pool2Name = getPoolName(selectedSlot2?.swimmingPoolId, selectedScheduleDay2);
 
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-left text-xs space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Nama Siswa:</span>
-                        <span className="font-bold text-slate-800">{studentData.fullName}</span>
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="text-center py-8 space-y-6 max-w-lg mx-auto"
+                    >
+                      <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto border border-emerald-100">
+                        <CheckCircle className="w-8 h-8 text-emerald-500" />
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Coach Pembimbing:</span>
-                        <span className="font-bold text-slate-800">{selectedCoach?.name}</span>
+                      
+                      <div className="space-y-2">
+                        <h3 className="text-2xl font-black text-slate-900">Selamat Bergabung!</h3>
+                        <p className="text-slate-600 text-xs">
+                          Pendaftaran Anda di <strong>Private Renang Tirta Barokah Palembang</strong> telah berhasil didaftarkan ke sistem kami.
+                        </p>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Tipe Latihan:</span>
-                        <span className="font-bold text-slate-800">{coachType}</span>
+
+                      {/* Member ID Display Box */}
+                      <div className="bg-gradient-to-r from-cyan-600 to-indigo-600 p-6 rounded-2xl text-white space-y-2.5 shadow-md">
+                        <span className="text-[10px] bg-white/20 text-white font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-full">
+                          KODE ID MEMBER BARU
+                        </span>
+                        <h4 className="text-3xl font-black font-mono tracking-widest bg-slate-950/25 py-2.5 rounded-xl">
+                          {createdMemberId}
+                        </h4>
+                        <p className="text-[11px] text-cyan-100 max-w-xs mx-auto leading-normal">
+                          Simpan Kode ID di atas sebagai bukti pendaftaran resmi.
+                        </p>
                       </div>
-                      {selectedScheduleDay && selectedScheduleTime && (
-                        <div className="flex justify-between items-start gap-2 border-t border-slate-100 pt-1.5">
-                          <span className="text-slate-500 shrink-0">Jadwal Sesi 1:</span>
-                          <span className="font-bold text-slate-800 text-right">
-                            Hari {selectedScheduleDay} ({selectedScheduleDay === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}) @ Pukul {selectedScheduleTime} WIB
+
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-left text-xs space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Nama Siswa:</span>
+                          <span className="font-bold text-slate-800">{studentData.fullName}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Coach Pembimbing:</span>
+                          <span className="font-bold text-slate-800">{selectedCoach?.name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Tipe Latihan:</span>
+                          <span className="font-bold text-slate-800">{coachType}</span>
+                        </div>
+                        {selectedScheduleDay && selectedScheduleTime && (
+                          <div className="flex justify-between items-start gap-2 border-t border-slate-100 pt-1.5">
+                            <span className="text-slate-500 shrink-0">Jadwal Sesi 1:</span>
+                            <span className="font-bold text-slate-800 text-right">
+                              Hari {selectedScheduleDay} (📍 {pool1Name}) @ Pukul {selectedScheduleTime} WIB
+                            </span>
+                          </div>
+                        )}
+                        {scheduleFrequency === '2x Seminggu' && selectedScheduleDay2 && selectedScheduleTime2 && (
+                          <div className="flex justify-between items-start gap-2">
+                            <span className="text-slate-500 shrink-0">Jadwal Sesi 2:</span>
+                            <span className="font-bold text-slate-800 text-right">
+                              Hari {selectedScheduleDay2} (📍 {pool2Name}) @ Pukul {selectedScheduleTime2} WIB
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between border-t border-slate-100 pt-1.5">
+                          <span className="text-slate-500">Frekuensi:</span>
+                          <span className="font-bold text-slate-800">{scheduleFrequency}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Total Nominal:</span>
+                          <span className="font-bold text-slate-800">Rp {finalPrice.toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-semibold">Status:</span>
+                          <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                            Menunggu Verifikasi Admin
                           </span>
                         </div>
-                      )}
-                      {scheduleFrequency === '2x Seminggu' && selectedScheduleDay2 && selectedScheduleTime2 && (
-                        <div className="flex justify-between items-start gap-2">
-                          <span className="text-slate-500 shrink-0">Jadwal Sesi 2:</span>
-                          <span className="font-bold text-slate-800 text-right">
-                            Hari {selectedScheduleDay2} ({selectedScheduleDay2 === 'Selasa' ? 'Kolam GHL' : 'Grand Garden'}) @ Pukul {selectedScheduleTime2} WIB
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex justify-between border-t border-slate-100 pt-1.5">
-                        <span className="text-slate-500">Frekuensi:</span>
-                        <span className="font-bold text-slate-800">{scheduleFrequency}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Total Nominal:</span>
-                        <span className="font-bold text-slate-800">Rp {finalPrice.toLocaleString('id-ID')}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500 font-semibold">Status:</span>
-                        <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
-                          Menunggu Verifikasi Admin
+
+                      <div className="bg-blue-50 text-blue-800 p-3.5 rounded-lg border border-blue-100 text-[11px] leading-normal flex items-start gap-2 text-left">
+                        <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                        <span>
+                          <strong>Langkah Selanjutnya:</strong> Pastikan Anda telah mengirimkan rincian invoice ke WhatsApp Admin menggunakan tombol hijau di tahap sebelumnya. Admin akan memverifikasi pembayaran Anda di dashboard agar status akun Anda berubah menjadi <strong>"Aktif"</strong>.
                         </span>
                       </div>
-                    </div>
 
-                    <div className="bg-blue-50 text-blue-800 p-3.5 rounded-lg border border-blue-100 text-[11px] leading-normal flex items-start gap-2 text-left">
-                      <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                      <span>
-                        <strong>Langkah Selanjutnya:</strong> Pastikan Anda telah mengirimkan rincian invoice ke WhatsApp Admin menggunakan tombol hijau di tahap sebelumnya. Admin akan memverifikasi pembayaran Anda di dashboard agar status akun Anda berubah menjadi <strong>"Aktif"</strong>.
-                      </span>
-                    </div>
-
-                    <div className="pt-2 flex flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={handleResetForm}
-                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 px-4 rounded-xl transition text-sm cursor-pointer shadow-sm"
-                      >
-                        Daftar Siswa Baru Lainnya
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
+                      <div className="pt-2 flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={handleResetForm}
+                          className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 px-4 rounded-xl transition text-sm cursor-pointer shadow-sm"
+                        >
+                          Daftar Siswa Baru Lainnya
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })()}
               </AnimatePresence>
             </div>
           </section>

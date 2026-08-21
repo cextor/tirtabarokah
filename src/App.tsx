@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
-import { Coach, Member, EventItem, SiteSettings, ProgramLevel, CoachAbsence, AuditLog, EventCategory, SwimmingPool, PricingPackage } from './types';
+import { Coach, Member, EventItem, SiteSettings, ProgramLevel, CoachAbsence, AuditLog, EventCategory, SwimmingPool, PricingPackage, PackageSchedule } from './types';
 import { api, API_BASE_URL, getMediaUrl } from './api';
 import MainPortal from './components/MainPortal';
 import AdminDashboard from './components/AdminDashboard';
@@ -27,6 +27,7 @@ export default function App() {
   const [levels, setLevels] = useState<ProgramLevel[]>([]);
   const [absences, setAbsences] = useState<CoachAbsence[]>([]);
   const [pricingPackages, setPricingPackages] = useState<PricingPackage[]>([]);
+  const [schedules, setSchedules] = useState<PackageSchedule[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
   const [swimmingPools, setSwimmingPools] = useState<SwimmingPool[]>([]);
@@ -424,16 +425,18 @@ export default function App() {
             break;
           }
           case 'verifikasi': {
-            const [membersRes, packagesRes, poolsRes, coachesRes] = await Promise.allSettled([
+            const [membersRes, packagesRes, poolsRes, coachesRes, schedulesRes] = await Promise.allSettled([
               api.getMembers(),
               api.getPricingPackages(),
               api.getSwimmingPools(),
-              api.getCoaches()
+              api.getCoaches(),
+              api.getSchedules()
             ]);
             if (membersRes.status === 'fulfilled') setMembers(membersRes.value || []);
             if (packagesRes.status === 'fulfilled') setPricingPackages(packagesRes.value || []);
             if (poolsRes.status === 'fulfilled') setSwimmingPools(poolsRes.value || []);
             if (coachesRes.status === 'fulfilled') setCoaches(coachesRes.value || []);
+            if (schedulesRes.status === 'fulfilled') setSchedules(schedulesRes.value || []);
             break;
           }
           case 'absensi_coach': {
@@ -509,6 +512,21 @@ export default function App() {
             if (levelsRes.status === 'fulfilled') setLevels(levelsRes.value || []);
             break;
           }
+          case 'penjadwalan': {
+            const [schedulesRes, packagesRes, coachesRes, poolsRes, membersRes] = await Promise.allSettled([
+              api.getSchedules(),
+              api.getPricingPackages(),
+              api.getCoaches(),
+              api.getSwimmingPools(),
+              api.getMembers()
+            ]);
+            if (schedulesRes.status === 'fulfilled') setSchedules(schedulesRes.value || []);
+            if (packagesRes.status === 'fulfilled') setPricingPackages(packagesRes.value || []);
+            if (coachesRes.status === 'fulfilled') setCoaches(coachesRes.value || []);
+            if (poolsRes.status === 'fulfilled') setSwimmingPools(poolsRes.value || []);
+            if (membersRes.status === 'fulfilled') setMembers(membersRes.value || []);
+            break;
+          }
           case 'paket_harga': {
             const [packagesRes, coachesRes] = await Promise.allSettled([
               api.getPricingPackages(),
@@ -519,13 +537,14 @@ export default function App() {
             break;
           }
           case 'public': {
-            const [coachesRes, eventsRes, settingsRes, levelsRes, packagesRes, poolsRes] = await Promise.allSettled([
+            const [coachesRes, eventsRes, settingsRes, levelsRes, packagesRes, poolsRes, schedulesRes] = await Promise.allSettled([
               api.getCoaches(),
               api.getEvents(),
               api.getSettings(),
               api.getLevels(),
               api.getPricingPackages(),
-              api.getSwimmingPools()
+              api.getSwimmingPools(),
+              api.getSchedules()
             ]);
 
             const coachesData = coachesRes.status === 'fulfilled' ? coachesRes.value : [];
@@ -534,6 +553,7 @@ export default function App() {
             const levelsData = levelsRes.status === 'fulfilled' ? levelsRes.value : [];
             const packagesData = packagesRes.status === 'fulfilled' ? packagesRes.value : [];
             const poolsData = poolsRes.status === 'fulfilled' ? poolsRes.value : [];
+            const schedulesData = schedulesRes.status === 'fulfilled' ? schedulesRes.value : [];
 
             setCoaches(Array.isArray(coachesData) ? coachesData : []);
             setEvents(Array.isArray(eventsData) ? eventsData : []);
@@ -543,6 +563,7 @@ export default function App() {
             setLevels(Array.isArray(levelsData) ? levelsData : []);
             setPricingPackages(Array.isArray(packagesData) ? packagesData : []);
             setSwimmingPools(Array.isArray(poolsData) ? poolsData : []);
+            setSchedules(Array.isArray(schedulesData) ? schedulesData : []);
             setMembers([]);
             setAbsences([]);
             setAuditLogs([]);
@@ -550,13 +571,14 @@ export default function App() {
           }
           case 'dashboard':
           default: {
-            const [membersRes, coachesRes, poolsRes, eventsRes, absencesRes, packagesRes] = await Promise.allSettled([
+            const [membersRes, coachesRes, poolsRes, eventsRes, absencesRes, packagesRes, schedulesRes] = await Promise.allSettled([
               api.getMembers(),
               api.getCoaches(),
               api.getSwimmingPools(),
               api.getEvents(),
               api.getCoachAbsences(),
-              api.getPricingPackages()
+              api.getPricingPackages(),
+              api.getSchedules()
             ]);
             if (membersRes.status === 'fulfilled') setMembers(membersRes.value || []);
             if (coachesRes.status === 'fulfilled') setCoaches(coachesRes.value || []);
@@ -564,6 +586,7 @@ export default function App() {
             if (eventsRes.status === 'fulfilled') setEvents(eventsRes.value || []);
             if (absencesRes.status === 'fulfilled') setAbsences(absencesRes.value || []);
             if (packagesRes.status === 'fulfilled') setPricingPackages(packagesRes.value || []);
+            if (schedulesRes.status === 'fulfilled') setSchedules(schedulesRes.value || []);
             break;
           }
         }
@@ -1284,6 +1307,7 @@ export default function App() {
                 levels={levels}
                 pricingPackages={pricingPackages}
                 swimmingPools={swimmingPools}
+                schedules={schedules}
                 onRegister={handleRegisterMember}
                 onUpdateEvents={updateEventsState}
                 view={currentPath === '/daftar' ? 'register' : 'home'}
@@ -1299,6 +1323,7 @@ export default function App() {
                   levels={levels}
                   absences={absences}
                   pricingPackages={pricingPackages}
+                  schedules={schedules}
                   auditLogs={auditLogs}
                   eventCategories={eventCategories}
                   swimmingPools={swimmingPools}
@@ -1312,6 +1337,7 @@ export default function App() {
                   onDeleteCoach={handleDeleteCoach}
                   onUpdateMembers={updateMembersState}
                   onUpdateEvents={updateEventsState}
+                  onUpdateSchedules={(newScheds: PackageSchedule[]) => setSchedules(newScheds)}
                 />
               </ErrorBoundary>
             ) : activeRole === 'coach' ? (

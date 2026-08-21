@@ -202,4 +202,10 @@ export const api = {
   addSwimmingPool: (data: any) => request('/api/swimming-pools/add', { method: 'POST', body: JSON.stringify(data) }),
   updateSwimmingPool: (data: any) => request('/api/swimming-pools/update', { method: 'POST', body: JSON.stringify(data) }),
   deleteSwimmingPool: (id: string) => request(`/api/swimming-pools/delete/${id}`, { method: 'DELETE' }),
+
+  // Schedules (Penjadwalan)
+  getSchedules: () => request('/api/schedules'),
+  addSchedule: (data: any) => request('/api/schedules/add', { method: 'POST', body: JSON.stringify(data) }),
+  updateSchedule: (data: any) => request('/api/schedules/update', { method: 'POST', body: JSON.stringify(data) }),
+  deleteSchedule: (id: string | number) => request(`/api/schedules/delete/${id}`, { method: 'DELETE' }),
 };
