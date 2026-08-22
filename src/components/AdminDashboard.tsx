@@ -2052,18 +2052,32 @@ export default function AdminDashboard({
     return day1Match || day2Match;
   });
 
+  // HELPER TO FORMAT INDONESIAN WHATSAPP NUMBER (08xxx -> 628xxx)
+  const formatWhatsAppNumber = (phone?: string): string => {
+    if (!phone) return '';
+    let cleaned = phone.replace(/[^0-9]/g, '');
+    if (cleaned.startsWith('0')) {
+      cleaned = '62' + cleaned.slice(1);
+    } else if (cleaned.startsWith('8')) {
+      cleaned = '62' + cleaned;
+    }
+    return cleaned;
+  };
+
   // GENERATE H-1 WHATSAPP LINK
   const getWhatsAppH1Link = (member: Member) => {
     const coach = coaches.find(c => c.id === member.coachId);
     const jam = member.scheduleDay === esokHari ? member.scheduleTime : member.scheduleTime2;
     const msg = `Halo Bapak/Ibu Wali dari ${member.student.fullName},\n\nKami dari *Private Renang Tirta Barokah* ingin mengingatkan bahwa besok (*Hari ${esokHari}*) anak Anda memiliki jadwal latihan rutin berenang bersama *Coach ${coach?.name || 'Latihan'}* pada pukul *${jam} WIB*.\n\nMohon hadir tepat waktu dengan membawa baju renang & perlengkapan. Sampai jumpa di kolam renang! 🏊‍♂️`;
-    return `https://wa.me/${member.parent.whatsapp}?text=${encodeURIComponent(msg)}`;
+    const waPhone = formatWhatsAppNumber(member.parent?.whatsapp);
+    return `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
   };
 
   // GENERATE EXPIRING PACKAGE WHATSAPP LINK
   const getWhatsAppExpiringLink = (member: Member) => {
     const msg = `Halo Bapak/Ibu Wali dari ${member.student.fullName},\n\nKami menginformasikan bahwa paket sesi latihan berenang anak Anda di *Private Renang Tirta Barokah* saat ini tinggal *${member.sessionsLeft} sesi*.\n\nApakah latihan ingin dilanjutkan dengan perpanjangan paket baru, atau ingin dihentikan dahulu? Harap konfirmasi agar kami dapat menyesuaikan slot kuota pendaftaran pelatih. Terima kasih!`;
-    return `https://wa.me/${member.parent.whatsapp}?text=${encodeURIComponent(msg)}`;
+    const waPhone = formatWhatsAppNumber(member.parent?.whatsapp);
+    return `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
   };
 
   // FILTERED STUDENT LIST
@@ -2888,7 +2902,16 @@ export default function AdminDashboard({
                                 </td>
                                 <td className="p-3 font-medium">
                                   <div className="font-bold text-slate-700">{member.parent.fatherMotherName}</div>
-                                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">{member.parent.whatsapp}</div>
+                                  <a
+                                    href={`https://wa.me/${formatWhatsAppNumber(member.parent?.whatsapp)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] text-emerald-600 hover:text-emerald-700 font-mono mt-0.5 inline-flex items-center gap-1 hover:underline font-semibold"
+                                    title="Chat via WhatsApp"
+                                  >
+                                    <Phone className="w-3 h-3 text-emerald-500" />
+                                    {member.parent.whatsapp}
+                                  </a>
                                 </td>
                                 <td className="p-3">
                                   <span className="font-bold text-slate-800 bg-cyan-50/50 border border-cyan-100 text-cyan-800 px-2.5 py-1 rounded-lg">
@@ -3092,7 +3115,7 @@ export default function AdminDashboard({
 
                         <div className="flex items-center gap-2 w-full md:w-auto">
                           <a 
-                            href={`https://wa.me/${member.parent.whatsapp}`}
+                            href={`https://wa.me/${formatWhatsAppNumber(member.parent?.whatsapp)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex-1 md:flex-none border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-center font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
@@ -3213,7 +3236,16 @@ export default function AdminDashboard({
                           </td>
                           <td className="p-3.5">
                             <div className="font-semibold text-slate-700">{member.parent.fatherMotherName}</div>
-                            <div className="font-mono text-[10px] text-slate-500 mt-0.5">{member.parent.whatsapp}</div>
+                            <a
+                              href={`https://wa.me/${formatWhatsAppNumber(member.parent?.whatsapp)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-[10px] text-emerald-600 hover:text-emerald-700 hover:underline inline-flex items-center gap-1 font-semibold mt-0.5"
+                              title="Chat via WhatsApp"
+                            >
+                              <Phone className="w-3 h-3 text-emerald-500" />
+                              {member.parent.whatsapp}
+                            </a>
                           </td>
                           <td className="p-3.5">
                             <div className="font-bold text-cyan-800">{coach?.name || 'Latihan'}</div>
@@ -4496,7 +4528,7 @@ export default function AdminDashboard({
                                   <td className="py-2.5 px-3">
                                     <p className="font-bold text-slate-700">{member.parent.fatherMotherName}</p>
                                     <a
-                                      href={`https://wa.me/${member.parent.whatsapp.replace(/[^0-9]/g, '')}`}
+                                      href={`https://wa.me/${formatWhatsAppNumber(member.parent?.whatsapp)}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-[10px] text-cyan-700 hover:underline font-mono font-semibold inline-flex items-center gap-0.5"
@@ -4925,7 +4957,16 @@ export default function AdminDashboard({
                                   </td>
                                   <td className="p-3.5 font-medium">
                                     <div className="font-bold text-slate-700">{member.parent.fatherMotherName}</div>
-                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{member.parent.whatsapp}</div>
+                                    <a
+                                      href={`https://wa.me/${formatWhatsAppNumber(member.parent?.whatsapp)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[10px] text-emerald-600 hover:text-emerald-700 font-mono mt-0.5 inline-flex items-center gap-1 hover:underline font-semibold"
+                                      title="Chat via WhatsApp"
+                                    >
+                                      <Phone className="w-3 h-3 text-emerald-500" />
+                                      {member.parent.whatsapp}
+                                    </a>
                                   </td>
                                   <td className="p-3.5">
                                     <span className="font-bold text-slate-800 bg-cyan-50/50 border border-cyan-100 text-cyan-800 px-2.5 py-1 rounded-lg">

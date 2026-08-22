@@ -2169,7 +2169,13 @@ export default function MainPortal({
                             })()}
 
                             <a
-                              href={`https://wa.me/${(settings.admin_whatsapp || '6281234567890').trim()}?text=${getWhatsAppMessage()}`}
+                              href={`https://wa.me/${(() => {
+                                const raw = settings.admin_whatsapp || '6281234567890';
+                                let cleaned = raw.replace(/[^0-9]/g, '');
+                                if (cleaned.startsWith('0')) cleaned = '62' + cleaned.slice(1);
+                                else if (cleaned.startsWith('8')) cleaned = '62' + cleaned;
+                                return cleaned;
+                              })()}?text=${getWhatsAppMessage()}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 px-4 rounded-xl transition text-xs text-center flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer"
