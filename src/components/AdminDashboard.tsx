@@ -4157,15 +4157,6 @@ export default function AdminDashboard({
                       <ArrowLeft className="w-4 h-4 text-cyan-600" />
                       <span>← Kembali ke Daftar Paket</span>
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleOpenAddScheduleModal(activePkg.id)}
-                      className="bg-cyan-600 hover:bg-cyan-500 text-white font-black py-2.5 px-5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md shadow-cyan-600/20 cursor-pointer transition w-fit"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>+ Tambah Jadwal Paket Ini</span>
-                    </button>
                   </div>
 
                   {/* Active Package Banner */}
@@ -4576,156 +4567,157 @@ export default function AdminDashboard({
             })()}
 
             {/* MODAL: TAMBAH / EDIT JADWAL (WIDE 2-COLUMN NO SCROLL) */}
-            {showScheduleModal && (
-              <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-                <div className="relative bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col my-auto">
-                  {/* Modal Header */}
-                  <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                    <div>
-                      <h4 className="font-black text-sm text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                        <CalendarClock className="w-4.5 h-4.5 text-cyan-600" />
-                        {scheduleModalMode === 'add' ? 'Tambah Jadwal Latihan Baru' : 'Edit Jadwal Latihan'}
-                      </h4>
-                      <p className="text-[11px] text-slate-500">
-                        {scheduleModalMode === 'add' ? 'Pilih pelatih, hari, jam, dan kolam renang untuk paket terpilih' : `Edit data jadwal ID #${editingScheduleId}`}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowScheduleModal(false)}
-                      className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
+            {/* MODAL: TAMBAH / EDIT JADWAL (WIDE 2-COLUMN NO SCROLL) */}
+            {showScheduleModal && (() => {
+              const selectedPkg = pricingPackages.find(p => p.id === scheduleFormPackageId);
+              const selectedCoach = coaches.find(c => c.id === scheduleFormCoachId);
 
-                  {/* Form Body */}
-                  <form onSubmit={handleSaveSchedule} className="p-6 space-y-4 text-xs text-slate-700">
-                    {/* Top: Locked Package & Auto Quota Info Banner */}
-                    {(() => {
-                      const selectedPkg = pricingPackages.find(p => p.id === scheduleFormPackageId);
-                      return (
-                        <div className="bg-gradient-to-r from-cyan-50 via-blue-50 to-indigo-50 border border-cyan-200/80 p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-2xs">
+              return (
+                <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+                  <div className="relative bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col my-auto">
+                    {/* Modal Header */}
+                    <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                      <div>
+                        <h4 className="font-black text-sm text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                          <CalendarClock className="w-4.5 h-4.5 text-cyan-600" />
+                          {scheduleModalMode === 'add' ? 'Tambah Jadwal Latihan Baru' : 'Edit Jadwal Latihan'}
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          {scheduleModalMode === 'add'
+                            ? `Atur hari, jam, dan lokasi kolam renang untuk ${selectedCoach ? `Coach ${selectedCoach.name}` : 'Pelatih'}`
+                            : `Edit data jadwal ${selectedCoach ? `Coach ${selectedCoach.name}` : ''} (ID #${editingScheduleId})`}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowScheduleModal(false)}
+                        className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* Form Body */}
+                    <form onSubmit={handleSaveSchedule} className="p-6 space-y-4 text-xs text-slate-700">
+                      {/* Top: Locked Package & Coach Info Banner */}
+                      <div className="bg-gradient-to-r from-cyan-50 via-blue-50 to-indigo-50 border border-cyan-200/80 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs">
+                        <div className="flex items-center gap-3.5">
+                          {selectedCoach?.photo ? (
+                            <img
+                              src={getMediaUrl(selectedCoach.photo)}
+                              alt={selectedCoach.name}
+                              className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-cyan-700 text-white font-black flex items-center justify-center text-sm shadow-sm shrink-0">
+                              {selectedCoach?.name?.charAt(0) || 'C'}
+                            </div>
+                          )}
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-black text-cyan-800 uppercase tracking-wider">
-                                Paket Latihan Terpilih:
-                              </span>
                               <span className="bg-cyan-700 text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase">
                                 {selectedPkg?.category || 'REGULER'}
                               </span>
+                              <span className="text-xs font-black text-slate-850">
+                                {selectedPkg?.name || 'Paket Renang'}
+                              </span>
                             </div>
-                            <h4 className="text-sm font-black text-slate-850 mt-0.5">
-                              {selectedPkg?.name || 'Paket Renang'}
+                            <h4 className="text-sm font-black text-cyan-950 mt-0.5 flex items-center gap-1.5">
+                              <span>Coach {selectedCoach?.name || 'Pelatih Terpilih'}</span>
+                              {selectedCoach?.experience && (
+                                <span className="text-[10px] font-medium text-slate-500">
+                                  • {selectedCoach.experience}
+                                </span>
+                              )}
                             </h4>
-                            <p className="text-[11px] text-slate-500 font-medium">
+                            <p className="text-[10px] text-slate-500 font-medium">
                               {selectedPkg?.sessions}x Pertemuan • Rp {selectedPkg?.price.toLocaleString('id-ID')}
                             </p>
                           </div>
-                          <div className="text-left sm:text-right bg-white/80 border border-cyan-100 px-3.5 py-2 rounded-xl">
-                            <span className="text-[10px] font-bold text-slate-500 block">Kuota Maksimal Sesi:</span>
-                            <span className="text-cyan-700 font-black text-sm">
-                              {selectedPkg?.max_students || 6} Siswa / Sesi
-                            </span>
-                            <span className="text-[9px] text-slate-400 block font-medium">(Otomatis Terkunci dari Paket)</span>
-                          </div>
                         </div>
-                      );
-                    })()}
-
-                    {/* Real-time Conflict Detector Banner */}
-                    {(() => {
-                      const timeStr = scheduleFormCustomTime.trim() || `${scheduleFormStartTime} - ${scheduleFormEndTime}`;
-                      const conflict = (schedules || []).find(s => 
-                        s.coachId === scheduleFormCoachId &&
-                        s.day === scheduleFormDay &&
-                        s.time === timeStr &&
-                        (scheduleModalMode === 'add' || s.id !== editingScheduleId)
-                      );
-                      if (conflict) {
-                        const coach = coaches.find(c => c.id === scheduleFormCoachId);
-                        const conflictPkg = pricingPackages.find(p => p.id === conflict.pricingPackageId);
-                        return (
-                          <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl text-rose-800 flex items-start gap-2 animate-pulse">
-                            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                            <div className="text-[11px] leading-tight">
-                              <p className="font-black">Peringatan Jadwal Bentrok!</p>
-                              <p className="text-rose-700 mt-0.5">
-                                Coach <b>{coach?.name}</b> sudah memiliki jadwal mengajar pada hari <b>{scheduleFormDay}</b> pukul <b>{timeStr}</b> di paket <b>{conflictPkg?.name || 'Paket Lain'}</b>.
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-
-                    {/* 2-Column Wide Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Left Column: Pelatih, Hari, Kolam */}
-                      <div className="space-y-3">
-                        {/* 1. Pilih Pelatih */}
-                        <div className="space-y-1">
-                          <label className="font-extrabold text-slate-800 block">
-                            1. Pilih Pelatih (Coach) <span className="text-rose-500">*</span>
-                          </label>
-                          <select
-                            value={scheduleFormCoachId}
-                            onChange={(e) => setScheduleFormCoachId(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20"
-                            required
-                          >
-                            {coaches.map(c => (
-                              <option key={c.id} value={c.id}>
-                                Coach {c.name} ({c.experience || 'Pelatih'})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* 2. Pilih Hari */}
-                        <div className="space-y-1">
-                          <label className="font-extrabold text-slate-800 block">
-                            2. Pilih Hari Latihan <span className="text-rose-500">*</span>
-                          </label>
-                          <select
-                            value={scheduleFormDay}
-                            onChange={(e) => setScheduleFormDay(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20"
-                            required
-                          >
-                            {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map(day => (
-                              <option key={day} value={day}>Hari {day}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* 3. Pilih Kolam Renang */}
-                        <div className="space-y-1">
-                          <label className="font-extrabold text-slate-800 block">
-                            3. Pilih Lokasi Kolam Renang <span className="text-rose-500">*</span>
-                          </label>
-                          <select
-                            value={scheduleFormPoolId}
-                            onChange={(e) => setScheduleFormPoolId(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20"
-                            required
-                          >
-                            {swimmingPools.map(p => (
-                              <option key={p.id} value={p.id}>
-                                {p.name}
-                              </option>
-                            ))}
-                          </select>
+                        <div className="text-left sm:text-right bg-white/90 border border-cyan-100 px-3.5 py-2 rounded-xl shrink-0">
+                          <span className="text-[10px] font-bold text-slate-500 block">Kuota Maksimal Sesi:</span>
+                          <span className="text-cyan-700 font-black text-sm">
+                            {selectedPkg?.max_students || 6} Siswa / Sesi
+                          </span>
+                          <span className="text-[9px] text-slate-400 block font-medium">(Terkunci dari Paket)</span>
                         </div>
                       </div>
 
-                      {/* Right Column: Jam & Preset */}
-                      <div className="space-y-2.5 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 flex flex-col justify-between">
-                        <div>
-                          <label className="font-extrabold text-slate-800 block mb-1.5">
-                            4. Pilih Rentang Jam Latihan (WIB) <span className="text-rose-500">*</span>
-                          </label>
+                      {/* Real-time Conflict Detector Banner */}
+                      {(() => {
+                        const timeStr = scheduleFormCustomTime.trim() || `${scheduleFormStartTime} - ${scheduleFormEndTime}`;
+                        const conflict = (schedules || []).find(s => 
+                          s.coachId === scheduleFormCoachId &&
+                          s.day === scheduleFormDay &&
+                          s.time === timeStr &&
+                          (scheduleModalMode === 'add' || s.id !== editingScheduleId)
+                        );
+                        if (conflict) {
+                          const coach = coaches.find(c => c.id === scheduleFormCoachId);
+                          const conflictPkg = pricingPackages.find(p => p.id === conflict.pricingPackageId);
+                          return (
+                            <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl text-rose-800 flex items-start gap-2 animate-pulse">
+                              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                              <div className="text-[11px] leading-tight">
+                                <p className="font-black">Peringatan Jadwal Bentrok!</p>
+                                <p className="text-rose-700 mt-0.5">
+                                  Coach <b>{coach?.name}</b> sudah memiliki jadwal mengajar pada hari <b>{scheduleFormDay}</b> pukul <b>{timeStr}</b> di paket <b>{conflictPkg?.name || 'Paket Lain'}</b>.
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      {/* 2-Column Wide Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Left Column: Hari & Kolam */}
+                        <div className="space-y-3">
+                          {/* 1. Pilih Hari */}
+                          <div className="space-y-1">
+                            <label className="font-extrabold text-slate-800 block">
+                              1. Pilih Hari Latihan <span className="text-rose-500">*</span>
+                            </label>
+                            <select
+                              value={scheduleFormDay}
+                              onChange={(e) => setScheduleFormDay(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20"
+                              required
+                            >
+                              {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map(day => (
+                                <option key={day} value={day}>Hari {day}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* 2. Pilih Kolam Renang */}
+                          <div className="space-y-1">
+                            <label className="font-extrabold text-slate-800 block">
+                              2. Pilih Lokasi Kolam Renang <span className="text-rose-500">*</span>
+                            </label>
+                            <select
+                              value={scheduleFormPoolId}
+                              onChange={(e) => setScheduleFormPoolId(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20"
+                              required
+                            >
+                              {swimmingPools.map(p => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Right Column: Jam & Preset */}
+                        <div className="space-y-2.5 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 flex flex-col justify-between">
+                          <div>
+                            <label className="font-extrabold text-slate-800 block mb-1.5">
+                              3. Pilih Rentang Jam Latihan (WIB) <span className="text-rose-500">*</span>
+                            </label>
 
                           {/* Quick Preset Buttons */}
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mb-3">
@@ -4818,9 +4810,10 @@ export default function AdminDashboard({
                   </form>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+            );
+          })()}
+        </div>
+      )}
 
         {/* TAB 3: JADWAL & REMINDER (COMBINED) */}
         {activeTab === 'reminder' && (
