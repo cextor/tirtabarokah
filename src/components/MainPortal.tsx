@@ -1458,86 +1458,9 @@ export default function MainPortal({
                     className="space-y-6"
                   >
                     <div>
-                      <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Pilih Paket Latihan & Lokasi Kolam</h3>
-                      <p className="text-slate-500 text-xs mt-1">Silakan pilih lokasi kolam renang yang diinginkan dan paket latihan yang sesuai.</p>
+                      <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Pilih Paket Latihan</h3>
+                      <p className="text-slate-500 text-xs mt-1">Silakan tentukan paket latihan yang paling sesuai dengan kebutuhan Anda.</p>
                     </div>
-
-                    {/* Filter Lokasi Kolam Renang */}
-                    {swimmingPools && swimmingPools.length > 0 && (
-                      <div className="space-y-2 bg-gradient-to-r from-cyan-50/80 via-sky-50/40 to-blue-50/80 border border-cyan-200/70 rounded-2xl p-4">
-                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                          <MapPin className="w-4 h-4 text-cyan-600" /> Filter Berdasarkan Lokasi Kolam Renang:
-                        </label>
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedPoolFilter('ALL');
-                              setSelectedCoachId('');
-                              setSelectedScheduleDay('');
-                              setSelectedScheduleTime('');
-                              setSelectedScheduleDay2('');
-                              setSelectedScheduleTime2('');
-                            }}
-                            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                              selectedPoolFilter === 'ALL'
-                                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/20 ring-2 ring-cyan-600/20'
-                                : 'bg-white text-slate-700 border border-slate-200 hover:border-cyan-400 hover:bg-cyan-50/40'
-                            }`}
-                          >
-                            🌟 Semua Kolam ({swimmingPools.length} Lokasi)
-                          </button>
-                          {swimmingPools.map((pool) => {
-                            const isPoolActive = selectedPoolFilter === pool.id;
-                            return (
-                              <button
-                                type="button"
-                                key={pool.id}
-                                onClick={() => {
-                                  setSelectedPoolFilter(pool.id);
-                                  setSelectedCoachId('');
-                                  setSelectedScheduleDay('');
-                                  setSelectedScheduleTime('');
-                                  setSelectedScheduleDay2('');
-                                  setSelectedScheduleTime2('');
-                                }}
-                                className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                                  isPoolActive
-                                    ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/20 ring-2 ring-cyan-600/20'
-                                    : 'bg-white text-slate-700 border border-slate-200 hover:border-cyan-400 hover:bg-cyan-50/40'
-                                }`}
-                              >
-                                <MapPin className={`w-3.5 h-3.5 ${isPoolActive ? 'text-white' : 'text-cyan-600'}`} />
-                                {pool.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {selectedPoolFilter !== 'ALL' && (() => {
-                          const currentPool = swimmingPools.find(p => p.id === selectedPoolFilter);
-                          if (!currentPool) return null;
-                          return (
-                            <div className="mt-2 pt-2.5 border-t border-cyan-200/60 text-[11px] text-cyan-950 bg-white/90 p-3 rounded-xl border border-cyan-100 space-y-1">
-                              <p className="font-extrabold flex items-center gap-1 text-cyan-900">
-                                📍 {currentPool.name}
-                              </p>
-                              {currentPool.description && (
-                                <p className="text-slate-600 text-[10px] leading-relaxed">{currentPool.description}</p>
-                              )}
-                              <div className="flex flex-wrap gap-3 text-[10px] text-slate-500 pt-0.5 font-medium">
-                                {currentPool.training_days && currentPool.training_days.length > 0 && (
-                                  <span>📅 Hari Tersedia: <strong className="text-slate-800">{currentPool.training_days.join(', ')}</strong></span>
-                                )}
-                                {currentPool.training_hours && currentPool.training_hours.length > 0 && (
-                                  <span>⏰ Sesi Latihan: <strong className="text-slate-800">{currentPool.training_hours.join(', ')}</strong></span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
 
                     <div className="space-y-3">
                       <div className="grid md:grid-cols-4 gap-4">
@@ -1627,10 +1550,7 @@ export default function MainPortal({
                     <div>
                       <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Pilih Pelatih / Coach Pembimbing</h3>
                       <p className="text-slate-500 text-xs mt-1">
-                        Berikut adalah pelatih yang melayani paket <strong>{selectedPricingPackage?.name}</strong> (Rp {selectedPricingPackage?.price.toLocaleString('id-ID')})
-                        {selectedPoolFilter !== 'ALL' && (
-                          <span> di lokasi <strong>{getPoolName(selectedPoolFilter)}</strong></span>
-                        )}.
+                        Berikut adalah pelatih yang melayani paket <strong>{selectedPricingPackage?.name}</strong> (Rp {selectedPricingPackage?.price.toLocaleString('id-ID')}).
                       </p>
                     </div>
 
@@ -1679,16 +1599,7 @@ export default function MainPortal({
                           if (matchingCoaches.length === 0) {
                             return (
                               <div className="col-span-3 text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-xs text-slate-400 space-y-2">
-                                <p>Maaf, saat ini tidak ada pelatih yang tersedia untuk paket dan lokasi kolam yang dipilih.</p>
-                                {selectedPoolFilter !== 'ALL' && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedPoolFilter('ALL')}
-                                    className="text-cyan-700 font-bold hover:underline inline-block text-[11px]"
-                                  >
-                                    Tampilkan Semua Lokasi Kolam
-                                  </button>
-                                )}
+                                <p>Maaf, saat ini tidak ada pelatih yang tersedia untuk paket yang dipilih.</p>
                               </div>
                             );
                           }
