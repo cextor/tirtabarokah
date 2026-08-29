@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import { Coach, Member, ParentData, StudentData, Package, ScheduleDay, ScheduleTimeSlot, EventItem, SiteSettings, ProgramLevel, PricingPackage, SwimmingPool, PackageSchedule } from '../types';
 import { getMediaUrl } from '../api';
@@ -77,17 +77,28 @@ export default function MainPortal({
   };
 
   // Helper to get all pools a coach has schedules for
-  const getCoachPools = (coach: Coach): SwimmingPool[] => {
+  const getCoachPools = (coach: Coach, pkgId?: string): SwimmingPool[] => {
     const poolIds = new Set<string>();
-    if (coach.schedule && Array.isArray(coach.schedule)) {
+
+    if (schedules && Array.isArray(schedules) && schedules.length > 0) {
+      schedules.forEach(s => {
+        if (String(s.coachId) === String(coach.id) && (!pkgId || String(s.pricingPackageId) === String(pkgId))) {
+          if (s.swimmingPoolId) poolIds.add(s.swimmingPoolId);
+        }
+      });
+    }
+
+    if (poolIds.size === 0 && coach.schedule && Array.isArray(coach.schedule)) {
       coach.schedule.forEach(day => {
         if (day.timeSlots && Array.isArray(day.timeSlots)) {
           day.timeSlots.forEach(slot => {
-            if (slot.swimmingPoolId) {
-              poolIds.add(slot.swimmingPoolId);
-            } else if (day.day) {
-              const matched = swimmingPools.find(p => p.training_days && p.training_days.includes(day.day));
-              if (matched) poolIds.add(matched.id);
+            if (!pkgId || !slot.pricingPackageId || String(slot.pricingPackageId) === String(pkgId)) {
+              if (slot.swimmingPoolId) {
+                poolIds.add(slot.swimmingPoolId);
+              } else if (day.day) {
+                const matched = swimmingPools.find(p => p.training_days && p.training_days.includes(day.day));
+                if (matched) poolIds.add(matched.id);
+              }
             }
           });
         }
@@ -206,6 +217,75 @@ export default function MainPortal({
   const selectedCoach = coaches.find(c => c.id === selectedCoachId);
   const basePackage = selectedCoach?.packages.find(p => p.id === selectedPackageId);
 
+  // Jadwal latihan yang difilter spesifik untuk Paket Harga (Step 2) dan Pelatih (Step 3)
+  const activePackageSchedules = useMemo(() => {
+    if (!selectedCoach || !selectedPricingPackageId) return [];
+
+    const dayOrder = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+
+    // 1. Ambil dari master data schedules (PackageSchedule) yang spesifik coachId dan pricingPackageId
+    const matchingFromSchedules = (schedules || []).filter(s => 
+      String(s.coachId) === String(selectedCoach.id) &&
+      String(s.pricingPackageId) === String(selectedPricingPackageId)
+    );
+
+    if (matchingFromSchedules.length > 0) {
+      const groups: { [day: string]: ScheduleTimeSlot[] } = {};
+
+      matchingFromSchedules.forEach(s => {
+        if (!groups[s.day]) groups[s.day] = [];
+        groups[s.day].push({
+          time: s.time,
+          maxSlots: s.maxSlots,
+          currentSlots: s.currentSlots ?? (s.students?.length || 0),
+          students: s.students || [],
+          swimmingPoolId: s.swimmingPoolId,
+          packageCategory: s.packageCategory,
+          pricingPackageId: s.pricingPackageId,
+        });
+      });
+
+      return dayOrder
+        .filter(day => groups[day] && groups[day].length > 0)
+        .map(day => ({
+          day,
+          timeSlots: groups[day].sort((a, b) => a.time.localeCompare(b.time))
+        }));
+    }
+
+    // 2. Fallback: Ambil dari selectedCoach.schedule dengan filtering pricingPackageId / category
+    if (selectedCoach.schedule && Array.isArray(selectedCoach.schedule)) {
+      const filteredDays: ScheduleDay[] = [];
+
+      selectedCoach.schedule.forEach(d => {
+        const matchingSlots = d.timeSlots.filter(ts => {
+          if (ts.pricingPackageId) {
+            return String(ts.pricingPackageId) === String(selectedPricingPackageId);
+          }
+          if (selectedPricingPackage?.category) {
+            if (selectedPricingPackage.category === 'PRIVATE') {
+              return ts.packageCategory === 'PRIVATE_2' || ts.packageCategory === 'PRIVATE_3' || ts.packageCategory === 'PRIVATE';
+            } else if (selectedPricingPackage.category === 'REGULER') {
+              return ts.packageCategory === 'REGULER';
+            }
+          }
+          return true;
+        });
+
+        if (matchingSlots.length > 0) {
+          filteredDays.push({
+            day: d.day,
+            timeSlots: matchingSlots
+          });
+        }
+      });
+
+      return filteredDays.sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day));
+    }
+
+    return [];
+  }, [selectedCoach, selectedPricingPackageId, selectedPricingPackage, schedules]);
+
   // Adjust price for Privat coach type
   const getPackagePrice = (pkg: Package | undefined) => {
     if (!pkg) return 0;
@@ -249,10 +329,21 @@ export default function MainPortal({
 
     const matchedSched1 = (schedules || []).find(s => 
       s.coachId === selectedCoachId && 
+      (!selectedPricingPackageId || String(s.pricingPackageId) === String(selectedPricingPackageId)) &&
+      s.day === selectedScheduleDay && 
+      s.time === selectedScheduleTime
+    ) || (schedules || []).find(s => 
+      s.coachId === selectedCoachId && 
       s.day === selectedScheduleDay && 
       s.time === selectedScheduleTime
     );
+
     const matchedSched2 = (schedules || []).find(s => 
+      s.coachId === selectedCoachId && 
+      (!selectedPricingPackageId || String(s.pricingPackageId) === String(selectedPricingPackageId)) &&
+      s.day === selectedScheduleDay2 && 
+      s.time === selectedScheduleTime2
+    ) || (schedules || []).find(s => 
       s.coachId === selectedCoachId && 
       s.day === selectedScheduleDay2 && 
       s.time === selectedScheduleTime2
@@ -367,8 +458,8 @@ export default function MainPortal({
   };
 
   const getSlotDetails = (coach: Coach, dayName: string, timeStr: string, customPkg?: PricingPackage) => {
-    const day = coach.schedule.find(d => d.day === dayName);
-    const slot = day?.timeSlots.find(ts => ts.time === timeStr);
+    const day = coach.schedule?.find(d => d.day === dayName);
+    const slot = day?.timeSlots?.find(ts => ts.time === timeStr);
     
     // Check standard members state for live changes
     const currentMembersInThisSlot = members.filter(m => {
@@ -391,8 +482,20 @@ export default function MainPortal({
       }
     }
 
-    const activeCount = Math.max(slot?.currentSlots || 0, currentMembersInThisSlot.length);
-    const maxSlots = pkgQuota || slot?.maxSlots || coach.maxQuota || 6;
+    const matchedSched = (schedules || []).find(s => 
+      String(s.coachId) === String(coach.id) && 
+      (!targetPkg?.id || String(s.pricingPackageId) === String(targetPkg.id)) &&
+      s.day === dayName && 
+      s.time === timeStr
+    );
+
+    const activeCount = Math.max(
+      slot?.currentSlots || 0,
+      matchedSched?.currentSlots || 0,
+      (matchedSched?.students || []).length,
+      currentMembersInThisSlot.length
+    );
+    const maxSlots = pkgQuota || matchedSched?.maxSlots || slot?.maxSlots || coach.maxQuota || 6;
     const isFull = activeCount >= maxSlots;
 
     return {
@@ -406,23 +509,27 @@ export default function MainPortal({
   // Helper: check coach overall status
   const getCoachOverallQuota = (coach: Coach, customPkg?: PricingPackage) => {
     const targetPkg = customPkg || selectedPricingPackage;
-    if (coach.schedule && coach.schedule.length > 0) {
+
+    // 1. Cek dari daftar schedules untuk paket ini
+    const matchingScheds = (schedules || []).filter(s => 
+      String(s.coachId) === String(coach.id) && 
+      (!targetPkg?.id || String(s.pricingPackageId) === String(targetPkg.id))
+    );
+
+    if (matchingScheds.length > 0) {
       let totalMaxSlots = 0;
       let totalActiveInSlots = 0;
       let hasAvailableSlot = false;
 
-      for (const dayGroup of coach.schedule) {
-        for (const slot of dayGroup.timeSlots) {
-          const cap = getSlotDetails(coach, dayGroup.day, slot.time, targetPkg);
-          totalMaxSlots += cap.max;
-          totalActiveInSlots += cap.current;
-          if (!cap.isFull) {
-            hasAvailableSlot = true;
-          }
+      for (const s of matchingScheds) {
+        const details = getSlotDetails(coach, s.day, s.time, targetPkg);
+        totalMaxSlots += details.max;
+        totalActiveInSlots += details.current;
+        if (!details.isFull) {
+          hasAvailableSlot = true;
         }
       }
 
-      // Coach is only overall FULL if ALL schedule slots across all days are full
       const isFull = !hasAvailableSlot;
       const remaining = Math.max(0, totalMaxSlots - totalActiveInSlots);
 
@@ -432,6 +539,41 @@ export default function MainPortal({
         isFull,
         remaining
       };
+    }
+
+    // 2. Cek dari coach.schedule
+    if (coach.schedule && coach.schedule.length > 0) {
+      let totalMaxSlots = 0;
+      let totalActiveInSlots = 0;
+      let hasAvailableSlot = false;
+      let slotCount = 0;
+
+      for (const dayGroup of coach.schedule) {
+        for (const slot of dayGroup.timeSlots) {
+          if (targetPkg?.id && slot.pricingPackageId && String(slot.pricingPackageId) !== String(targetPkg.id)) {
+            continue;
+          }
+          slotCount++;
+          const cap = getSlotDetails(coach, dayGroup.day, slot.time, targetPkg);
+          totalMaxSlots += cap.max;
+          totalActiveInSlots += cap.current;
+          if (!cap.isFull) {
+            hasAvailableSlot = true;
+          }
+        }
+      }
+
+      if (slotCount > 0) {
+        const isFull = !hasAvailableSlot;
+        const remaining = Math.max(0, totalMaxSlots - totalActiveInSlots);
+
+        return {
+          current: totalActiveInSlots,
+          max: totalMaxSlots,
+          isFull,
+          remaining
+        };
+      }
     }
 
     const activeStudents = members.length > 0 
@@ -459,10 +601,12 @@ export default function MainPortal({
   // Generate WhatsApp text for payment confirmation
   const getWhatsAppMessage = () => {
     if (!selectedCoach || !selectedPricingPackage) return '';
-    const selectedSlot1 = selectedCoach.schedule?.find(d => d.day === selectedScheduleDay)?.timeSlots?.find(ts => ts.time === selectedScheduleTime);
+    const selectedSlot1 = activePackageSchedules.find(d => d.day === selectedScheduleDay)?.timeSlots?.find(ts => ts.time === selectedScheduleTime)
+      || selectedCoach.schedule?.find(d => d.day === selectedScheduleDay)?.timeSlots?.find(ts => ts.time === selectedScheduleTime);
     const loc1 = getPoolName(selectedSlot1?.swimmingPoolId, selectedScheduleDay);
     
-    const selectedSlot2 = selectedCoach.schedule?.find(d => d.day === selectedScheduleDay2)?.timeSlots?.find(ts => ts.time === selectedScheduleTime2);
+    const selectedSlot2 = activePackageSchedules.find(d => d.day === selectedScheduleDay2)?.timeSlots?.find(ts => ts.time === selectedScheduleTime2)
+      || selectedCoach.schedule?.find(d => d.day === selectedScheduleDay2)?.timeSlots?.find(ts => ts.time === selectedScheduleTime2);
     const loc2 = getPoolName(selectedSlot2?.swimmingPoolId, selectedScheduleDay2);
 
     const scheduleStr = scheduleFrequency === '2x Seminggu' 
@@ -1671,7 +1815,16 @@ export default function MainPortal({
                   >
                     <div>
                       <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Atur Jadwal Latihan Mingguan</h3>
-                      <p className="text-slate-500 text-xs mt-1">Pilih frekuensi (1x atau 2x seminggu) serta tentukan hari dan jam yang Anda inginkan.</p>
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <span className="text-xs text-slate-500 font-medium">Pilihan Anda:</span>
+                        <span className="bg-cyan-50 border border-cyan-200 text-cyan-800 text-xs font-extrabold px-2.5 py-1 rounded-lg">
+                          📦 {selectedPricingPackage?.name}
+                        </span>
+                        <span className="bg-slate-100 border border-slate-200 text-slate-700 text-xs font-extrabold px-2.5 py-1 rounded-lg">
+                          👤 Coach {selectedCoach?.name}
+                        </span>
+                      </div>
+                      <p className="text-slate-500 text-xs mt-2">Pilih frekuensi (1x atau 2x seminggu) serta tentukan hari dan jam yang Anda inginkan sesuai paket ini.</p>
                     </div>
 
                     {/* Step-by-step Helper Banner */}
@@ -1688,274 +1841,295 @@ export default function MainPortal({
                       </div>
                     </div>
 
-                    {/* Langkah A: Frekuensi Selector */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-700 block flex items-center gap-1.5">
-                        <span className="w-5 h-5 rounded-full bg-cyan-600 text-white text-[10px] flex items-center justify-center font-extrabold">A</span>
-                        Berapa Kali Anak Berlatih dalam 1 Minggu?
-                      </label>
-                      <div className="grid grid-cols-2 gap-4">
+                    {activePackageSchedules.length === 0 ? (
+                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center space-y-3">
+                        <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-xl font-bold">
+                          ⚠️
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-sm text-slate-800">
+                            Jadwal Belum Tersedia
+                          </h4>
+                          <p className="text-xs text-slate-600 max-w-md mx-auto">
+                            Belum ada jadwal latihan yang terdaftar untuk pelatih <strong>{selectedCoach?.name}</strong> pada paket <strong>{selectedPricingPackage?.name}</strong>.
+                          </p>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => {
-                            setScheduleFrequency('1x Seminggu');
-                            setSelectedScheduleDay2('');
-                            setSelectedScheduleTime2('');
-                          }}
-                          className={`p-4 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
-                            scheduleFrequency === '1x Seminggu'
-                              ? 'bg-cyan-50/70 border-cyan-500 ring-2 ring-cyan-500/20'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                          }`}
+                          onClick={() => setStep(3)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl transition cursor-pointer"
                         >
-                          <div>
-                            <span className="text-sm font-black text-slate-800 block">1x Seminggu</span>
-                            <span className="text-[10px] text-slate-500 font-medium">Contoh: Hanya berlatih hari Sabtu</span>
-                          </div>
-                          {scheduleFrequency === '1x Seminggu' && (
-                            <span className="w-5 h-5 rounded-full bg-cyan-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setScheduleFrequency('2x Seminggu');
-                          }}
-                          className={`p-4 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
-                            scheduleFrequency === '2x Seminggu'
-                              ? 'bg-cyan-50/70 border-cyan-500 ring-2 ring-cyan-500/20'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          <div>
-                            <span className="text-sm font-black text-slate-800 block">2x Seminggu</span>
-                            <span className="text-[10px] text-slate-500 font-medium">Contoh: Berlatih hari Rabu & Sabtu</span>
-                          </div>
-                          {scheduleFrequency === '2x Seminggu' && (
-                            <span className="w-5 h-5 rounded-full bg-cyan-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
-                          )}
+                          <ArrowLeft className="w-3.5 h-3.5" /> Ganti Pelatih Lain
                         </button>
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        {/* Langkah A: Frekuensi Selector */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-700 block flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-cyan-600 text-white text-[10px] flex items-center justify-center font-extrabold">A</span>
+                            Berapa Kali Anak Berlatih dalam 1 Minggu?
+                          </label>
+                          <div className="grid grid-cols-2 gap-4">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setScheduleFrequency('1x Seminggu');
+                                setSelectedScheduleDay2('');
+                                setSelectedScheduleTime2('');
+                              }}
+                              className={`p-4 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+                                scheduleFrequency === '1x Seminggu'
+                                  ? 'bg-cyan-50/70 border-cyan-500 ring-2 ring-cyan-500/20'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              <div>
+                                <span className="text-sm font-black text-slate-800 block">1x Seminggu</span>
+                                <span className="text-[10px] text-slate-500 font-medium">Contoh: Hanya berlatih hari Sabtu</span>
+                              </div>
+                              {scheduleFrequency === '1x Seminggu' && (
+                                <span className="w-5 h-5 rounded-full bg-cyan-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setScheduleFrequency('2x Seminggu');
+                              }}
+                              className={`p-4 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
+                                scheduleFrequency === '2x Seminggu'
+                                  ? 'bg-cyan-50/70 border-cyan-500 ring-2 ring-cyan-500/20'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              <div>
+                                <span className="text-sm font-black text-slate-800 block">2x Seminggu</span>
+                                <span className="text-[10px] text-slate-500 font-medium">Contoh: Berlatih hari Rabu & Sabtu</span>
+                              </div>
+                              {scheduleFrequency === '2x Seminggu' && (
+                                <span className="w-5 h-5 rounded-full bg-cyan-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
+                              )}
+                            </button>
+                          </div>
+                        </div>
 
-                    {/* Langkah B: Selection Slots */}
-                    {selectedCoach && (() => {
-                      const selectedSlot1 = selectedCoach.schedule?.find(d => d.day === selectedScheduleDay)?.timeSlots?.find(ts => ts.time === selectedScheduleTime);
-                      const pool1Name = getPoolName(selectedSlot1?.swimmingPoolId, selectedScheduleDay);
+                        {/* Langkah B: Selection Slots */}
+                        {selectedCoach && (() => {
+                          const selectedSlot1 = activePackageSchedules.find(d => d.day === selectedScheduleDay)?.timeSlots?.find(ts => ts.time === selectedScheduleTime)
+                            || selectedCoach.schedule?.find(d => d.day === selectedScheduleDay)?.timeSlots?.find(ts => ts.time === selectedScheduleTime);
+                          const pool1Name = getPoolName(selectedSlot1?.swimmingPoolId, selectedScheduleDay);
 
-                      const selectedSlot2 = selectedCoach.schedule?.find(d => d.day === selectedScheduleDay2)?.timeSlots?.find(ts => ts.time === selectedScheduleTime2);
-                      const pool2Name = getPoolName(selectedSlot2?.swimmingPoolId, selectedScheduleDay2);
+                          const selectedSlot2 = activePackageSchedules.find(d => d.day === selectedScheduleDay2)?.timeSlots?.find(ts => ts.time === selectedScheduleTime2)
+                            || selectedCoach.schedule?.find(d => d.day === selectedScheduleDay2)?.timeSlots?.find(ts => ts.time === selectedScheduleTime2);
+                          const pool2Name = getPoolName(selectedSlot2?.swimmingPoolId, selectedScheduleDay2);
 
-                      return (
-                        <div className="space-y-6 pt-2">
-                          {/* SESI PERTAMA */}
-                          <div className="bg-slate-50/60 rounded-2xl border border-slate-200/80 p-5 space-y-4">
-                            <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
-                              <label className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-full bg-cyan-600 text-white text-[10px] flex items-center justify-center font-extrabold">B</span>
-                                {scheduleFrequency === '2x Seminggu' ? 'Pilih Hari & Jam untuk Sesi PERTAMA (Sesi 1):' : 'Pilih Hari & Jam Latihan Rutin Mingguan:'}
-                              </label>
+                          return (
+                            <div className="space-y-6 pt-2">
+                              {/* SESI PERTAMA */}
+                              <div className="bg-slate-50/60 rounded-2xl border border-slate-200/80 p-5 space-y-4">
+                                <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
+                                  <label className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                                    <span className="w-5 h-5 rounded-full bg-cyan-600 text-white text-[10px] flex items-center justify-center font-extrabold">B</span>
+                                    {scheduleFrequency === '2x Seminggu' ? 'Pilih Hari & Jam untuk Sesi PERTAMA (Sesi 1):' : 'Pilih Hari & Jam Latihan Rutin Mingguan:'}
+                                  </label>
+                                  {selectedScheduleDay && selectedScheduleTime && (
+                                    <span className="bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1">
+                                      ✓ Terpilih: {selectedScheduleDay} (📍 {pool1Name}) @ {selectedScheduleTime} WIB
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="space-y-3">
+                                  {activePackageSchedules.map((day) => {
+                                    const dayPoolIds = Array.from(new Set(day.timeSlots.map(s => s.swimmingPoolId).filter(Boolean)));
+                                    const dayPoolNames = dayPoolIds.map(pid => getPoolName(pid, day.day));
+                                    const headerPoolLabel = dayPoolNames.length > 0 ? dayPoolNames.join(', ') : getPoolName(undefined, day.day);
+
+                                    return (
+                                      <div key={day.day} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
+                                        <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                                          <span className="text-xs font-extrabold text-cyan-800 uppercase tracking-wider">
+                                            📅 Hari {day.day}
+                                          </span>
+                                          <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-md border border-cyan-150 flex items-center gap-1">
+                                            <MapPin className="w-3 h-3 text-cyan-600 shrink-0" /> {headerPoolLabel}
+                                          </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                                          {day.timeSlots.map((slot) => {
+                                            const details = getSlotDetails(selectedCoach, day.day, slot.time, selectedPricingPackage);
+                                            const targetCoachType: 'Reguler' | 'Privat' = selectedPricingPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
+                                            const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
+                                            const isSelected = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
+
+                                            const isDisabled = details.isFull || conflictInfo.isConflict || (selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time);
+                                            const slotPoolName = getPoolName(slot.swimmingPoolId, day.day);
+
+                                            return (
+                                              <button
+                                                type="button"
+                                                key={slot.time}
+                                                disabled={isDisabled}
+                                                onClick={() => {
+                                                  setSelectedScheduleDay(day.day);
+                                                  setSelectedScheduleTime(slot.time);
+                                                }}
+                                                className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                                                  isDisabled
+                                                    ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                                                    : isSelected
+                                                    ? 'bg-cyan-600 border-cyan-600 text-white shadow-md ring-2 ring-cyan-500/30 font-bold'
+                                                    : 'bg-white border-slate-200 text-slate-700 hover:border-cyan-400 hover:bg-cyan-50/20'
+                                                }`}
+                                              >
+                                                <div className="flex justify-between items-center w-full">
+                                                  <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
+                                                  {isSelected && <span className="text-xs">✓</span>}
+                                                </div>
+                                                <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 mt-1 truncate ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-50 text-cyan-800 border border-cyan-150'}`}>
+                                                  <MapPin className="w-2.5 h-2.5 text-cyan-600 shrink-0" />
+                                                  <span className="truncate">{slotPoolName}</span>
+                                                </span>
+                                                {slot.packageCategory === 'REGULER' && (
+                                                  <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
+                                                )}
+                                                {slot.packageCategory === 'PRIVATE_2' && (
+                                                  <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'}`}>🔒 Privat 2 Anak</span>
+                                                )}
+                                                {slot.packageCategory === 'PRIVATE_3' && (
+                                                  <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'}`}>🔒 Privat 3 Anak</span>
+                                                )}
+                                                <span className={`text-[9px] mt-1 font-bold ${
+                                                  isSelected ? 'text-cyan-100' : conflictInfo.isConflict || details.isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'
+                                                }`}>
+                                                  {conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
+                                                </span>
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* SESI KEDUA (Hanya untuk 2x Seminggu) */}
+                              {scheduleFrequency === '2x Seminggu' && (
+                                <div className="bg-slate-50/60 rounded-2xl border border-slate-200/80 p-5 space-y-4">
+                                  <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
+                                    <label className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                                      <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-extrabold">C</span>
+                                      Pilih Hari & Jam untuk Sesi KEDUA (Sesi 2):
+                                    </label>
+                                    {selectedScheduleDay2 && selectedScheduleTime2 && (
+                                      <span className="bg-indigo-100 border border-indigo-300 text-indigo-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1">
+                                        ✓ Terpilih: {selectedScheduleDay2} (📍 {pool2Name}) @ {selectedScheduleTime2} WIB
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-3">
+                                    {activePackageSchedules.map((day) => {
+                                      const dayPoolIds = Array.from(new Set(day.timeSlots.map(s => s.swimmingPoolId).filter(Boolean)));
+                                      const dayPoolNames = dayPoolIds.map(pid => getPoolName(pid, day.day));
+                                      const headerPoolLabel = dayPoolNames.length > 0 ? dayPoolNames.join(', ') : getPoolName(undefined, day.day);
+
+                                      return (
+                                        <div key={day.day} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
+                                          <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                                            <span className="text-xs font-extrabold text-indigo-800 uppercase tracking-wider">
+                                              📅 Hari {day.day}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-150 flex items-center gap-1">
+                                              <MapPin className="w-3 h-3 text-indigo-600 shrink-0" /> {headerPoolLabel}
+                                            </span>
+                                          </div>
+                                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                                            {day.timeSlots.map((slot) => {
+                                              const details = getSlotDetails(selectedCoach, day.day, slot.time, selectedPricingPackage);
+                                              const targetCoachType: 'Reguler' | 'Privat' = selectedPricingPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
+                                              const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
+                                              const isSelected = selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time;
+                                              const isSameAsSesi1 = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
+
+                                              const isDisabled = details.isFull || conflictInfo.isConflict || isSameAsSesi1;
+                                              const slotPoolName = getPoolName(slot.swimmingPoolId, day.day);
+
+                                              return (
+                                                <button
+                                                  type="button"
+                                                  key={slot.time}
+                                                  disabled={isDisabled}
+                                                  onClick={() => {
+                                                    setSelectedScheduleDay2(day.day);
+                                                    setSelectedScheduleTime2(slot.time);
+                                                  }}
+                                                  className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                                                    isDisabled
+                                                      ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                                                      : isSelected
+                                                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-md ring-2 ring-indigo-500/30 font-bold'
+                                                      : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/20'
+                                                  }`}
+                                                >
+                                                  <div className="flex justify-between items-center w-full">
+                                                    <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
+                                                    {isSelected && <span className="text-xs">✓</span>}
+                                                  </div>
+                                                  <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 mt-1 truncate ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-800 border border-indigo-150'}`}>
+                                                    <MapPin className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                                                    <span className="truncate">{slotPoolName}</span>
+                                                  </span>
+                                                  {slot.packageCategory === 'REGULER' && (
+                                                    <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
+                                                  )}
+                                                  {slot.packageCategory === 'PRIVATE_2' && (
+                                                    <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'}`}>🔒 Privat 2 Anak</span>
+                                                  )}
+                                                  {slot.packageCategory === 'PRIVATE_3' && (
+                                                    <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'}`}>🔒 Privat 3 Anak</span>
+                                                  )}
+                                                  <span className={`text-[9px] mt-1 font-bold ${
+                                                    isSelected ? 'text-indigo-100' : isSameAsSesi1 ? 'text-amber-600 font-semibold' : conflictInfo.isConflict || details.isFull ? 'text-rose-600 font-extrabold' : 'text-slate-500'
+                                                  }`}>
+                                                    {isSameAsSesi1 ? '⚠️ Dipilih di Sesi 1' : conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
+                                                  </span>
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Summary Box */}
                               {selectedScheduleDay && selectedScheduleTime && (
-                                <span className="bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1">
-                                  ✓ Terpilih: {selectedScheduleDay} (📍 {pool1Name}) @ {selectedScheduleTime} WIB
-                                </span>
+                                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-2">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md">
+                                    ✓ Ringkasan Jadwal Terpilih
+                                  </span>
+                                  <div className="pt-1 text-xs font-bold text-slate-800 space-y-1">
+                                    <p className="text-emerald-900">
+                                      📌 Sesi 1: <span className="underline">Hari {selectedScheduleDay}</span> (📍 {pool1Name}) Pukul <span className="font-mono">{selectedScheduleTime} WIB</span>
+                                    </p>
+                                    {scheduleFrequency === '2x Seminggu' && selectedScheduleDay2 && selectedScheduleTime2 && (
+                                      <p className="text-indigo-900">
+                                        📌 Sesi 2: <span className="underline">Hari {selectedScheduleDay2}</span> (📍 {pool2Name}) Pukul <span className="font-mono">{selectedScheduleTime2} WIB</span>
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
                               )}
                             </div>
-
-                            <div className="space-y-3">
-                              {selectedCoach.schedule.map((day) => {
-                                const dayPoolIds = Array.from(new Set(day.timeSlots.map(s => s.swimmingPoolId).filter(Boolean)));
-                                const dayPoolNames = dayPoolIds.map(pid => getPoolName(pid, day.day));
-                                const headerPoolLabel = dayPoolNames.length > 0 ? dayPoolNames.join(', ') : getPoolName(undefined, day.day);
-
-                                return (
-                                  <div key={day.day} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
-                                    <div className="flex justify-between items-center border-b border-slate-100 pb-1">
-                                      <span className="text-xs font-extrabold text-cyan-800 uppercase tracking-wider">
-                                        📅 Hari {day.day}
-                                      </span>
-                                      <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-md border border-cyan-150 flex items-center gap-1">
-                                        <MapPin className="w-3 h-3 text-cyan-600 shrink-0" /> {headerPoolLabel}
-                                      </span>
-                                    </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                                      {day.timeSlots.map((slot) => {
-                                        const details = getSlotDetails(selectedCoach, day.day, slot.time);
-                                        const targetCoachType: 'Reguler' | 'Privat' = selectedPricingPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
-                                        const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
-                                        const isSelected = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
-                                        
-                                        const isCategoryMismatch = (selectedPricingPackage?.category === 'PRIVATE' && slot.packageCategory === 'REGULER') ||
-                                          (selectedPricingPackage?.category === 'REGULER' && (slot.packageCategory === 'PRIVATE_2' || slot.packageCategory === 'PRIVATE_3'));
-
-                                        const isDisabled = details.isFull || conflictInfo.isConflict || isCategoryMismatch || (selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time);
-                                        const slotPoolName = getPoolName(slot.swimmingPoolId, day.day);
-
-                                        return (
-                                          <button
-                                            type="button"
-                                            key={slot.time}
-                                            disabled={isDisabled}
-                                            onClick={() => {
-                                              setSelectedScheduleDay(day.day);
-                                              setSelectedScheduleTime(slot.time);
-                                            }}
-                                            className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
-                                              isDisabled
-                                                ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
-                                                : isSelected
-                                                ? 'bg-cyan-600 border-cyan-600 text-white shadow-md ring-2 ring-cyan-500/30 font-bold'
-                                                : 'bg-white border-slate-200 text-slate-700 hover:border-cyan-400 hover:bg-cyan-50/20'
-                                            }`}
-                                          >
-                                            <div className="flex justify-between items-center w-full">
-                                              <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
-                                              {isSelected && <span className="text-xs">✓</span>}
-                                            </div>
-                                            <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 mt-1 truncate ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-50 text-cyan-800 border border-cyan-150'}`}>
-                                              <MapPin className="w-2.5 h-2.5 text-cyan-600 shrink-0" />
-                                              <span className="truncate">{slotPoolName}</span>
-                                            </span>
-                                            {slot.packageCategory === 'REGULER' && (
-                                              <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
-                                            )}
-                                            {slot.packageCategory === 'PRIVATE_2' && (
-                                              <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'}`}>🔒 Privat 2 Anak</span>
-                                            )}
-                                            {slot.packageCategory === 'PRIVATE_3' && (
-                                              <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'}`}>🔒 Privat 3 Anak</span>
-                                            )}
-                                            <span className={`text-[9px] mt-1 font-bold ${
-                                              isSelected ? 'text-cyan-100' : conflictInfo.isConflict || details.isFull || isCategoryMismatch ? 'text-rose-600 font-extrabold' : 'text-slate-500'
-                                            }`}>
-                                              {isCategoryMismatch ? `🚫 Khusus ${slot.packageCategory === 'REGULER' ? 'Reguler' : 'Privat'}` : conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
-                                            </span>
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* SESI KEDUA (Hanya untuk 2x Seminggu) */}
-                          {scheduleFrequency === '2x Seminggu' && (
-                            <div className="bg-slate-50/60 rounded-2xl border border-slate-200/80 p-5 space-y-4">
-                              <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
-                                <label className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-extrabold">C</span>
-                                  Pilih Hari & Jam untuk Sesi KEDUA (Sesi 2):
-                                </label>
-                                {selectedScheduleDay2 && selectedScheduleTime2 && (
-                                  <span className="bg-indigo-100 border border-indigo-300 text-indigo-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1">
-                                    ✓ Terpilih: {selectedScheduleDay2} (📍 {pool2Name}) @ {selectedScheduleTime2} WIB
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="space-y-3">
-                                {selectedCoach.schedule.map((day) => {
-                                  const dayPoolIds = Array.from(new Set(day.timeSlots.map(s => s.swimmingPoolId).filter(Boolean)));
-                                  const dayPoolNames = dayPoolIds.map(pid => getPoolName(pid, day.day));
-                                  const headerPoolLabel = dayPoolNames.length > 0 ? dayPoolNames.join(', ') : getPoolName(undefined, day.day);
-
-                                  return (
-                                    <div key={day.day} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
-                                      <div className="flex justify-between items-center border-b border-slate-100 pb-1">
-                                        <span className="text-xs font-extrabold text-indigo-800 uppercase tracking-wider">
-                                          📅 Hari {day.day}
-                                        </span>
-                                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-150 flex items-center gap-1">
-                                          <MapPin className="w-3 h-3 text-indigo-600 shrink-0" /> {headerPoolLabel}
-                                        </span>
-                                      </div>
-                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                                        {day.timeSlots.map((slot) => {
-                                          const details = getSlotDetails(selectedCoach, day.day, slot.time);
-                                          const targetCoachType: 'Reguler' | 'Privat' = selectedPricingPackage?.category === 'PRIVATE' ? 'Privat' : 'Reguler';
-                                          const conflictInfo = checkScheduleSlotConflict(members, selectedCoach.id, day.day, slot.time, targetCoachType);
-                                          const isSelected = selectedScheduleDay2 === day.day && selectedScheduleTime2 === slot.time;
-                                          const isSameAsSesi1 = selectedScheduleDay === day.day && selectedScheduleTime === slot.time;
-                                          
-                                          const isCategoryMismatch = (selectedPricingPackage?.category === 'PRIVATE' && slot.packageCategory === 'REGULER') ||
-                                            (selectedPricingPackage?.category === 'REGULER' && (slot.packageCategory === 'PRIVATE_2' || slot.packageCategory === 'PRIVATE_3'));
-
-                                          const isDisabled = details.isFull || conflictInfo.isConflict || isCategoryMismatch || isSameAsSesi1;
-                                          const slotPoolName = getPoolName(slot.swimmingPoolId, day.day);
-
-                                          return (
-                                            <button
-                                              type="button"
-                                              key={slot.time}
-                                              disabled={isDisabled}
-                                              onClick={() => {
-                                                setSelectedScheduleDay2(day.day);
-                                                setSelectedScheduleTime2(slot.time);
-                                              }}
-                                              className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
-                                                isDisabled
-                                                  ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
-                                                  : isSelected
-                                                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-md ring-2 ring-indigo-500/30 font-bold'
-                                                  : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/20'
-                                              }`}
-                                            >
-                                              <div className="flex justify-between items-center w-full">
-                                                <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
-                                                {isSelected && <span className="text-xs">✓</span>}
-                                              </div>
-                                              <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 mt-1 truncate ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-800 border border-indigo-150'}`}>
-                                                <MapPin className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
-                                                <span className="truncate">{slotPoolName}</span>
-                                              </span>
-                                              {slot.packageCategory === 'REGULER' && (
-                                                <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
-                                              )}
-                                              {slot.packageCategory === 'PRIVATE_2' && (
-                                                <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'}`}>🔒 Privat 2 Anak</span>
-                                              )}
-                                              {slot.packageCategory === 'PRIVATE_3' && (
-                                                <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'}`}>🔒 Privat 3 Anak</span>
-                                              )}
-                                              <span className={`text-[9px] mt-1 font-bold ${
-                                                isSelected ? 'text-indigo-100' : isSameAsSesi1 ? 'text-amber-600 font-semibold' : conflictInfo.isConflict || details.isFull || isCategoryMismatch ? 'text-rose-600 font-extrabold' : 'text-slate-500'
-                                              }`}>
-                                                {isSameAsSesi1 ? '⚠️ Dipilih di Sesi 1' : isCategoryMismatch ? `🚫 Khusus ${slot.packageCategory === 'REGULER' ? 'Reguler' : 'Privat'}` : conflictInfo.isConflict ? `🚫 Ada ${conflictInfo.existingType}` : details.isFull ? '🚫 Penuh' : `Tersisa ${details.remaining} Slot`}
-                                              </span>
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Summary Box */}
-                          {selectedScheduleDay && selectedScheduleTime && (
-                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-2">
-                              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md">
-                                ✓ Ringkasan Jadwal Terpilih
-                              </span>
-                              <div className="pt-1 text-xs font-bold text-slate-800 space-y-1">
-                                <p className="text-emerald-900">
-                                  📌 Sesi 1: <span className="underline">Hari {selectedScheduleDay}</span> (📍 {pool1Name}) Pukul <span className="font-mono">{selectedScheduleTime} WIB</span>
-                                </p>
-                                {scheduleFrequency === '2x Seminggu' && selectedScheduleDay2 && selectedScheduleTime2 && (
-                                  <p className="text-indigo-900">
-                                    📌 Sesi 2: <span className="underline">Hari {selectedScheduleDay2}</span> (📍 {pool2Name}) Pukul <span className="font-mono">{selectedScheduleTime2} WIB</span>
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
+                          );
+                        })()}
+                      </>
+                    )}
 
                     <div className="flex justify-between pt-4">
                       <button
