@@ -969,7 +969,6 @@ export default function MainPortal({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
               {coaches && coaches.length > 0 ? (
                 coaches.map((coach) => {
-                  const quota = getCoachOverallQuota(coach);
                   return (
                   <div 
                     key={coach.id} 
@@ -980,9 +979,7 @@ export default function MainPortal({
                     <div className="w-8 h-2.5 bg-slate-300 border border-slate-400 rounded-full mx-auto -mt-1.5 shadow-inner relative z-20"></div>
 
                     {/* Main ID Card Frame */}
-                    <div className={`bg-white rounded-3xl border-2 transition-all duration-300 overflow-hidden shadow-lg hover:shadow-2xl relative ${
-                      quota.isFull ? 'border-slate-300 opacity-90' : 'border-cyan-100 hover:border-cyan-400'
-                    }`}>
+                    <div className="bg-white rounded-3xl border-2 border-cyan-100 hover:border-cyan-400 transition-all duration-300 overflow-hidden shadow-lg hover:shadow-2xl relative">
                       {/* ID Card Header Banner */}
                       <div className="bg-gradient-to-r from-cyan-800 via-blue-900 to-slate-900 text-white p-5 pb-12 relative overflow-hidden text-center">
                         {/* Background Decorative Lines */}
@@ -995,19 +992,6 @@ export default function MainPortal({
                         <div className="space-y-0.5">
                           <p className="text-[9px] font-black uppercase tracking-widest text-cyan-300">TIRTA BAROKAH</p>
                           <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-white">OFFICIAL COACH BADGE</h4>
-                        </div>
-
-                        {/* Status Badge */}
-                        <div className="absolute top-3 right-3">
-                          {quota.isFull ? (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white shadow-xs">
-                              KUOTA PENUH
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-white shadow-xs flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> TERSEDIA
-                            </span>
-                          )}
                         </div>
                       </div>
 
@@ -1065,12 +1049,6 @@ export default function MainPortal({
                             </div>
                           );
                         })() : null}
-
-                        {quota.isFull && (
-                          <p className="text-rose-600 text-[10px] font-bold italic bg-rose-50 p-2 rounded-xl border border-rose-100">
-                            * Tidak menerima siswa baru sementara waktu
-                          </p>
-                        )}
                       </div>
                     </div>
                   </div>
