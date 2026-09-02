@@ -2068,7 +2068,7 @@ export default function AdminDashboard({
   const getWhatsAppH1Link = (member: Member) => {
     const coach = coaches.find(c => c.id === member.coachId);
     const jam = member.scheduleDay === esokHari ? member.scheduleTime : member.scheduleTime2;
-    const msg = `Halo Bapak/Ibu Wali dari ${member.student.fullName},\n\nKami dari *Private Renang Tirta Barokah* ingin mengingatkan bahwa besok (*Hari ${esokHari}*) anak Anda memiliki jadwal latihan rutin berenang bersama *Coach ${coach?.name || 'Latihan'}* pada pukul *${jam} WIB*.\n\nMohon hadir tepat waktu dengan membawa baju renang & perlengkapan. Sampai jumpa di kolam renang! 🏊‍♂️`;
+    const msg = `Halo Bapak/Ibu Orang Tua/Wali dari Ananda ${member.student.fullName} 🙏\n\nKami dari Private Renang Tirta Barokah ingin mengingatkan bahwa besok, ${esokHari}, Ananda ${member.student.fullName} memiliki jadwal latihan renang rutin bersama Coach ${coach?.name || 'Pelatih'}, pada:\n\nPukul: ${jam} WIB\n\nMohon Bapak/Ibu dapat mengantarkan Ananda tepat waktu agar latihan dapat berlangsung dengan optimal.\n\nJangan lupa membawa baju renang dan perlengkapan renang yang diperlukan. 😊\n\nTerima kasih atas perhatian dan kerjasama Bapak/Ibu.\n\nSampai jumpa di kolam renang! 🏊‍♀️💦\n\nSalam olahraga,\nPrivate Renang Tirta Barokah`;
     const waPhone = formatWhatsAppNumber(member.parent?.whatsapp);
     return `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
   };
