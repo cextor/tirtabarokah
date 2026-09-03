@@ -2068,14 +2068,14 @@ export default function AdminDashboard({
   const getWhatsAppH1Link = (member: Member) => {
     const coach = coaches.find(c => c.id === member.coachId);
     const jam = member.scheduleDay === esokHari ? member.scheduleTime : member.scheduleTime2;
-    const msg = `Halo Bapak/Ibu Orang Tua/Wali dari Ananda ${member.student.fullName} 🙏\n\nKami dari Private Renang Tirta Barokah ingin mengingatkan bahwa besok, ${esokHari}, Ananda ${member.student.fullName} memiliki jadwal latihan renang rutin bersama Coach ${coach?.name || 'Pelatih'}, pada:\n\nPukul: ${jam} WIB\n\nMohon Bapak/Ibu dapat mengantarkan Ananda tepat waktu agar latihan dapat berlangsung dengan optimal.\n\nJangan lupa membawa baju renang dan perlengkapan renang yang diperlukan. 😊\n\nTerima kasih atas perhatian dan kerjasama Bapak/Ibu.\n\nSampai jumpa di kolam renang! 🏊‍♀️💦\n\nSalam olahraga,\nPrivate Renang Tirta Barokah`;
+    const msg = `Halo Bapak/Ibu Orang Tua/Wali dari Ananda ${member.student.fullName} 🙏\n\nKami dari Private Renang Tirta Barokah ingin mengingatkan bahwa besok, ${esokHari}, Ananda ${member.student.fullName} memiliki jadwal latihan renang rutin bersama Coach ${coach?.name || 'Pelatih'}, pada:\n\nPukul: ${jam} WIB\n\nApakah Ananda akan hadir latihan? \n\nJika Iya Mohon Bapak/Ibu dapat mengantarkan Ananda tepat waktu agar latihan dapat berlangsung dengan optimal.\n\nJangan lupa membawa baju renang dan perlengkapan renang yang diperlukan. 😊\n\nTerima kasih atas perhatian dan kerjasama Bapak/Ibu.\n\nSalam \nPrivate Renang Tirta Barokah`;
     const waPhone = formatWhatsAppNumber(member.parent?.whatsapp);
     return `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
   };
 
   // GENERATE EXPIRING PACKAGE WHATSAPP LINK
   const getWhatsAppExpiringLink = (member: Member) => {
-    const msg = `Halo Bapak/Ibu Wali dari ${member.student.fullName},\n\nKami menginformasikan bahwa paket sesi latihan berenang anak Anda di *Private Renang Tirta Barokah* saat ini tinggal *${member.sessionsLeft} sesi*.\n\nApakah latihan ingin dilanjutkan dengan perpanjangan paket baru, atau ingin dihentikan dahulu? Harap konfirmasi agar kami dapat menyesuaikan slot kuota pendaftaran pelatih. Terima kasih!`;
+    const msg = `Halo Bapak/Ibu Wali dari ${member.student.fullName} 😊\n\nKami ingin menginformasikan bahwa paket latihan berenang Ananda di Private Renang Tirta Barokah saat ini sudah selesai dengan sisa ${member.sessionsLeft} sesi.\n\nApabila Ananda masih ingin melanjutkan latihan, kami dengan senang hati dapat membantu proses perpanjangan paket dan mengamankan jadwal latihan bersama pelatih. 😊\n\nNamun, jika untuk sementara ingin berhenti terlebih dahulu, tidak apa-apa, Bapak/Ibu. Mohon konfirmasinya agar kami dapat menyesuaikan slot dan kuota jadwal pelatih.\n\nTerima kasih banyak atas kepercayaan Bapak/Ibu kepada Private Renang Tirta Barokah. 🙏🏊‍♂️`;
     const waPhone = formatWhatsAppNumber(member.parent?.whatsapp);
     return `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
   };
