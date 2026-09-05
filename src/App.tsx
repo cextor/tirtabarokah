@@ -7,11 +7,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { Coach, Member, EventItem, SiteSettings, ProgramLevel, CoachAbsence, AuditLog, EventCategory, SwimmingPool, PricingPackage, PackageSchedule } from './types';
 import { api, API_BASE_URL, getMediaUrl } from './api';
-import MainPortal from './components/MainPortal';
-import AdminDashboard from './components/AdminDashboard';
-import CoachDashboard from './components/CoachDashboard';
-import ParentDashboard from './components/ParentDashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
+
+const MainPortal = React.lazy(() => import('./components/MainPortal'));
+const AdminDashboard = React.lazy(() => import('./components/AdminDashboard'));
+const CoachDashboard = React.lazy(() => import('./components/CoachDashboard'));
+const ParentDashboard = React.lazy(() => import('./components/ParentDashboard'));
 import {
   Users, Shield, Award, UserCheck, RefreshCw,
   MapPin, Clock, Compass, BookOpen, Volume2, ShieldAlert, Menu, X,
@@ -1298,69 +1299,76 @@ export default function App() {
               </div>
             </div>
           ) : (
-            activeRole === 'member' ? (
-              <MainPortal
-                coaches={coaches}
-                members={members}
-                events={events}
-                settings={settings}
-                levels={levels}
-                pricingPackages={pricingPackages}
-                swimmingPools={swimmingPools}
-                schedules={schedules}
-                onRegister={handleRegisterMember}
-                onUpdateEvents={updateEventsState}
-                view={currentPath === '/daftar' ? 'register' : 'home'}
-                navigateTo={navigateTo}
-              />
-            ) : activeRole === 'admin' ? (
-              <ErrorBoundary fallbackTitle="Terjadi Kendala Memuat Dashboard Admin">
-                <AdminDashboard
+            <React.Suspense fallback={
+              <div className="flex flex-col items-center justify-center min-h-[350px] space-y-3">
+                <div className="w-10 h-10 border-4 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-xs font-bold text-slate-500">Memuat modul aplikasi...</p>
+              </div>
+            }>
+              {activeRole === 'member' ? (
+                <MainPortal
                   coaches={coaches}
                   members={members}
                   events={events}
                   settings={settings}
                   levels={levels}
-                  absences={absences}
                   pricingPackages={pricingPackages}
-                  schedules={schedules}
-                  auditLogs={auditLogs}
-                  eventCategories={eventCategories}
                   swimmingPools={swimmingPools}
-                  userRole={localStorage.getItem('user_role') || 'admin'}
-                  onReloadData={loadTabData}
-                  onUpdateSettings={handleUpdateSettings}
-                  onUpdateLevels={handleUpdateLevels}
-                  onUpdateCoaches={updateCoachesState}
-                  onAddCoach={handleAddCoach}
-                  onUpdateCoach={handleUpdateCoach}
-                  onDeleteCoach={handleDeleteCoach}
-                  onUpdateMembers={updateMembersState}
+                  schedules={schedules}
+                  onRegister={handleRegisterMember}
                   onUpdateEvents={updateEventsState}
-                  onUpdateSchedules={(newScheds: PackageSchedule[]) => setSchedules(newScheds)}
+                  view={currentPath === '/daftar' ? 'register' : 'home'}
+                  navigateTo={navigateTo}
                 />
-              </ErrorBoundary>
-            ) : activeRole === 'coach' ? (
-              <ErrorBoundary fallbackTitle="Terjadi Kendala Memuat Portal Pelatih">
-                <CoachDashboard
-                  coaches={coaches}
-                  members={members}
-                  absences={absences}
-                  pricingPackages={pricingPackages}
-                  onReloadData={loadTabData}
-                  onUpdateMembers={updateMembersState}
-                  loggedCoachId={loggedCoachId}
-                />
-              </ErrorBoundary>
-            ) : (
-              <ErrorBoundary fallbackTitle="Terjadi Kendala Memuat Portal Orang Tua">
-                <ParentDashboard
-                  coaches={coaches}
-                  members={members}
-                  onUpdateMembers={updateMembersState}
-                />
-              </ErrorBoundary>
-            )
+              ) : activeRole === 'admin' ? (
+                <ErrorBoundary fallbackTitle="Terjadi Kendala Memuat Dashboard Admin">
+                  <AdminDashboard
+                    coaches={coaches}
+                    members={members}
+                    events={events}
+                    settings={settings}
+                    levels={levels}
+                    absences={absences}
+                    pricingPackages={pricingPackages}
+                    schedules={schedules}
+                    auditLogs={auditLogs}
+                    eventCategories={eventCategories}
+                    swimmingPools={swimmingPools}
+                    userRole={localStorage.getItem('user_role') || 'admin'}
+                    onReloadData={loadTabData}
+                    onUpdateSettings={handleUpdateSettings}
+                    onUpdateLevels={handleUpdateLevels}
+                    onUpdateCoaches={updateCoachesState}
+                    onAddCoach={handleAddCoach}
+                    onUpdateCoach={handleUpdateCoach}
+                    onDeleteCoach={handleDeleteCoach}
+                    onUpdateMembers={updateMembersState}
+                    onUpdateEvents={updateEventsState}
+                    onUpdateSchedules={(newScheds: PackageSchedule[]) => setSchedules(newScheds)}
+                  />
+                </ErrorBoundary>
+              ) : activeRole === 'coach' ? (
+                <ErrorBoundary fallbackTitle="Terjadi Kendala Memuat Portal Pelatih">
+                  <CoachDashboard
+                    coaches={coaches}
+                    members={members}
+                    absences={absences}
+                    pricingPackages={pricingPackages}
+                    onReloadData={loadTabData}
+                    onUpdateMembers={updateMembersState}
+                    loggedCoachId={loggedCoachId}
+                  />
+                </ErrorBoundary>
+              ) : (
+                <ErrorBoundary fallbackTitle="Terjadi Kendala Memuat Portal Orang Tua">
+                  <ParentDashboard
+                    coaches={coaches}
+                    members={members}
+                    onUpdateMembers={updateMembersState}
+                  />
+                </ErrorBoundary>
+              )}
+            </React.Suspense>
           )}
         </div>
       </main>
