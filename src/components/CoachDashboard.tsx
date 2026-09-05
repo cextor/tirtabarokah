@@ -32,6 +32,14 @@ const getIndonesianDay = (dateStr?: string): string => {
   return days[date.getDay()];
 };
 
+const getLocalDateString = (): string => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function CoachDashboard({ coaches, members, absences, pricingPackages = [], onReloadData, onUpdateMembers, loggedCoachId }: CoachDashboardProps) {
   // Simulate Coach Login
   const [selectedCoachId, setSelectedCoachId] = useState<string>(loggedCoachId || 'coach-ardi');
@@ -41,8 +49,8 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
   const [newProgressAttendance, setNewProgressAttendance] = useState<'Hadir' | 'Absen' | 'Izin'>('Hadir');
   const [selectedScheduleCategory, setSelectedScheduleCategory] = useState<string | null>(null);
 
-  // State for Date Filter in Siswa tab (defaults to today's date YYYY-MM-DD)
-  const [studentFilterDate, setStudentFilterDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  // State for Date Filter in Siswa tab (defaults to local date YYYY-MM-DD)
+  const [studentFilterDate, setStudentFilterDate] = useState<string>(() => getLocalDateString());
   const [showAllStudents, setShowAllStudents] = useState<boolean>(false);
 
   React.useEffect(() => {
@@ -61,10 +69,12 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
 
   const currentCoach = coaches.find(c => c.id === selectedCoachId);
   
-  // Coach only sees their own assigned active students
-  const coachStudents = members.filter(
-    m => m.coachId === selectedCoachId && m.isActive !== false && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis')
-  );
+  // Coach only sees their own assigned active students (checks m.coachId and m.schedules)
+  const coachStudents = members.filter(m => {
+    const isAssigned = m.coachId === selectedCoachId || 
+                       (m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.coachId === selectedCoachId));
+    return isAssigned && m.isActive !== false && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis');
+  });
 
   // Siswa transfer yang dialihkan sementara ke pelatih ini
   const transferredStudents = members.filter(m => {
@@ -72,9 +82,10 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
     return absences.some(a => {
       const isReplacement = a.status === 'Transfer' && a.replacementCoachId === selectedCoachId;
       if (!isReplacement) return false;
-      const isOriginalStudent = m.coachId === a.coachId;
+      const isOriginalStudent = m.coachId === a.coachId || (m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.coachId === a.coachId));
       const matchesSchedule = (m.scheduleDay === a.day && m.scheduleTime === a.time) ||
-                              (m.scheduleDay2 === a.day && m.scheduleTime2 === a.time);
+                              (m.scheduleDay2 === a.day && m.scheduleTime2 === a.time) ||
+                              (m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.day === a.day && s.time === a.time));
       return isOriginalStudent && matchesSchedule;
     });
   }).map(m => ({
@@ -92,7 +103,7 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
     if (showAllStudents) return true;
     if (m.isTransfer) return true;
     const dayMatches = (m.scheduleDay === targetDayName) || (m.scheduleDay2 === targetDayName) || 
-                       (m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.day === targetDayName));
+                       (m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.day === targetDayName && (s.coachId === selectedCoachId || !s.coachId)));
     return dayMatches;
   });
 
@@ -542,35 +553,66 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
 
             {/* TAB 3: TEACHING SCHEDULE WITH STUDENT LIST PER SLOT */}
             {activeTab === 'schedule' && (() => {
-              // Strictly use packages configured in "Kelola Paket Belajar Pelatih / Daftar Paket Aktif Pelatih"
-              const coachPackagesList = (currentCoach.packages || []).map(pkg => {
-                const pName = (pkg.name || '').toLowerCase();
-                let category = 'REGULER';
-                let maxStudents = (pkg as any).max_students || (pkg as any).maxStudents || 6;
+              // Construct package list based on coach's assigned packages and schedule categories
+              const coachPackagesList = (() => {
+                const list = (currentCoach.packages || []).map(pkg => {
+                  const pName = (pkg.name || '').toLowerCase();
+                  let category = (pkg as any).category || 'REGULER';
+                  let maxStudents = (pkg as any).max_students || (pkg as any).maxStudents || 6;
 
-                if ((pkg as any).category === 'PRIVATE_2' || pName.includes('2 anak') || pName.includes('private 2') || pName.includes('privat 2')) {
-                  category = 'PRIVATE_2';
-                  maxStudents = 2;
-                } else if ((pkg as any).category === 'PRIVATE_3' || pName.includes('3 anak') || pName.includes('private 3') || pName.includes('privat 3')) {
-                  category = 'PRIVATE_3';
-                  maxStudents = 3;
-                } else if (pName.includes('promo')) {
-                  category = 'REGULER';
-                  maxStudents = 6;
-                } else {
-                  category = (pkg as any).category || 'REGULER';
-                  maxStudents = (pkg as any).max_students || (pkg as any).maxStudents || 6;
-                }
+                  if ((pkg as any).category === 'PRIVATE_2' || pName.includes('2 anak') || pName.includes('private 2') || pName.includes('privat 2')) {
+                    category = 'PRIVATE_2';
+                    maxStudents = 2;
+                  } else if ((pkg as any).category === 'PRIVATE_3' || pName.includes('3 anak') || pName.includes('private 3') || pName.includes('privat 3')) {
+                    category = 'PRIVATE_3';
+                    maxStudents = 3;
+                  } else if (pName.includes('promo') || (pkg as any).category === 'PROMO') {
+                    category = 'PROMO';
+                    maxStudents = (pkg as any).max_students || (pkg as any).maxStudents || 6;
+                  } else {
+                    category = (pkg as any).category || 'REGULER';
+                    maxStudents = (pkg as any).max_students || (pkg as any).maxStudents || 6;
+                  }
 
-                return {
-                  id: pkg.id,
-                  category: category,
-                  displayName: pkg.name,
-                  price: pkg.price || 0,
-                  sessions: pkg.sessions || 0,
-                  maxStudents: maxStudents
-                };
-              });
+                  return {
+                    id: pkg.id,
+                    category: category,
+                    displayName: pkg.name,
+                    price: pkg.price || 0,
+                    sessions: pkg.sessions || 0,
+                    maxStudents: maxStudents
+                  };
+                });
+
+                // Also include any schedule categories that the coach has slots for
+                const existingCategories = new Set(list.map(p => p.category));
+                (currentCoach.schedule || []).forEach(d => {
+                  (d.timeSlots || []).forEach(s => {
+                    const cat = s.packageCategory || 'REGULER';
+                    if (!existingCategories.has(cat)) {
+                      existingCategories.add(cat);
+                      let dName = 'Paket ' + cat;
+                      let maxS = s.maxSlots || 6;
+                      if (cat === 'PROMO') dName = 'Paket Promo';
+                      else if (cat === 'REGULER') dName = 'Paket Reguler';
+                      else if (cat === 'PRIVATE_2') { dName = 'Paket Privat 2 Anak'; maxS = 2; }
+                      else if (cat === 'PRIVATE_3') { dName = 'Paket Privat 3 Anak'; maxS = 3; }
+                      else if (cat === 'PRIVATE') { dName = 'Paket Privat'; maxS = 2; }
+
+                      list.push({
+                        id: `pkg-${currentCoach.id}-${cat.toLowerCase()}`,
+                        category: cat,
+                        displayName: dName,
+                        price: 0,
+                        sessions: 5,
+                        maxStudents: maxS
+                      });
+                    }
+                  });
+                });
+
+                return list;
+              })();
 
               const selectedPkgInfo = coachPackagesList.find(p => p.category === selectedScheduleCategory);
 
@@ -623,12 +665,13 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
                               if (sCat === pkg.category) {
                                 slotCount++;
                                 const slotStudents = members.filter(m => 
-                                  (m.coachId === currentCoach.id || (m as any).isTransfer) &&
+                                  (m.coachId === currentCoach.id || (m.schedules && Array.isArray(m.schedules) && m.schedules.some((sc: any) => sc.coachId === currentCoach.id)) || (m as any).isTransfer) &&
                                   m.isActive !== false &&
                                   m.status !== 'Selesai' &&
                                   (
                                     (m.scheduleDay === d.day && m.scheduleTime === s.time) ||
-                                    (m.scheduleDay2 === d.day && m.scheduleTime2 === s.time)
+                                    (m.scheduleDay2 === d.day && m.scheduleTime2 === s.time) ||
+                                    (m.schedules && Array.isArray(m.schedules) && m.schedules.some((sc: any) => sc.day === d.day && sc.time === s.time && (sc.coachId === currentCoach.id || !sc.coachId)))
                                   )
                                 );
                                 studentCount += slotStudents.length;
@@ -644,13 +687,13 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
                               <div className="space-y-1.5 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full border ${
-                                    pkg.category === 'REGULER' 
+                                    pkg.category === 'REGULER' || pkg.category === 'PROMO'
                                       ? 'bg-blue-100 text-blue-900 border-blue-300' 
                                       : pkg.category === 'PRIVATE_2'
                                       ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
                                       : 'bg-purple-100 text-purple-900 border-purple-300'
                                   }`}>
-                                    {pkg.category === 'REGULER' ? '👥 Paket Reguler' : pkg.category === 'PRIVATE_2' ? '🔒 Privat 2 Anak' : '🔒 Privat 3 Anak'}
+                                    {pkg.category === 'PROMO' ? '🔥 Paket Promo' : pkg.category === 'REGULER' ? '👥 Paket Reguler' : pkg.category === 'PRIVATE_2' ? '🔒 Privat 2 Anak' : '🔒 Privat 3 Anak'}
                                   </span>
                                   <span className="text-[10px] font-mono font-extrabold text-blue-950 bg-blue-100/70 px-2 py-0.5 rounded-lg border border-blue-200/80">
                                     Maks {pkg.maxStudents} Siswa / Slot
@@ -701,7 +744,7 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
                             <h5 className="font-extrabold text-xs text-white flex items-center gap-2 flex-wrap">
                               <span>🗓️ Jadwal 7 Hari:</span>
                               <span className="bg-white/20 text-white border border-white/30 px-3 py-1 rounded-full font-black text-xs">
-                                {selectedPkgInfo ? `${selectedPkgInfo.displayName} (Maks ${selectedPkgInfo.maxStudents} Siswa)` : (selectedScheduleCategory === 'REGULER' ? '👥 Paket Reguler (Maks 6 Siswa)' : selectedScheduleCategory === 'PRIVATE_2' ? '🔒 Paket Private 2 Anak (Maks 2 Siswa)' : '🔒 Paket Private 3 Anak (Maks 3 Siswa)')}
+                                {selectedPkgInfo ? `${selectedPkgInfo.displayName} (Maks ${selectedPkgInfo.maxStudents} Siswa)` : (selectedScheduleCategory === 'PROMO' ? '🔥 Paket Promo (Maks 6 Siswa)' : selectedScheduleCategory === 'REGULER' ? '👥 Paket Reguler (Maks 6 Siswa)' : selectedScheduleCategory === 'PRIVATE_2' ? '🔒 Paket Private 2 Anak (Maks 2 Siswa)' : '🔒 Paket Private 3 Anak (Maks 3 Siswa)')}
                               </span>
                             </h5>
                           </div>
@@ -728,13 +771,13 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
                                   filteredSlots.map(slot => {
                                     // Find all active students in this specific day & time slot
                                     const slotStudents = members.filter(m => 
-                                      (m.coachId === currentCoach.id || (m as any).isTransfer) &&
+                                      (m.coachId === currentCoach.id || (m.schedules && Array.isArray(m.schedules) && m.schedules.some((sc: any) => sc.coachId === currentCoach.id)) || (m as any).isTransfer) &&
                                       m.isActive !== false &&
                                       m.status !== 'Selesai' &&
                                       (
                                         (m.scheduleDay === day.day && m.scheduleTime === slot.time) ||
                                         (m.scheduleDay2 === day.day && m.scheduleTime2 === slot.time) ||
-                                        (m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.day === day.day && s.time === slot.time))
+                                        (m.schedules && Array.isArray(m.schedules) && m.schedules.some((sc: any) => sc.day === day.day && sc.time === slot.time && (sc.coachId === currentCoach.id || !sc.coachId)))
                                       )
                                     );
 
@@ -911,7 +954,10 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
                           }[] = [];
 
                           let count = 0;
-                          const coachMembers = members.filter(m => m.coachId === currentCoach.id);
+                          const coachMembers = members.filter(m => 
+                            m.coachId === currentCoach.id || 
+                            (m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.coachId === currentCoach.id))
+                          );
 
                           coachMembers.forEach(m => {
                             if (m.progress && Array.isArray(m.progress) && m.progress.length > 0) {

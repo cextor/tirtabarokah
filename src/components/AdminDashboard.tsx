@@ -9,8 +9,8 @@ import { Coach, Member, Package, ScheduleDay, EventItem, SiteSettings, ProgramLe
 import { 
   Users, DollarSign, Award, Calendar, ShieldCheck, TrendingUp, AlertTriangle, 
   Plus, PlusCircle, Edit, Trash, Check, X, Bell, BarChart2, PieChart as PieIcon, Settings, Phone, CheckSquare, Sparkles, Image as ImageIcon,
-  LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, ChevronUp, Search, Key, CreditCard, FileText, FileSpreadsheet, Package as PackageIcon, ArrowLeft,
-  CalendarClock, Clock
+  LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, ChevronLeft, ChevronUp, Search, Key, CreditCard, FileText, FileSpreadsheet, Package as PackageIcon, ArrowLeft,
+  CalendarClock, Clock, CheckCircle2, XCircle
 } from 'lucide-react';
 import { api, getMediaUrl } from '../api';
 import { 
@@ -668,9 +668,11 @@ export default function AdminDashboard({
     }
   };
 
-  // FILTERS FOR PARTICIPANTS
+  // FILTERS & PAGINATION FOR PARTICIPANTS
   const [pesertaFilter, setPesertaFilter] = useState<'semua' | 'aktif' | 'hampir-habis' | 'menunggu-verifikasi'>('semua');
   const [searchPeserta, setSearchPeserta] = useState<string>('');
+  const [studentCurrentPage, setStudentCurrentPage] = useState<number>(1);
+  const [studentItemsPerPage, setStudentItemsPerPage] = useState<number>(10);
   const [dateFilter, setDateFilter] = useState<'hari-ini' | 'seminggu' | 'sebulan' | 'setahun' | 'kustom' | 'semua'>('semua');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
@@ -679,7 +681,11 @@ export default function AdminDashboard({
   const [refStartDate, setRefStartDate] = useState<string>('');
   const [refEndDate, setRefEndDate] = useState<string>('');
 
-  // FILTERS FOR VERIFICATION
+  // FILTERS & SUB-TABS FOR VERIFICATION
+  const [verifySubTab, setVerifySubTab] = useState<'pending' | 'verified' | 'rejected'>('pending');
+  const [searchVerify, setSearchVerify] = useState<string>('');
+  const [verifyCurrentPage, setVerifyCurrentPage] = useState<number>(1);
+  const [verifyItemsPerPage, setVerifyItemsPerPage] = useState<number>(10);
   const [verifyStartDate, setVerifyStartDate] = useState<string>('');
   const [verifyEndDate, setVerifyEndDate] = useState<string>('');
 
@@ -1048,7 +1054,9 @@ export default function AdminDashboard({
 
   // CALCULATIONS FOR STATS CARDS
   const activeMembers = members.filter(m => m && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis'));
-  const pendingPayments = members.filter(m => m && (m.status === 'Menunggu Verifikasi' || m.payment?.status === 'Menunggu Verifikasi'));
+  const pendingPayments = members.filter(m => m && (m.status === 'Menunggu Verifikasi' || m.status === 'Menunggu Pembayaran' || m.payment?.status === 'Menunggu Verifikasi'));
+  const verifiedPayments = members.filter(m => m && (m.payment?.status === 'Pembayaran Berhasil' || m.status === 'Aktif' || m.status === 'Paket Hampir Habis' || m.status === 'Selesai'));
+  const rejectedPayments = members.filter(m => m && (m.status === 'Ditolak' || m.payment?.status === 'Pembayaran Gagal'));
   const expiringMembers = members.filter(m => m && m.sessionsLeft <= 2 && m.status !== 'Menunggu Verifikasi');
   const totalRevenue = members
     .filter(m => m && m.payment?.status === 'Pembayaran Berhasil')
@@ -2080,6 +2088,29 @@ export default function AdminDashboard({
     return `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
   };
 
+  // HELPER TO RESOLVE PACKAGE NAME FROM ID
+  const getPackageName = (pkgId?: string): string => {
+    if (!pkgId) return '-';
+    // 1. Search in global pricingPackages (direct match or contains substring)
+    const foundPricing = (pricingPackages || []).find(p => p.id === pkgId || pkgId.includes(p.id));
+    if (foundPricing) return foundPricing.name;
+
+    // 2. Search in coach packages
+    for (const coach of coaches || []) {
+      const foundCoachPkg = (coach.packages || []).find(p => p.id === pkgId || pkgId.includes(p.id));
+      if (foundCoachPkg) return foundCoachPkg.name;
+    }
+
+    // 3. Match pricing-xxx suffix if pkg-coach-xxx-pricing-yyy pattern
+    if (pkgId.includes('pricing-')) {
+      const suffix = pkgId.substring(pkgId.indexOf('pricing-'));
+      const foundSuffix = (pricingPackages || []).find(p => p.id === suffix);
+      if (foundSuffix) return foundSuffix.name;
+    }
+
+    return pkgId;
+  };
+
   // FILTERED STUDENT LIST
   const filteredPeserta = members.filter(m => {
     if (!m) return false;
@@ -3032,37 +3063,129 @@ export default function AdminDashboard({
         {/* TAB 1: VERIFIKASI PEMBAYARAN */}
         {activeTab === 'verifikasi' && (
           <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-slate-800">Menunggu Verifikasi Pendaftaran & Pembayaran</h3>
-              <p className="text-slate-500 text-xs">Peserta yang baru mendaftar atau memperpanjang paket lewat BNI harus diverifikasi oleh admin secara manual.</p>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Verifikasi Pendaftaran & Pembayaran</h3>
+                <p className="text-slate-500 text-xs">Kelola validasi pembayaran murid baru, perpanjangan paket, dan status persetujuan.</p>
+              </div>
+
+              {/* Sub-Tab Selector Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifySubTab('pending');
+                    setVerifyCurrentPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    verifySubTab === 'pending'
+                      ? 'bg-amber-500 text-white shadow-xs font-black'
+                      : 'text-slate-600 hover:bg-slate-200/70'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Menunggu Verifikasi</span>
+                  {pendingPayments.length > 0 && (
+                    <span className="bg-white/20 text-white px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold">
+                      {pendingPayments.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifySubTab('verified');
+                    setVerifyCurrentPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    verifySubTab === 'verified'
+                      ? 'bg-emerald-600 text-white shadow-xs font-black'
+                      : 'text-slate-600 hover:bg-slate-200/70'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Diverifikasi</span>
+                  {verifiedPayments.length > 0 && (
+                    <span className="bg-emerald-700/40 text-white px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold">
+                      {verifiedPayments.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerifySubTab('rejected');
+                    setVerifyCurrentPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    verifySubTab === 'rejected'
+                      ? 'bg-rose-600 text-white shadow-xs font-black'
+                      : 'text-slate-600 hover:bg-slate-200/70'
+                  }`}
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Ditolak</span>
+                  {rejectedPayments.length > 0 && (
+                    <span className="bg-rose-700/40 text-white px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold">
+                      {rejectedPayments.length}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
 
-            {/* Filter Tanggal Verifikasi */}
+            {/* Filter & Search Bar */}
             <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 flex flex-col md:flex-row items-end gap-3 text-xs text-slate-700">
+              <div className="space-y-1 flex-1 w-full">
+                <label className="text-[10px] font-bold text-slate-500 block uppercase">Cari Siswa / ID / WhatsApp</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Ketik nama siswa, ID pendaftaran, atau no WA..."
+                    value={searchVerify}
+                    onChange={(e) => {
+                      setSearchVerify(e.target.value);
+                      setVerifyCurrentPage(1);
+                    }}
+                    className="w-full bg-white border border-slate-200 pl-8 pr-3 py-2 rounded-xl text-xs focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                </div>
+              </div>
               <div className="space-y-1 w-full md:w-auto">
-                <label className="text-[10px] font-bold text-slate-500 block uppercase">Tanggal Daftar Mulai</label>
+                <label className="text-[10px] font-bold text-slate-500 block uppercase">Tanggal Mulai</label>
                 <input
                   type="date"
                   value={verifyStartDate}
-                  onChange={(e) => setVerifyStartDate(e.target.value)}
-                  className="w-full md:w-44 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs"
+                  onChange={(e) => {
+                    setVerifyStartDate(e.target.value);
+                    setVerifyCurrentPage(1);
+                  }}
+                  className="w-full md:w-40 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs"
                 />
               </div>
               <div className="space-y-1 w-full md:w-auto">
-                <label className="text-[10px] font-bold text-slate-500 block uppercase">Tanggal Daftar Selesai</label>
+                <label className="text-[10px] font-bold text-slate-500 block uppercase">Tanggal Selesai</label>
                 <input
                   type="date"
                   value={verifyEndDate}
-                  onChange={(e) => setVerifyEndDate(e.target.value)}
-                  className="w-full md:w-44 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs"
+                  onChange={(e) => {
+                    setVerifyEndDate(e.target.value);
+                    setVerifyCurrentPage(1);
+                  }}
+                  className="w-full md:w-40 bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs"
                 />
               </div>
-              {(verifyStartDate || verifyEndDate) && (
+              {(verifyStartDate || verifyEndDate || searchVerify) && (
                 <button
                   type="button"
                   onClick={() => {
                     setVerifyStartDate('');
                     setVerifyEndDate('');
+                    setSearchVerify('');
+                    setVerifyCurrentPage(1);
                   }}
                   className="bg-slate-200 hover:bg-slate-300 text-slate-750 font-bold px-3.5 py-2 rounded-xl text-xs transition cursor-pointer"
                 >
@@ -3072,73 +3195,170 @@ export default function AdminDashboard({
             </div>
 
             {(() => {
-              const filteredPending = pendingPayments.filter(m => {
-                if (!m.registeredAt) return false;
-                const regDate = m.registeredAt.substring(0, 10);
-                if (verifyStartDate && regDate < verifyStartDate) return false;
-                if (verifyEndDate && regDate > verifyEndDate) return false;
+              // Select dataset according to active sub-tab
+              const currentDataset = verifySubTab === 'pending'
+                ? pendingPayments
+                : verifySubTab === 'verified'
+                ? verifiedPayments
+                : rejectedPayments;
+
+              const filteredList = currentDataset.filter(m => {
+                if (!m) return false;
+                const matchesSearch = !searchVerify ||
+                  (m.student?.fullName || '').toLowerCase().includes(searchVerify.toLowerCase()) ||
+                  (m.parent?.fatherMotherName || '').toLowerCase().includes(searchVerify.toLowerCase()) ||
+                  (m.parent?.whatsapp || '').includes(searchVerify) ||
+                  (m.id || '').toLowerCase().includes(searchVerify.toLowerCase());
+
+                if (!matchesSearch) return false;
+
+                if (m.registeredAt) {
+                  const regDate = m.registeredAt.substring(0, 10);
+                  if (verifyStartDate && regDate < verifyStartDate) return false;
+                  if (verifyEndDate && regDate > verifyEndDate) return false;
+                }
                 return true;
               });
 
-              return filteredPending.length === 0 ? (
-                <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto" />
-                  <p className="text-xs text-slate-400 mt-2 font-semibold">Tidak ada pembayaran menunggu verifikasi pada rentang tanggal ini.</p>
-                </div>
-              ) : (
+              const totalVerifyPages = Math.ceil(filteredList.length / verifyItemsPerPage) || 1;
+              const validVerifyPage = Math.min(Math.max(1, verifyCurrentPage), totalVerifyPages);
+              const verifyStartIndex = (validVerifyPage - 1) * verifyItemsPerPage;
+              const paginatedList = filteredList.slice(verifyStartIndex, verifyStartIndex + verifyItemsPerPage);
+
+              if (filteredList.length === 0) {
+                return (
+                  <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto" />
+                    <p className="text-xs text-slate-400 mt-2 font-semibold">
+                      {verifySubTab === 'pending' && 'Tidak ada pendaftaran menunggu verifikasi.'}
+                      {verifySubTab === 'verified' && 'Tidak ada data pendaftaran yang terverifikasi.'}
+                      {verifySubTab === 'rejected' && 'Tidak ada data pendaftaran yang ditolak.'}
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
                 <div className="space-y-4">
-                  {filteredPending.map((member) => {
-                    const coach = coaches.find(c => c.id === member.coachId);
-                    return (
-                      <div key={member.id} className="bg-slate-50/50 border border-slate-200/60 rounded-xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-cyan-200 transition">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-sm text-slate-800">{member.student.fullName}</span>
-                            <span className="text-[10px] font-mono bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded font-bold">{member.id}</span>
+                  <div className="space-y-4">
+                    {paginatedList.map((member) => {
+                      const coach = coaches.find(c => c.id === member.coachId);
+                      const isPending = member.status === 'Menunggu Verifikasi' || member.status === 'Menunggu Pembayaran' || member.payment?.status === 'Menunggu Verifikasi';
+                      const isRejected = member.status === 'Ditolak' || member.payment?.status === 'Pembayaran Gagal';
+
+                      return (
+                        <div key={member.id} className="bg-slate-50/50 border border-slate-200/60 rounded-xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-cyan-200 transition">
+                          <div className="space-y-2 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-extrabold text-sm text-slate-800">{member.student.fullName}</span>
+                              <span className="text-[10px] font-mono bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded font-bold">{member.id}</span>
+                              {isPending ? (
+                                <span className="text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-amber-600" /> Menunggu Verifikasi
+                                </span>
+                              ) : isRejected ? (
+                                <span className="text-[9px] font-bold bg-rose-100 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <XCircle className="w-3 h-3 text-rose-600" /> Ditolak / Pembayaran Gagal
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Pembayaran Berhasil / Aktif
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-xs text-slate-500 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+                              <p>📅 Tgl Daftar: <strong className="text-slate-700 font-mono">{member.registeredAt ? member.registeredAt.substring(0, 16).replace('T', ' ') : '-'}</strong></p>
+                              <p>👤 Wali: <strong className="text-slate-700">{member.parent.fatherMotherName}</strong></p>
+                              <p>📱 WhatsApp: <strong className="text-slate-700 font-mono">{member.parent.whatsapp}</strong></p>
+                              <p>🏊 Tipe: <strong className="text-cyan-700">{member.coachType}</strong></p>
+                              <p>🏷️ Paket: <strong className="text-slate-700">{getPackageName(member.packageId)}</strong></p>
+                              <p>🧑‍🏫 Pelatih: <strong className="text-slate-700">{coach?.name || member.coachId}</strong></p>
+                              <p>🗓️ Jadwal: <strong className="text-slate-700">{member.scheduleDay} @ {member.scheduleTime}</strong></p>
+                              {member.scheduleFrequency === '2x Seminggu' && (
+                                <p>🗓️ Jadwal 2: <strong className="text-slate-700">{member.scheduleDay2} @ {member.scheduleTime2}</strong></p>
+                              )}
+                            </div>
+
+                            <div className="text-xs bg-cyan-50/50 text-cyan-800 p-2.5 rounded-lg border border-cyan-100 flex items-center gap-1.5 w-max">
+                              <DollarSign className="w-4 h-4 text-cyan-600" />
+                              <span>Wajib Bayar: <strong>Rp {member.payment?.amount ? member.payment.amount.toLocaleString('id-ID') : '0'}</strong> ({member.payment?.method || 'Transfer'})</span>
+                            </div>
                           </div>
-                          <div className="text-xs text-slate-500 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
-                            <p>📅 Tgl Daftar: <strong className="text-slate-700 font-mono">{member.registeredAt ? member.registeredAt.substring(0, 16).replace('T', ' ') : '-'}</strong></p>
-                            <p>👤 Wali: <strong className="text-slate-700">{member.parent.fatherMotherName}</strong></p>
-                            <p>📱 WhatsApp: <strong className="text-slate-700 font-mono">{member.parent.whatsapp}</strong></p>
-                            <p>🏊 Tipe: <strong className="text-cyan-700">{member.coachType}</strong></p>
-                            <p>🏷️ Paket: <strong className="text-slate-700">{member.packageId}</strong></p>
-                            <p>🗓️ Jadwal: <strong className="text-slate-700">{member.scheduleDay} @ {member.scheduleTime}</strong></p>
-                            {member.scheduleFrequency === '2x Seminggu' && (
-                              <p>🗓️ Jadwal 2: <strong className="text-slate-700">{member.scheduleDay2} @ {member.scheduleTime2}</strong></p>
+
+                          <div className="flex items-center gap-2 w-full md:w-auto flex-wrap justify-end">
+                            <a 
+                              href={`https://wa.me/${formatWhatsAppNumber(member.parent?.whatsapp)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 md:flex-none border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-center font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Phone className="w-4 h-4" /> Hubungi Wali
+                            </a>
+
+                            {isPending && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleVerifyPayment(member.id, false)}
+                                  className="p-2.5 hover:bg-rose-50 text-rose-600 rounded-xl transition border border-slate-200 cursor-pointer"
+                                  title="Tolak Pembayaran"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleVerifyPayment(member.id, true)}
+                                  className="flex-1 md:flex-none bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-5 rounded-xl text-xs flex items-center justify-center gap-1 shadow-md shadow-cyan-600/10 cursor-pointer"
+                                >
+                                  <Check className="w-4 h-4" /> Setujui & Aktifkan
+                                </button>
+                              </>
+                            )}
+
+                            {isRejected && (
+                              <button
+                                type="button"
+                                onClick={() => handleVerifyPayment(member.id, true)}
+                                className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                                title="Verifikasi ulang dan aktifkan siswa"
+                              >
+                                <Check className="w-4 h-4" /> Verifikasi Ulang & Aktifkan
+                              </button>
                             )}
                           </div>
-                          <div className="text-xs bg-cyan-50/50 text-cyan-800 p-2.5 rounded border border-cyan-100 flex items-center gap-1.5 w-max">
-                            <DollarSign className="w-4 h-4 text-cyan-600" />
-                            <span>Wajib Bayar: <strong>Rp {member.payment.amount.toLocaleString('id-ID')}</strong> ({member.payment.method})</span>
-                          </div>
                         </div>
+                      );
+                    })}
+                  </div>
 
-                        <div className="flex items-center gap-2 w-full md:w-auto">
-                          <a 
-                            href={`https://wa.me/${formatWhatsAppNumber(member.parent?.whatsapp)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 md:flex-none border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-center font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                          >
-                            <Phone className="w-4 h-4" /> Hubungi Wali
-                          </a>
-                          <button
-                            onClick={() => handleVerifyPayment(member.id, false)}
-                            className="p-2.5 hover:bg-rose-50 text-rose-600 rounded-xl transition border border-slate-200"
-                            title="Tolak Pembayaran"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleVerifyPayment(member.id, true)}
-                            className="flex-1 md:flex-none bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-5 rounded-xl text-xs flex items-center justify-center gap-1 shadow-md shadow-cyan-600/10"
-                          >
-                            <Check className="w-4 h-4" /> Setujui & Aktifkan
-                          </button>
-                        </div>
+                  {/* Pagination for Verification list */}
+                  {filteredList.length > verifyItemsPerPage && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
+                      <div>
+                        Menampilkan <strong>{verifyStartIndex + 1}</strong> - <strong>{Math.min(verifyStartIndex + verifyItemsPerPage, filteredList.length)}</strong> dari <strong>{filteredList.length}</strong> data
                       </div>
-                    );
-                  })}
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={validVerifyPage <= 1}
+                          onClick={() => setVerifyCurrentPage(prev => Math.max(1, prev - 1))}
+                          className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white font-bold disabled:opacity-40 cursor-pointer"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5 inline" /> Sebelumnya
+                        </button>
+                        <span className="px-2 font-bold text-slate-700">Hal {validVerifyPage} / {totalVerifyPages}</span>
+                        <button
+                          type="button"
+                          disabled={validVerifyPage >= totalVerifyPages}
+                          onClick={() => setVerifyCurrentPage(prev => Math.min(totalVerifyPages, prev + 1))}
+                          className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white font-bold disabled:opacity-40 cursor-pointer"
+                        >
+                          Selanjutnya <ChevronRight className="w-3.5 h-3.5 inline" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -3172,7 +3392,10 @@ export default function AdminDashboard({
                   {(['semua', 'aktif', 'hampir-habis', 'menunggu-verifikasi'] as const).map((filter) => (
                     <button
                       key={filter}
-                      onClick={() => setPesertaFilter(filter)}
+                      onClick={() => {
+                        setPesertaFilter(filter);
+                        setStudentCurrentPage(1);
+                      }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${
                         pesertaFilter === filter
                           ? 'bg-cyan-600 text-white shadow-sm'
@@ -3192,158 +3415,248 @@ export default function AdminDashboard({
                 type="text"
                 placeholder="Cari siswa berdasarkan nama atau nomor ID..."
                 value={searchPeserta}
-                onChange={(e) => setSearchPeserta(e.target.value)}
+                onChange={(e) => {
+                  setSearchPeserta(e.target.value);
+                  setStudentCurrentPage(1);
+                }}
                 className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition text-sm text-slate-800"
               />
             </div>
 
-            {/* Table */}
-            <div className="overflow-x-auto border border-slate-100 rounded-2xl shadow-xs">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
-                    <th className="p-3.5">ID & Nama Siswa</th>
-                    <th className="p-3.5">Nama Orang Tua</th>
-                    <th className="p-3.5">Coach & Sesi</th>
-                    <th className="p-3.5">Sisa Paket</th>
-                    <th className="p-3.5">Status</th>
-                    <th className="p-3.5 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredPeserta.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-400 font-medium italic">Tidak ada siswa yang sesuai pencarian.</td>
-                    </tr>
-                  ) : (
-                    filteredPeserta.map((member) => {
-                      const coach = coaches.find(c => c.id === member.coachId);
-                      const isExpiring = member.sessionsLeft <= 2;
-                      return (
-                        <tr key={member.id} className="hover:bg-slate-50/50 transition">
-                          <td className="p-3.5">
-                            <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                              {member.student.fullName}
-                              {member.isActive === false && (
-                                <span className="text-[8px] bg-rose-50 border border-rose-200 text-rose-600 px-1 py-0.5 rounded font-bold uppercase tracking-wider">Nonaktif</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 mt-0.5 font-mono text-[9.5px] text-slate-400">
-                              <span>ID: {member.id}</span>
-                              <span>•</span>
-                              <span>Daftar: {member.registeredAt ? member.registeredAt.substring(0, 10) : '-'}</span>
-                            </div>
-                          </td>
-                          <td className="p-3.5">
-                            <div className="font-semibold text-slate-700">{member.parent.fatherMotherName}</div>
-                            <a
-                              href={`https://wa.me/${formatWhatsAppNumber(member.parent?.whatsapp)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-mono text-[10px] text-emerald-600 hover:text-emerald-700 hover:underline inline-flex items-center gap-1 font-semibold mt-0.5"
-                              title="Chat via WhatsApp"
-                            >
-                              <Phone className="w-3 h-3 text-emerald-500" />
-                              {member.parent.whatsapp}
-                            </a>
-                          </td>
-                          <td className="p-3.5">
-                            <div className="font-bold text-cyan-800">{coach?.name || 'Latihan'}</div>
-                            <div className="text-slate-500 mt-0.5">
-                              {member.scheduleDay} @ {member.scheduleTime} WIB 
-                              {member.scheduleFrequency === '2x Seminggu' && ` & ${member.scheduleDay2} @ ${member.scheduleTime2} WIB`}
-                            </div>
-                          </td>
-                          <td className="p-3.5">
-                            <div className="flex items-center gap-1">
-                              <span className={`font-black text-sm ${isExpiring ? 'text-rose-600' : 'text-slate-800'}`}>
-                                {member.sessionsLeft}
-                              </span>
-                              <span className="text-slate-400">/ {member.sessionsTotal}</span>
-                            </div>
-                            {isExpiring && (
-                              <span className="inline-block bg-rose-50 text-rose-700 border border-rose-100 text-[8px] px-1.5 py-0.5 rounded-sm font-semibold mt-1">
-                                Perlu Perpanjang!
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3.5">
-                            <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                              member.status === 'Aktif'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
-                                : member.status === 'Paket Hampir Habis' || member.sessionsLeft <= 2
-                                ? 'bg-rose-50 text-rose-800 border-rose-100'
-                                : 'bg-amber-50 text-amber-800 border-amber-100'
-                            }`}>
-                              {member.sessionsLeft <= 2 && member.status !== 'Menunggu Verifikasi' ? 'Sesi Hampir Habis' : member.status}
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-right space-y-1">
-                            <div className="flex gap-2 justify-end">
-                              {/* EDIT ACTION (UPDATE) */}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditModal(member)}
-                                className="p-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition"
-                                title="Edit Detail Siswa"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
+            {(() => {
+              const totalStudentPages = Math.ceil(filteredPeserta.length / studentItemsPerPage) || 1;
+              const validStudentPage = Math.min(Math.max(1, studentCurrentPage), totalStudentPages);
+              const studentStartIndex = (validStudentPage - 1) * studentItemsPerPage;
+              const paginatedPeserta = filteredPeserta.slice(studentStartIndex, studentStartIndex + studentItemsPerPage);
 
-                              {/* ATTENDANCE/HISTORY ACTION */}
-                              {member.status !== 'Menunggu Verifikasi' && (() => {
-                                const todayStr = new Date().toISOString().split('T')[0];
-                                const isAttendedToday = member.progress && member.progress.some(p => p.date === todayStr);
-                                const isAvailableForAbsence = member.status !== 'Selesai' && member.sessionsLeft > 0 && member.isActive !== false;
+              return (
+                <div className="space-y-4">
+                  {/* Table */}
+                  <div className="overflow-x-auto border border-slate-100 rounded-2xl shadow-xs">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                          <th className="p-3.5">ID & Nama Siswa</th>
+                          <th className="p-3.5">Nama Orang Tua</th>
+                          <th className="p-3.5">Coach & Sesi</th>
+                          <th className="p-3.5">Sisa Paket</th>
+                          <th className="p-3.5">Status</th>
+                          <th className="p-3.5 text-right">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredPeserta.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="p-8 text-center text-slate-400 font-medium italic">Tidak ada siswa yang sesuai pencarian.</td>
+                          </tr>
+                        ) : (
+                          paginatedPeserta.map((member) => {
+                            const coach = coaches.find(c => c.id === member.coachId);
+                            const isExpiring = member.sessionsLeft <= 2;
+                            return (
+                              <tr key={member.id} className="hover:bg-slate-50/50 transition">
+                                <td className="p-3.5">
+                                  <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                                    {member.student.fullName}
+                                    {member.isActive === false && (
+                                      <span className="text-[8px] bg-rose-50 border border-rose-200 text-rose-600 px-1 py-0.5 rounded font-bold uppercase tracking-wider">Nonaktif</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 mt-0.5 font-mono text-[9.5px] text-slate-400">
+                                    <span>ID: {member.id}</span>
+                                    <span>•</span>
+                                    <span>Daftar: {member.registeredAt ? member.registeredAt.substring(0, 10) : '-'}</span>
+                                  </div>
+                                </td>
+                                <td className="p-3.5">
+                                  <div className="font-semibold text-slate-700">{member.parent.fatherMotherName}</div>
+                                  <a
+                                    href={`https://wa.me/${formatWhatsAppNumber(member.parent?.whatsapp)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-mono text-[10px] text-emerald-600 hover:text-emerald-700 hover:underline inline-flex items-center gap-1 font-semibold mt-0.5"
+                                    title="Chat via WhatsApp"
+                                  >
+                                    <Phone className="w-3 h-3 text-emerald-500" />
+                                    {member.parent.whatsapp}
+                                  </a>
+                                </td>
+                                <td className="p-3.5">
+                                  <div className="font-bold text-cyan-800">{coach?.name || 'Latihan'}</div>
+                                  <div className="text-slate-500 mt-0.5">
+                                    {member.scheduleDay} @ {member.scheduleTime} WIB 
+                                    {member.scheduleFrequency === '2x Seminggu' && ` & ${member.scheduleDay2} @ ${member.scheduleTime2} WIB`}
+                                  </div>
+                                </td>
+                                <td className="p-3.5">
+                                  <div className="flex items-center gap-1">
+                                    <span className={`font-black text-sm ${isExpiring ? 'text-rose-600' : 'text-slate-800'}`}>
+                                      {member.sessionsLeft}
+                                    </span>
+                                    <span className="text-slate-400">/ {member.sessionsTotal}</span>
+                                  </div>
+                                  {isExpiring && (
+                                    <span className="inline-block bg-rose-50 text-rose-700 border border-rose-100 text-[8px] px-1.5 py-0.5 rounded-sm font-semibold mt-1">
+                                      Perlu Perpanjang!
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3.5">
+                                  <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                                    member.status === 'Aktif'
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                                      : member.status === 'Paket Hampir Habis' || member.sessionsLeft <= 2
+                                      ? 'bg-rose-50 text-rose-800 border-rose-100'
+                                      : 'bg-amber-50 text-amber-800 border-amber-100'
+                                  }`}>
+                                    {member.sessionsLeft <= 2 && member.status !== 'Menunggu Verifikasi' ? 'Sesi Hampir Habis' : member.status}
+                                  </span>
+                                </td>
+                                <td className="p-3.5 text-right space-y-1">
+                                  <div className="flex gap-2 justify-end">
+                                    {/* EDIT ACTION (UPDATE) */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditModal(member)}
+                                      className="p-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition cursor-pointer"
+                                      title="Edit Detail Siswa"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </button>
 
-                                return (
+                                    {/* ATTENDANCE/HISTORY ACTION */}
+                                    {member.status !== 'Menunggu Verifikasi' && (() => {
+                                      const todayStr = new Date().toISOString().split('T')[0];
+                                      const isAttendedToday = member.progress && member.progress.some(p => p.date === todayStr);
+                                      const isAvailableForAbsence = member.status !== 'Selesai' && member.sessionsLeft > 0 && member.isActive !== false;
+
+                                      return (
+                                        <button
+                                          type="button"
+                                          disabled={isAttendedToday && isAvailableForAbsence}
+                                          onClick={() => handleLogAttendance(member.id)}
+                                          className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-1 transition font-bold text-xs ${
+                                            isAttendedToday && isAvailableForAbsence
+                                              ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-80'
+                                              : isAvailableForAbsence
+                                              ? 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border-cyan-200 cursor-pointer'
+                                              : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 cursor-pointer'
+                                          }`}
+                                          title={isAttendedToday && isAvailableForAbsence ? 'Siswa ini sudah diabsen hari ini' : isAvailableForAbsence ? 'Log Hadir Siswa (Kurangi 1 Sesi)' : 'Lihat Riwayat Latihan'}
+                                        >
+                                          {isAttendedToday && isAvailableForAbsence ? (
+                                            <>
+                                              <CheckSquare className="w-3.5 h-3.5 text-emerald-600" /> Sudah Absen
+                                            </>
+                                          ) : isAvailableForAbsence ? (
+                                            <>
+                                              <CheckSquare className="w-3.5 h-3.5" /> Absen Sesi
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Eye className="w-3.5 h-3.5" /> Lihat Riwayat
+                                            </>
+                                          )}
+                                        </button>
+                                      );
+                                    })()}
+
+                                    {/* STOP PACKET / DELETE USER */}
+                                    <button
+                                      onClick={() => handleDeleteMember(member.id)}
+                                      className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer"
+                                      title="Stop Latihan (Hapus Member)"
+                                    >
+                                      <Trash className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Controls */}
+                  {filteredPeserta.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100 text-xs text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <span>Tampilkan:</span>
+                        <select
+                          value={studentItemsPerPage}
+                          onChange={(e) => {
+                            setStudentItemsPerPage(Number(e.target.value));
+                            setStudentCurrentPage(1);
+                          }}
+                          className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 cursor-pointer"
+                        >
+                          <option value={10}>10 per halaman</option>
+                          <option value={25}>25 per halaman</option>
+                          <option value={50}>50 per halaman</option>
+                          <option value={100}>100 per halaman</option>
+                        </select>
+                        <span className="text-slate-400">|</span>
+                        <span>
+                          Menampilkan <strong>{studentStartIndex + 1}</strong> - <strong>{Math.min(studentStartIndex + studentItemsPerPage, filteredPeserta.length)}</strong> dari <strong>{filteredPeserta.length}</strong> siswa
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={validStudentPage <= 1}
+                          onClick={() => setStudentCurrentPage(prev => Math.max(1, prev - 1))}
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1 cursor-pointer"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" /> Sebelumnya
+                        </button>
+
+                        {/* Page Numbers */}
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: totalStudentPages }, (_, i) => i + 1)
+                            .filter(page => {
+                              if (totalStudentPages <= 7) return true;
+                              if (page === 1 || page === totalStudentPages) return true;
+                              return Math.abs(page - validStudentPage) <= 1;
+                            })
+                            .map((page, idx, arr) => {
+                              const prevPage = arr[idx - 1];
+                              const showEllipsis = prevPage && page - prevPage > 1;
+                              return (
+                                <React.Fragment key={page}>
+                                  {showEllipsis && <span className="px-1 text-slate-400">...</span>}
                                   <button
                                     type="button"
-                                    disabled={isAttendedToday && isAvailableForAbsence}
-                                    onClick={() => handleLogAttendance(member.id)}
-                                    className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-1 transition font-bold text-xs ${
-                                      isAttendedToday && isAvailableForAbsence
-                                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-80'
-                                        : isAvailableForAbsence
-                                        ? 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border-cyan-200 cursor-pointer'
-                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 cursor-pointer'
+                                    onClick={() => setStudentCurrentPage(page)}
+                                    className={`w-8 h-8 rounded-lg font-bold text-xs transition cursor-pointer ${
+                                      validStudentPage === page
+                                        ? 'bg-cyan-600 text-white shadow-xs font-black'
+                                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
                                     }`}
-                                    title={isAttendedToday && isAvailableForAbsence ? 'Siswa ini sudah diabsen hari ini' : isAvailableForAbsence ? 'Log Hadir Siswa (Kurangi 1 Sesi)' : 'Lihat Riwayat Latihan'}
                                   >
-                                    {isAttendedToday && isAvailableForAbsence ? (
-                                      <>
-                                        <CheckSquare className="w-3.5 h-3.5 text-emerald-600" /> Sudah Absen
-                                      </>
-                                    ) : isAvailableForAbsence ? (
-                                      <>
-                                        <CheckSquare className="w-3.5 h-3.5" /> Absen Sesi
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Eye className="w-3.5 h-3.5" /> Lihat Riwayat
-                                      </>
-                                    )}
+                                    {page}
                                   </button>
-                                );
-                              })()}
+                                </React.Fragment>
+                              );
+                            })}
+                        </div>
 
-                              {/* STOP PACKET / DELETE USER */}
-                              <button
-                                onClick={() => handleDeleteMember(member.id)}
-                                className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition"
-                                title="Stop Latihan (Hapus Member)"
-                              >
-                                <Trash className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
+                        <button
+                          type="button"
+                          disabled={validStudentPage >= totalStudentPages}
+                          onClick={() => setStudentCurrentPage(prev => Math.min(totalStudentPages, prev + 1))}
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1 cursor-pointer"
+                        >
+                          Selanjutnya <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
                   )}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              );
+            })()}
 
             {/* CRUD Student Modal (Add/Edit) */}
             {showStudentModal && (

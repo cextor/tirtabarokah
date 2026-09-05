@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS members (
     student_has_swum TINYINT(1) DEFAULT 0,
     package_id VARCHAR(50) NOT NULL,
     coach_type ENUM('Reguler', 'Privat') NOT NULL,
-    status ENUM('Menunggu Pembayaran', 'Menunggu Verifikasi', 'Aktif', 'Paket Hampir Habis', 'Selesai') NOT NULL,
+    status ENUM('Menunggu Pembayaran', 'Menunggu Verifikasi', 'Aktif', 'Paket Hampir Habis', 'Selesai', 'Ditolak') NOT NULL,
     sessions_left INT NOT NULL,
     sessions_total INT NOT NULL,
     registered_at DATETIME NOT NULL,

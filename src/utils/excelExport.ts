@@ -31,7 +31,10 @@ export function exportCoachScheduleToExcel(
 
   selectedCoaches.forEach(coach => {
     const coachName = coach.name;
-    const coachMembers = members.filter(m => m.coachId === coach.id);
+    const coachMembers = members.filter(m => 
+      m.coachId === coach.id || 
+      (m.schedules && Array.isArray(m.schedules) && m.schedules.some((s: any) => s.coachId === coach.id))
+    );
 
     coachMembers.forEach(m => {
       if (m.progress && Array.isArray(m.progress) && m.progress.length > 0) {
