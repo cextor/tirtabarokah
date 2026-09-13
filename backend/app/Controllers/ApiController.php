@@ -561,6 +561,55 @@ class ApiController extends BaseController
             }
         }
 
+        // 3. Check Slot Max Capacity (prevent registration overload)
+        foreach ($newSchedules as $ns) {
+            if (empty($ns['coach_id']) || empty($ns['day']) || empty($ns['time'])) continue;
+
+            $cId = $ns['coach_id'];
+            $day = $ns['day'];
+            $time = $ns['time'];
+
+            // Find slot max quota from package_schedules / coach_schedules or coach
+            $schedRow = null;
+            if ($this->db->tableExists('package_schedules')) {
+                $schedRow = $this->db->table('package_schedules')
+                    ->where('coach_id', $cId)
+                    ->where('day', $day)
+                    ->where('time', $time)
+                    ->get()
+                    ->getRowArray();
+            }
+            if (!$schedRow && $this->db->tableExists('coach_schedules')) {
+                $schedRow = $this->db->table('coach_schedules')
+                    ->where('coach_id', $cId)
+                    ->where('day', $day)
+                    ->where('time', $time)
+                    ->get()
+                    ->getRowArray();
+            }
+
+            $coachRow = $this->db->table('coaches')->where('id', $cId)->get()->getRowArray();
+            $maxSlots = (int)($schedRow['max_slots'] ?? $coachRow['max_quota'] ?? 6);
+
+            $builder = $this->db->table('member_schedules')
+                ->join('members', 'members.id = member_schedules.member_id')
+                ->where('member_schedules.coach_id', $cId)
+                ->where('member_schedules.day', $day)
+                ->where('member_schedules.time', $time)
+                ->whereNotIn('members.status', ['Selesai', 'Ditolak'])
+                ->where('members.is_active !=', 0);
+
+            if ($id) {
+                $builder->where('members.id !=', $id);
+            }
+
+            $activeCount = $builder->countAllResults();
+            if ($activeCount >= $maxSlots) {
+                $coachName = $coachRow ? $coachRow['name'] : 'pelatih';
+                return "Kuota latihan untuk Coach {$coachName} pada hari {$day} jam {$time} WIB sudah penuh ({$activeCount}/{$maxSlots} slot terisi). Silakan pilih jadwal atau pelatih lain.";
+            }
+        }
+
         return null;
     }
 

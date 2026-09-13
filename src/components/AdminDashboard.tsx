@@ -7,7 +7,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import { Coach, Member, Package, ScheduleDay, EventItem, SiteSettings, ProgramLevel, CoachAbsence, BankAccount, PricingPackage, AuditLog, EventCategory, SwimmingPool, PackageSchedule } from '../types';
 import { 
-  Users, DollarSign, Award, Calendar, ShieldCheck, TrendingUp, AlertTriangle, 
+  Users, DollarSign, Award, Calendar, ShieldCheck, TrendingUp, AlertTriangle, AlertCircle, UserCheck,
   Plus, PlusCircle, Edit, Trash, Check, X, Bell, BarChart2, PieChart as PieIcon, Settings, Phone, CheckSquare, Sparkles, Image as ImageIcon,
   LayoutDashboard, Gift, Eye, List, MapPin, RefreshCw, ChevronDown, ChevronRight, ChevronLeft, ChevronUp, Search, Key, CreditCard, FileText, FileSpreadsheet, Package as PackageIcon, ArrowLeft,
   CalendarClock, Clock, CheckCircle2, XCircle
@@ -747,6 +747,13 @@ export default function AdminDashboard({
       const updatedSchedule = c.schedule.map(d => {
         const updatedTimeSlots = d.timeSlots.map(ts => {
           const assignedStudents = currentMembers.filter(m => {
+            if (m.isActive === false || m.status === 'Selesai' || m.status === 'Ditolak') return false;
+            if (m.status !== 'Aktif' && m.status !== 'Paket Hampir Habis') return false;
+
+            if (m.schedules && Array.isArray(m.schedules) && m.schedules.length > 0) {
+              return m.schedules.some((s: any) => s.coachId === c.id && s.day === d.day && s.time === ts.time);
+            }
+
             if (m.coachId !== c.id) return false;
             const matchDay1 = m.scheduleDay === d.day && m.scheduleTime === ts.time;
             const matchDay2 = m.scheduleFrequency === '2x Seminggu' && m.scheduleDay2 === d.day && m.scheduleTime2 === ts.time;
@@ -1079,9 +1086,14 @@ export default function AdminDashboard({
       const memberPkg = (pricingPackages || []).find(p => p.id === memberObj.packageId || (memberObj.packageId && memberObj.packageId.includes(p.id)));
 
       for (const s of studentSchedules) {
+        const matchedSched = (schedules || []).find(sc => 
+          String(sc.coachId) === String(memberObj.coachId) && 
+          sc.day === s.day && 
+          sc.time === s.time
+        );
         const dayGroup = targetCoach?.schedule?.find(d => d.day === s.day);
         const slot = dayGroup?.timeSlots?.find(ts => ts.time === s.time);
-        const maxSlots = memberPkg?.max_students || slot?.maxSlots || targetCoach?.maxQuota || 6;
+        const maxSlots = matchedSched?.maxSlots || memberPkg?.max_students || slot?.maxSlots || targetCoach?.maxQuota || 6;
 
         // Count current active students in this slot excluding current member
         const activeInSlot = members.filter(m => {
@@ -1188,6 +1200,8 @@ export default function AdminDashboard({
             }
           }
 
+          const syncedCoaches = syncCoachesSchedules(coaches, updated);
+          onUpdateCoaches(syncedCoaches);
           onUpdateMembers(updated);
 
           Swal.fire({
@@ -4733,152 +4747,6 @@ export default function AdminDashboard({
               );
             })()}
 
-            {/* MODAL: DAFTAR SISWA PADA JADWAL TERPILIH */}
-            {selectedScheduleForStudentModal && (() => {
-              const sched = selectedScheduleForStudentModal;
-              const coach = coaches.find(c => c.id === sched.coachId);
-              const pool = swimmingPools.find(p => p.id === sched.swimmingPoolId);
-              const pkg = pricingPackages.find(p => p.id === sched.pricingPackageId);
-
-              // Filter all active enrolled members on this schedule slot
-              const enrolledMembers = members.filter(m => {
-                if (m.isActive === false || m.status === 'Selesai') return false;
-                if (m.scheduleId && String(m.scheduleId) === String(sched.id)) return true;
-                if (m.scheduleId2 && String(m.scheduleId2) === String(sched.id)) return true;
-                if (m.schedules && Array.isArray(m.schedules)) {
-                  return m.schedules.some((s: any) => 
-                    (s.scheduleId && String(s.scheduleId) === String(sched.id)) ||
-                    (s.coachId === sched.coachId && s.day === sched.day && s.time === sched.time)
-                  );
-                }
-                return (
-                  (m.coachId === sched.coachId && m.scheduleDay === sched.day && m.scheduleTime === sched.time) ||
-                  (m.scheduleFrequency === '2x Seminggu' && m.coachId === sched.coachId && m.scheduleDay2 === sched.day && m.scheduleTime2 === sched.time)
-                );
-              });
-
-              const maxSlots = sched.maxSlots || pkg?.max_students || 6;
-
-              return (
-                <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-                  <div className="relative bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col my-auto">
-                    {/* Modal Header */}
-                    <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                      <div>
-                        <h4 className="font-black text-sm text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                          <Users className="w-4.5 h-4.5 text-cyan-600" />
-                          Daftar Siswa Terdaftar pada Sesi Ini
-                        </h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          {sched.day}, {sched.time} WIB • Coach {coach?.name || sched.coachName} • {pool?.name || sched.swimmingPoolName}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedScheduleForStudentModal(null)}
-                        className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    {/* Modal Body */}
-                    <div className="p-6 space-y-4 text-xs text-slate-700">
-                      {/* Summary Badge */}
-                      <div className="bg-cyan-50/50 border border-cyan-100 p-3.5 rounded-2xl flex items-center justify-between">
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-500 uppercase block">Paket Latihan</span>
-                          <span className="font-black text-slate-800 text-xs">{pkg?.name || sched.packageName}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase block">Kapasitas Terisi</span>
-                          <span className="font-mono font-black text-cyan-900 text-sm">
-                            {enrolledMembers.length} / {maxSlots} Siswa
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Students List Table */}
-                      {enrolledMembers.length === 0 ? (
-                        <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                          <Users className="w-8 h-8 text-slate-300 mx-auto mb-1.5" />
-                          <p className="text-xs font-bold text-slate-600">Belum ada siswa yang terdaftar pada slot jadwal ini.</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Siswa yang mendaftar atau memilih slot ini akan otomatis tercatat di sini.</p>
-                        </div>
-                      ) : (
-                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
-                          <table className="w-full text-xs text-left border-collapse">
-                            <thead>
-                              <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
-                                <th className="py-2.5 px-3 w-10 text-center">#</th>
-                                <th className="py-2.5 px-3">Nama Siswa</th>
-                                <th className="py-2.5 px-3">Orang Tua & WhatsApp</th>
-                                <th className="py-2.5 px-3 text-center">Sisa Sesi</th>
-                                <th className="py-2.5 px-3 text-center">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {enrolledMembers.map((member, idx) => (
-                                <tr key={member.id} className="hover:bg-cyan-50/20 transition">
-                                  <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-400">
-                                    {idx + 1}
-                                  </td>
-                                  <td className="py-2.5 px-3">
-                                    <p className="font-black text-slate-800">{member.student.fullName}</p>
-                                    <p className="text-[10px] text-slate-400 font-mono">
-                                      ID: {member.id} {member.student.gender ? `• ${member.student.gender}` : ''}
-                                    </p>
-                                  </td>
-                                  <td className="py-2.5 px-3">
-                                    <p className="font-bold text-slate-700">{member.parent.fatherMotherName}</p>
-                                    <a
-                                      href={`https://wa.me/${formatWhatsAppNumber(member.parent?.whatsapp)}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-[10px] text-cyan-700 hover:underline font-mono font-semibold inline-flex items-center gap-0.5"
-                                    >
-                                      {member.parent.whatsapp}
-                                    </a>
-                                  </td>
-                                  <td className="py-2.5 px-3 text-center font-mono font-bold">
-                                    <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md text-[11px]">
-                                      {member.sessionsLeft} / {member.sessionsTotal}
-                                    </span>
-                                  </td>
-                                  <td className="py-2.5 px-3 text-center">
-                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                      member.status === 'Aktif'
-                                        ? 'bg-emerald-100 text-emerald-800'
-                                        : member.status === 'Menunggu Verifikasi'
-                                        ? 'bg-amber-100 text-amber-800'
-                                        : 'bg-slate-100 text-slate-700'
-                                    }`}>
-                                      {member.status}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Modal Footer */}
-                    <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedScheduleForStudentModal(null)}
-                        className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-5 rounded-xl text-xs transition shadow-sm cursor-pointer"
-                      >
-                        Tutup
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
             {/* MODAL: TAMBAH / EDIT JADWAL (WIDE 2-COLUMN NO SCROLL) */}
             {/* MODAL: TAMBAH / EDIT JADWAL (WIDE 2-COLUMN NO SCROLL) */}
             {showScheduleModal && (() => {
@@ -6626,13 +6494,24 @@ export default function AdminDashboard({
                 .filter(c => c.name.toLowerCase().includes(searchCoach.toLowerCase()))
                 .map((coach) => {
                 const isEditing = selectedEditCoachId === coach.id;
-                const activeCount = members.filter(m => m.coachId === coach.id && m.status !== 'Selesai').length;
+                const activeCount = members.filter(m => 
+                  (m.coachId === coach.id || (m.schedules || []).some(s => s.coachId === coach.id)) && 
+                  m.isActive !== false && 
+                  (m.status === 'Aktif' || m.status === 'Paket Hampir Habis')
+                ).length;
                 return (
                   <div key={coach.id} className="bg-slate-50/30 rounded-2xl p-5 border border-slate-200/60 space-y-4">
                     <div className="flex flex-col md:flex-row justify-between gap-4">
                       <div className="flex gap-4 items-start">
                         <div className="w-14 h-14 bg-slate-200 rounded-xl overflow-hidden flex-shrink-0">
-                          <img src={getMediaUrl(coach.photo)} alt={coach.name} className="w-full h-full object-cover" />
+                          <img 
+                            src={getMediaUrl(coach.photo)} 
+                            alt={coach.name} 
+                            className="w-full h-full object-cover" 
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
                         </div>
                         <div>
                           <h4 className="font-black text-slate-800 text-sm flex items-center gap-2">
@@ -6661,7 +6540,14 @@ export default function AdminDashboard({
                                     {isPdf ? (
                                       <FileText className="w-3.5 h-3.5 text-rose-600" />
                                     ) : (
-                                      <img src={getMediaUrl(coach.certificateUrl)} alt="Sertifikat" className="w-full h-full object-cover" />
+                                      <img 
+                                        src={getMediaUrl(coach.certificateUrl)} 
+                                        alt="Sertifikat" 
+                                        className="w-full h-full object-cover" 
+                                        onError={(e) => {
+                                          (e.target as HTMLElement).style.display = 'none';
+                                        }}
+                                      />
                                     )}
                                   </div>
                                   <span>{isPdf ? '📄 Sertifikat PDF' : '📜 Sertifikat Pelatih'}</span>
@@ -6771,39 +6657,71 @@ export default function AdminDashboard({
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                  {coachSchedulesList.map(sched => {
-                                    const pool = swimmingPools.find(p => p.id === sched.swimmingPoolId);
-                                    const pkg = pricingPackages.find(p => p.id === sched.pricingPackageId);
-                                    const studentCount = sched.currentSlots || (sched.students ? sched.students.length : 0);
-                                    const maxSlots = sched.maxSlots || pkg?.max_students || 6;
-                                    const isFull = studentCount >= maxSlots;
+                                    {coachSchedulesList.map(sched => {
+                                      const pool = swimmingPools.find(p => p.id === sched.swimmingPoolId);
+                                      const pkg = pricingPackages.find(p => p.id === sched.pricingPackageId);
 
-                                    return (
-                                      <tr key={sched.id} className="hover:bg-slate-50/60 transition">
-                                        <td className="py-2.5 px-3 font-mono font-bold text-cyan-900">
-                                          {sched.day}, {sched.time} WIB
-                                        </td>
-                                        <td className="py-2.5 px-3">
-                                          <span className="font-bold text-slate-800">{pkg?.name || sched.packageName || 'Paket'}</span>
-                                          <span className="text-[10px] text-slate-400 block font-mono">({pkg?.category || sched.packageCategory || 'REGULER'})</span>
-                                        </td>
-                                        <td className="py-2.5 px-3 font-medium text-slate-600">
-                                          📍 {pool?.name || sched.swimmingPoolName || 'Kolam Renang'}
-                                        </td>
-                                        <td className="py-2.5 px-3 font-bold font-mono">
-                                          {studentCount} / {maxSlots} Siswa
-                                        </td>
-                                        <td className="py-2.5 px-3 text-center">
-                                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                            isFull ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
-                                          }`}>
-                                            {isFull ? 'Penuh' : 'Tersedia'}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
+                                      {/* Calculate active enrolled members on this slot */}
+                                      const enrolledMembers = members.filter(m => {
+                                        if (m.isActive === false || (m.status !== 'Aktif' && m.status !== 'Paket Hampir Habis')) return false;
+                                        if (m.scheduleId && String(m.scheduleId) === String(sched.id)) return true;
+                                        if (m.scheduleId2 && String(m.scheduleId2) === String(sched.id)) return true;
+                                        if (m.schedules && Array.isArray(m.schedules)) {
+                                          return m.schedules.some((s: any) => 
+                                            (s.scheduleId && String(s.scheduleId) === String(sched.id)) ||
+                                            (s.coachId === sched.coachId && s.day === sched.day && s.time === sched.time)
+                                          );
+                                        }
+                                        return (
+                                          (m.coachId === sched.coachId && m.scheduleDay === sched.day && m.scheduleTime === sched.time) ||
+                                          (m.scheduleFrequency === '2x Seminggu' && m.coachId === sched.coachId && m.scheduleDay2 === sched.day && m.scheduleTime2 === sched.time)
+                                        );
+                                      });
+
+                                      const studentCount = enrolledMembers.length > 0 ? enrolledMembers.length : (sched.currentSlots || (sched.students ? sched.students.length : 0));
+                                      const maxSlots = sched.maxSlots || pkg?.max_students || 6;
+                                      const isFull = studentCount >= maxSlots;
+
+                                      return (
+                                        <tr key={sched.id} className="hover:bg-slate-50/60 transition">
+                                          <td className="py-2.5 px-3 font-mono font-bold text-cyan-900">
+                                            {sched.day}, {sched.time} WIB
+                                          </td>
+                                          <td className="py-2.5 px-3">
+                                            <span className="font-bold text-slate-800">{pkg?.name || sched.packageName || 'Paket'}</span>
+                                            <span className="text-[10px] text-slate-400 block font-mono">({pkg?.category || sched.packageCategory || 'REGULER'})</span>
+                                          </td>
+                                          <td className="py-2.5 px-3 font-medium text-slate-600">
+                                            📍 {pool?.name || sched.swimmingPoolName || 'Kolam Renang'}
+                                          </td>
+                                          <td className="py-2.5 px-3">
+                                            <button
+                                              type="button"
+                                              onClick={() => setSelectedScheduleForStudentModal(sched)}
+                                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-mono font-bold border shadow-2xs transition cursor-pointer ${
+                                                isFull
+                                                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-200 ring-1 ring-rose-200'
+                                                  : studentCount > 0
+                                                  ? 'bg-cyan-50 hover:bg-cyan-100 text-cyan-900 border-cyan-200 ring-1 ring-cyan-200'
+                                                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                                              }`}
+                                              title="Klik untuk melihat daftar siswa pada jadwal ini"
+                                            >
+                                              <Users className="w-3.5 h-3.5 opacity-70" />
+                                              <span>{studentCount} / {maxSlots} Siswa</span>
+                                            </button>
+                                          </td>
+                                          <td className="py-2.5 px-3 text-center">
+                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                              isFull ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                                            }`}>
+                                              {isFull ? 'Penuh' : 'Tersedia'}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
                               </table>
                             </div>
                           )}
@@ -8273,6 +8191,158 @@ export default function AdminDashboard({
                     className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-200" 
                   />
                 )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL: DAFTAR SISWA PADA JADWAL TERPILIH */}
+      {selectedScheduleForStudentModal && (() => {
+        const sched = selectedScheduleForStudentModal;
+        const coach = coaches.find(c => c.id === sched.coachId);
+        const pool = swimmingPools.find(p => p.id === sched.swimmingPoolId);
+        const pkg = pricingPackages.find(p => p.id === sched.pricingPackageId);
+
+        // Filter all active enrolled members on this schedule slot
+        const enrolledMembers = members.filter(m => {
+          if (m.isActive === false || (m.status !== 'Aktif' && m.status !== 'Paket Hampir Habis')) return false;
+          if (m.scheduleId && String(m.scheduleId) === String(sched.id)) return true;
+          if (m.scheduleId2 && String(m.scheduleId2) === String(sched.id)) return true;
+          if (m.schedules && Array.isArray(m.schedules)) {
+            return m.schedules.some((s: any) => 
+              (s.scheduleId && String(s.scheduleId) === String(sched.id)) ||
+              (s.coachId === sched.coachId && s.day === sched.day && s.time === sched.time)
+            );
+          }
+          return (
+            (m.coachId === sched.coachId && m.scheduleDay === sched.day && m.scheduleTime === sched.time) ||
+            (m.scheduleFrequency === '2x Seminggu' && m.coachId === sched.coachId && m.scheduleDay2 === sched.day && m.scheduleTime2 === sched.time)
+          );
+        });
+
+        const maxSlots = sched.maxSlots || pkg?.max_students || 6;
+
+        return (
+          <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="relative bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                <div>
+                  <h4 className="font-black text-sm text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <Users className="w-4.5 h-4.5 text-cyan-600" />
+                    Daftar Siswa Terdaftar pada Sesi Ini
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {sched.day}, {sched.time} WIB • Coach {coach?.name || sched.coachName} • {pool?.name || sched.swimmingPoolName}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedScheduleForStudentModal(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-4 text-xs text-slate-700 overflow-y-auto">
+                {/* Summary Badge */}
+                <div className="bg-cyan-50/50 border border-cyan-100 p-3.5 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Paket Latihan</span>
+                    <span className="font-black text-slate-800 text-xs">{pkg?.name || sched.packageName}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Kapasitas Terisi</span>
+                    <span className={`font-mono font-black text-sm ${enrolledMembers.length >= maxSlots ? 'text-rose-600' : 'text-cyan-900'}`}>
+                      {enrolledMembers.length} / {maxSlots} Siswa {enrolledMembers.length >= maxSlots ? '(Penuh)' : ''}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Students List Table */}
+                <div>
+                  <h5 className="font-black text-xs text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <UserCheck className="w-4 h-4 text-emerald-600" />
+                    Daftar Siswa Terdaftar ({enrolledMembers.length} Siswa)
+                  </h5>
+                  {enrolledMembers.length === 0 ? (
+                    <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <Users className="w-8 h-8 text-slate-300 mx-auto mb-1.5" />
+                      <p className="text-xs font-bold text-slate-600">Belum ada siswa aktif yang terdaftar pada slot jadwal ini.</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Siswa yang mendaftar dan telah diverifikasi akan otomatis tercatat di sini.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                            <th className="py-2.5 px-3 w-10 text-center">#</th>
+                            <th className="py-2.5 px-3">Nama Siswa</th>
+                            <th className="py-2.5 px-3">Orang Tua & WhatsApp</th>
+                            <th className="py-2.5 px-3 text-center">Sisa Sesi</th>
+                            <th className="py-2.5 px-3 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {enrolledMembers.map((member, idx) => (
+                            <tr key={member.id} className="hover:bg-cyan-50/20 transition">
+                              <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-400">
+                                {idx + 1}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <p className="font-black text-slate-800">{member.student.fullName}</p>
+                                <p className="text-[10px] text-slate-400 font-mono">
+                                  ID: {member.id} {member.student.gender ? `• ${member.student.gender}` : ''}
+                                </p>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <p className="font-bold text-slate-700">{member.parent.fatherMotherName}</p>
+                                <a
+                                  href={`https://wa.me/${formatWhatsAppNumber(member.parent?.whatsapp)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[10px] text-cyan-700 hover:underline font-mono font-semibold inline-flex items-center gap-0.5"
+                                >
+                                  {member.parent.whatsapp}
+                                </a>
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-mono font-bold">
+                                <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md text-[11px]">
+                                  {member.sessionsLeft} / {member.sessionsTotal}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                  member.status === 'Aktif'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : member.status === 'Paket Hampir Habis'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-slate-100 text-slate-700'
+                                }`}>
+                                  {member.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedScheduleForStudentModal(null)}
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-5 rounded-xl text-xs transition shadow-sm cursor-pointer"
+                >
+                  Tutup
+                </button>
               </div>
             </div>
           </div>

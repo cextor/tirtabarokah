@@ -27,8 +27,13 @@ export const checkScheduleSlotConflict = (
   }
 
   const activeMembersInSlot = members.filter(m => {
-    if (m.status === 'Selesai') return false;
+    if (m.isActive === false || m.status === 'Selesai' || m.status === 'Ditolak') return false;
     if (excludeMemberId && m.id === excludeMemberId) return false;
+
+    if (m.schedules && Array.isArray(m.schedules) && m.schedules.length > 0) {
+      return m.schedules.some((s: any) => s.coachId === coachId && s.day === dayName && s.time === timeStr);
+    }
+
     if (m.coachId !== coachId) return false;
 
     // Check primary schedule

@@ -667,7 +667,7 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
                                 const slotStudents = members.filter(m => 
                                   (m.coachId === currentCoach.id || (m.schedules && Array.isArray(m.schedules) && m.schedules.some((sc: any) => sc.coachId === currentCoach.id)) || (m as any).isTransfer) &&
                                   m.isActive !== false &&
-                                  m.status !== 'Selesai' &&
+                                  (m.status === 'Aktif' || m.status === 'Paket Hampir Habis') &&
                                   (
                                     (m.scheduleDay === d.day && m.scheduleTime === s.time) ||
                                     (m.scheduleDay2 === d.day && m.scheduleTime2 === s.time) ||
@@ -773,7 +773,7 @@ export default function CoachDashboard({ coaches, members, absences, pricingPack
                                     const slotStudents = members.filter(m => 
                                       (m.coachId === currentCoach.id || (m.schedules && Array.isArray(m.schedules) && m.schedules.some((sc: any) => sc.coachId === currentCoach.id)) || (m as any).isTransfer) &&
                                       m.isActive !== false &&
-                                      m.status !== 'Selesai' &&
+                                      (m.status === 'Aktif' || m.status === 'Paket Hampir Habis') &&
                                       (
                                         (m.scheduleDay === day.day && m.scheduleTime === slot.time) ||
                                         (m.scheduleDay2 === day.day && m.scheduleTime2 === slot.time) ||
