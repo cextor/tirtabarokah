@@ -215,7 +215,14 @@ export default function MainPortal({
   const selectedPricingPackage = packagesList.find(p => p.id === selectedPricingPackageId) || packagesList[0];
 
   const selectedCoach = coaches.find(c => c.id === selectedCoachId);
-  const basePackage = selectedCoach?.packages.find(p => p.id === selectedPackageId);
+  const basePackage = selectedCoach?.packages.find(p => p.id === selectedPackageId)
+    || selectedCoach?.packages.find(p => p.id === selectedPricingPackageId || p.name.toLowerCase().trim() === selectedPricingPackage?.name.toLowerCase().trim())
+    || (selectedPricingPackage ? {
+        id: selectedPricingPackage.id,
+        name: selectedPricingPackage.name,
+        price: selectedPricingPackage.price,
+        sessions: selectedPricingPackage.sessions
+      } : undefined);
 
   // Jadwal latihan yang difilter spesifik untuk Paket Harga (Step 2) dan Pelatih (Step 3)
   const activePackageSchedules = useMemo(() => {
@@ -258,18 +265,10 @@ export default function MainPortal({
       const filteredDays: ScheduleDay[] = [];
 
       selectedCoach.schedule.forEach(d => {
-        const matchingSlots = d.timeSlots.filter(ts => {
-          if (ts.pricingPackageId) {
-            return String(ts.pricingPackageId) === String(selectedPricingPackageId);
-          }
-          if (selectedPricingPackage?.category) {
-            if (selectedPricingPackage.category === 'PRIVATE') {
-              return ts.packageCategory === 'PRIVATE_2' || ts.packageCategory === 'PRIVATE_3' || ts.packageCategory === 'PRIVATE';
-            } else if (selectedPricingPackage.category === 'REGULER') {
-              return ts.packageCategory === 'REGULER';
-            }
-          }
-          return true;
+        const matchingSlots = (d.timeSlots || []).filter(ts => {
+          if (ts.pricingPackageId && String(ts.pricingPackageId) === String(selectedPricingPackageId)) return true;
+          if (selectedPricingPackage?.category && ts.packageCategory === selectedPricingPackage.category) return true;
+          return false;
         });
 
         if (matchingSlots.length > 0) {
@@ -286,16 +285,15 @@ export default function MainPortal({
     return [];
   }, [selectedCoach, selectedPricingPackageId, selectedPricingPackage, schedules]);
 
-  // Adjust price for Privat coach type
+  // Get final package price
   const getPackagePrice = (pkg: Package | undefined) => {
-    if (!pkg) return 0;
-    // If explicit private package, do not add the 100k premium
-    const isExplicitPrivatePkg = pkg.name.toLowerCase().includes('privat') || pkg.name.toLowerCase().includes('private');
-    if (isExplicitPrivatePkg) {
-      return pkg.price;
+    if (selectedPricingPackage && selectedPricingPackage.price !== undefined && selectedPricingPackage.price !== null) {
+      return Number(selectedPricingPackage.price) || 0;
     }
-    // Private premium: extra Rp 100.000 for exclusive 1-on-1 lane
-    return coachType === 'Privat' ? pkg.price + 100000 : pkg.price;
+    if (pkg && pkg.price !== undefined && pkg.price !== null) {
+      return Number(pkg.price) || 0;
+    }
+    return 0;
   };
 
   const finalPrice = getPackagePrice(basePackage);
@@ -309,14 +307,18 @@ export default function MainPortal({
   useEffect(() => {
     if (selectedCoach && selectedPricingPackage) {
       const matchedPkg = selectedCoach.packages.find(cp => cp.id && selectedPricingPackage.id && (String(cp.id) === String(selectedPricingPackage.id) || cp.id.includes(selectedPricingPackage.id)))
-        || selectedCoach.packages.find(cp => cp.name.toLowerCase().trim() === selectedPricingPackage.name.toLowerCase().trim())
-        || selectedCoach.packages[0];
+        || selectedCoach.packages.find(cp => cp.name.toLowerCase().trim() === selectedPricingPackage.name.toLowerCase().trim());
 
       if (matchedPkg) {
         setSelectedPackageId(matchedPkg.id);
-        const isPriv = matchedPkg.name.toLowerCase().includes('privat') || matchedPkg.name.toLowerCase().includes('private') || selectedPricingPackage.category === 'PRIVATE';
-        setCoachType(isPriv ? 'Privat' : 'Reguler');
+      } else {
+        setSelectedPackageId(selectedPricingPackage.id || '');
       }
+
+      const isPriv = (selectedPricingPackage.name && (selectedPricingPackage.name.toLowerCase().includes('privat') || selectedPricingPackage.name.toLowerCase().includes('private'))) || 
+                     (selectedPricingPackage.category && selectedPricingPackage.category.startsWith('PRIVATE')) ||
+                     (matchedPkg && matchedPkg.name && (matchedPkg.name.toLowerCase().includes('privat') || matchedPkg.name.toLowerCase().includes('private')));
+      setCoachType(isPriv ? 'Privat' : 'Reguler');
     } else {
       setSelectedPackageId('');
     }
@@ -384,8 +386,8 @@ export default function MainPortal({
         schedules: schedulesPayload,
         coachType,
         status: 'Menunggu Verifikasi', // default till checked by admin
-        sessionsLeft: basePackage.sessions,
-        sessionsTotal: basePackage.sessions,
+        sessionsLeft: selectedPricingPackage?.sessions || basePackage?.sessions || 5,
+        sessionsTotal: selectedPricingPackage?.sessions || basePackage?.sessions || 5,
         payment: {
           amount: finalPrice,
           method: paymentMethod,

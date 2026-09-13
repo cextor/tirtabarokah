@@ -35,15 +35,49 @@ class ApiController extends BaseController
 
         $coachIds = array_column($coaches, 'id');
 
-        // 1. Bulk Fetch Packages for all coaches
-        $allPackages = $this->db->table('packages')
-            ->whereIn('coach_id', $coachIds)
-            ->get()
-            ->getResultArray();
-
+        // 1. Bulk Fetch Packages for all coaches (from coach_pricing_packages + pricing_packages, fallback to packages)
         $packagesByCoach = [];
-        foreach ($allPackages as $pkg) {
-            $packagesByCoach[$pkg['coach_id']][] = $pkg;
+        if ($this->db->tableExists('coach_pricing_packages') && $this->db->tableExists('pricing_packages')) {
+            $cppRows = $this->db->table('coach_pricing_packages')
+                ->select('coach_pricing_packages.coach_id, pricing_packages.id, pricing_packages.name, pricing_packages.price, pricing_packages.sessions, pricing_packages.category, pricing_packages.max_students, pricing_packages.active_period, pricing_packages.description')
+                ->join('pricing_packages', 'pricing_packages.id = coach_pricing_packages.pricing_package_id')
+                ->whereIn('coach_pricing_packages.coach_id', $coachIds)
+                ->get()
+                ->getResultArray();
+
+            foreach ($cppRows as $pkg) {
+                $packagesByCoach[$pkg['coach_id']][] = [
+                    'id' => $pkg['id'],
+                    'coach_id' => $pkg['coach_id'],
+                    'name' => $pkg['name'],
+                    'price' => (int)$pkg['price'],
+                    'sessions' => (int)$pkg['sessions'],
+                    'category' => $pkg['category'] ?? 'REGULER',
+                    'max_students' => (int)($pkg['max_students'] ?? 6),
+                    'active_period' => $pkg['active_period'] ?? '1 Bulan',
+                    'description' => $pkg['description'] ?? ''
+                ];
+            }
+        }
+
+        if ($this->db->tableExists('packages')) {
+            $allPackages = $this->db->table('packages')
+                ->whereIn('coach_id', $coachIds)
+                ->get()
+                ->getResultArray();
+
+            foreach ($allPackages as $pkg) {
+                $cId = $pkg['coach_id'];
+                if (empty($packagesByCoach[$cId])) {
+                    $packagesByCoach[$cId][] = [
+                        'id' => $pkg['id'],
+                        'coach_id' => $pkg['coach_id'],
+                        'name' => $pkg['name'],
+                        'price' => (int)$pkg['price'],
+                        'sessions' => (int)($pkg['sessions'] ?? 5)
+                    ];
+                }
+            }
         }
 
         // 2. Bulk Fetch Schedules for all coaches from package_schedules (fallback to coach_schedules)
