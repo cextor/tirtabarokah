@@ -1738,8 +1738,8 @@ export default function AdminDashboard({
   const handleOpenAddPoolModal = () => {
     setEditingPool(null);
     setPoolName('');
-    setPoolDays(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']);
-    setPoolHours(['08:00 - 09:30', '10:00 - 11:30', '14:00 - 15:30', '16:00 - 17:30']);
+    setPoolDays([]);
+    setPoolHours([]);
     setNewHourInput('');
     setPoolDescription('');
     setShowPoolModal(true);

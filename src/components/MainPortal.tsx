@@ -61,7 +61,7 @@ export default function MainPortal({
     }
   };
 
-  // Helper to dynamically get pool name from swimmingPoolId or day fallback
+  // Helper to dynamically get pool name from swimmingPoolId or matched training day
   const getPoolName = (poolId?: string, fallbackDay?: string): string => {
     if (poolId) {
       const found = swimmingPools.find(p => p.id === poolId);
@@ -70,10 +70,8 @@ export default function MainPortal({
     if (fallbackDay) {
       const matchedPool = swimmingPools.find(p => p.training_days && p.training_days.includes(fallbackDay));
       if (matchedPool) return matchedPool.name;
-      if (fallbackDay === 'Selasa') return 'Kolam Renang GHL';
-      return 'Kolam Grand Garden';
     }
-    return 'Kolam Renang Mitra';
+    return '';
   };
 
   // Helper to get all pools a coach has schedules for
@@ -166,52 +164,7 @@ export default function MainPortal({
   }, [studentData.dob]);
 
   // Load pricing packages list
-  let packagesList: PricingPackage[] = pricingPackages;
-  if (!Array.isArray(packagesList) || packagesList.length === 0) {
-    packagesList = [
-      {
-        id: 'pkg-promo',
-        category: 'PROMO',
-        name: 'Paket Reguler PROMO 5x latihan',
-        price: 220000,
-        sessions: 5,
-        max_students: 6,
-        active_period: '1 Bulan',
-        description: '1 pelatih mengajar 1-6 anak. Masa aktif 1 bulan, jika tidak habis maka hangus.'
-      },
-      {
-        id: 'pkg-reguler',
-        category: 'REGULER',
-        name: 'Paket Reguler 5x latihan',
-        price: 250000,
-        sessions: 5,
-        max_students: 6,
-        active_period: '3 Bulan',
-        description: '1 pelatih mengajar 1-6 anak. Masa aktif 3 bulan, jika tidak habis maka hangus.'
-      },
-      {
-        id: 'pkg-private-2',
-        category: 'PRIVATE',
-        name: 'Paket Private 2 anak',
-        price: 1300000,
-        sessions: 8,
-        max_students: 2,
-        active_period: '2 Bulan',
-        description: '1 pelatih KHUSUS mengajar 2 anak.'
-      },
-      {
-        id: 'pkg-private-3',
-        category: 'PRIVATE',
-        name: 'Paket Private 3 anak',
-        price: 1500000,
-        sessions: 8,
-        max_students: 3,
-        active_period: '2 Bulan',
-        description: '1 pelatih KHUSUS mengajar 3 anak.'
-      }
-    ];
-  }
-
+  const packagesList: PricingPackage[] = Array.isArray(pricingPackages) ? pricingPackages : [];
   const selectedPricingPackage = packagesList.find(p => p.id === selectedPricingPackageId) || packagesList[0];
 
   const selectedCoach = coaches.find(c => c.id === selectedCoachId);
@@ -609,9 +562,12 @@ export default function MainPortal({
       || selectedCoach.schedule?.find(d => d.day === selectedScheduleDay2)?.timeSlots?.find(ts => ts.time === selectedScheduleTime2);
     const loc2 = getPoolName(selectedSlot2?.swimmingPoolId, selectedScheduleDay2);
 
+    const loc1Str = loc1 ? ` (${loc1})` : '';
+    const loc2Str = loc2 ? ` (${loc2})` : '';
+
     const scheduleStr = scheduleFrequency === '2x Seminggu' 
-      ? `1) Hari ${selectedScheduleDay} (${loc1}) @ ${selectedScheduleTime} WIB dan 2) Hari ${selectedScheduleDay2} (${loc2}) @ ${selectedScheduleTime2} WIB`
-      : `Hari ${selectedScheduleDay} (${loc1}) @ ${selectedScheduleTime} WIB`;
+      ? `1) Hari ${selectedScheduleDay}${loc1Str} @ ${selectedScheduleTime} WIB dan 2) Hari ${selectedScheduleDay2}${loc2Str} @ ${selectedScheduleTime2} WIB`
+      : `Hari ${selectedScheduleDay}${loc1Str} @ ${selectedScheduleTime} WIB`;
 
     const text = `Halo Admin Tirta Barokah,\nSaya ingin mengonfirmasi pembayaran pendaftaran siswa baru:\n\n` +
       `• Nama Wali: ${parentData.fatherMotherName}\n` +
@@ -763,52 +719,7 @@ export default function MainPortal({
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {(() => {
-                let packagesList = pricingPackages;
-                if (!Array.isArray(packagesList) || packagesList.length === 0) {
-                  // Fallback defaults
-                  packagesList = [
-                    {
-                      id: 'pkg-promo',
-                      category: 'PROMO',
-                      name: 'Paket Reguler PROMO 5x latihan',
-                      price: 220000,
-                      sessions: 5,
-                      max_students: 6,
-                      active_period: '1 Bulan',
-                      description: '1 pelatih mengajar 1-6 anak. Masa aktif 1 bulan, jika tidak habis maka hangus.'
-                    },
-                    {
-                      id: 'pkg-reguler',
-                      category: 'REGULER',
-                      name: 'Paket Reguler 5x latihan',
-                      price: 250000,
-                      sessions: 5,
-                      max_students: 6,
-                      active_period: '3 Bulan',
-                      description: '1 pelatih mengajar 1-6 anak. Masa aktif 3 bulan, jika tidak habis maka hangus.'
-                    },
-                    {
-                      id: 'pkg-private-2',
-                      category: 'PRIVATE',
-                      name: 'Paket Private 2 anak',
-                      price: 1300000,
-                      sessions: 8,
-                      max_students: 2,
-                      active_period: '2 Bulan',
-                      description: '1 pelatih KHUSUS mengajar 2 anak.'
-                    },
-                    {
-                      id: 'pkg-private-3',
-                      category: 'PRIVATE',
-                      name: 'Paket Private 3 anak',
-                      price: 1500000,
-                      sessions: 8,
-                      max_students: 3,
-                      active_period: '2 Bulan',
-                      description: '1 pelatih KHUSUS mengajar 3 anak.'
-                    }
-                  ];
-                }
+                const packagesList = Array.isArray(pricingPackages) ? pricingPackages : [];
 
                 return packagesList.map((pkg: any, idx: number) => (
                   <div key={idx} className="bg-white rounded-2xl border border-slate-200/90 shadow-md p-6 flex flex-col justify-between hover:border-cyan-400 hover:shadow-xl transition text-slate-900">
@@ -1832,8 +1743,9 @@ export default function MainPortal({
                                 <div className="space-y-3">
                                   {activePackageSchedules.map((day) => {
                                     const dayPoolIds = Array.from(new Set(day.timeSlots.map(s => s.swimmingPoolId).filter(Boolean)));
-                                    const dayPoolNames = dayPoolIds.map(pid => getPoolName(pid, day.day));
-                                    const headerPoolLabel = dayPoolNames.length > 0 ? dayPoolNames.join(', ') : getPoolName(undefined, day.day);
+                                    const dayPoolNames = dayPoolIds.map(pid => getPoolName(pid, day.day)).filter(Boolean);
+                                    const fallbackHeader = getPoolName(undefined, day.day);
+                                    const headerPoolLabel = dayPoolNames.length > 0 ? dayPoolNames.join(', ') : fallbackHeader;
 
                                     return (
                                       <div key={day.day} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
@@ -1841,9 +1753,11 @@ export default function MainPortal({
                                           <span className="text-xs font-extrabold text-cyan-800 uppercase tracking-wider">
                                             📅 Hari {day.day}
                                           </span>
-                                          <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-md border border-cyan-150 flex items-center gap-1">
-                                            <MapPin className="w-3 h-3 text-cyan-600 shrink-0" /> {headerPoolLabel}
-                                          </span>
+                                          {headerPoolLabel && (
+                                            <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-md border border-cyan-150 flex items-center gap-1">
+                                              <MapPin className="w-3 h-3 text-cyan-600 shrink-0" /> {headerPoolLabel}
+                                            </span>
+                                          )}
                                         </div>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                           {day.timeSlots.map((slot) => {
@@ -1876,10 +1790,12 @@ export default function MainPortal({
                                                   <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
                                                   {isSelected && <span className="text-xs">✓</span>}
                                                 </div>
-                                                <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 mt-1 truncate ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-50 text-cyan-800 border border-cyan-150'}`}>
-                                                  <MapPin className="w-2.5 h-2.5 text-cyan-600 shrink-0" />
-                                                  <span className="truncate">{slotPoolName}</span>
-                                                </span>
+                                                {slotPoolName && (
+                                                  <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 mt-1 truncate ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-50 text-cyan-800 border border-cyan-150'}`}>
+                                                    <MapPin className="w-2.5 h-2.5 text-cyan-600 shrink-0" />
+                                                    <span className="truncate">{slotPoolName}</span>
+                                                  </span>
+                                                )}
                                                 {slot.packageCategory === 'REGULER' && (
                                                   <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
                                                 )}
@@ -1914,7 +1830,7 @@ export default function MainPortal({
                                     </label>
                                     {selectedScheduleDay2 && selectedScheduleTime2 && (
                                       <span className="bg-indigo-100 border border-indigo-300 text-indigo-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1">
-                                        ✓ Terpilih: {selectedScheduleDay2} (📍 {pool2Name}) @ {selectedScheduleTime2} WIB
+                                        ✓ Terpilih: {selectedScheduleDay2} {pool2Name ? `(📍 ${pool2Name}) ` : ''}@ {selectedScheduleTime2} WIB
                                       </span>
                                     )}
                                   </div>
@@ -1922,8 +1838,9 @@ export default function MainPortal({
                                   <div className="space-y-3">
                                     {activePackageSchedules.map((day) => {
                                       const dayPoolIds = Array.from(new Set(day.timeSlots.map(s => s.swimmingPoolId).filter(Boolean)));
-                                      const dayPoolNames = dayPoolIds.map(pid => getPoolName(pid, day.day));
-                                      const headerPoolLabel = dayPoolNames.length > 0 ? dayPoolNames.join(', ') : getPoolName(undefined, day.day);
+                                      const dayPoolNames = dayPoolIds.map(pid => getPoolName(pid, day.day)).filter(Boolean);
+                                      const fallbackHeader = getPoolName(undefined, day.day);
+                                      const headerPoolLabel = dayPoolNames.length > 0 ? dayPoolNames.join(', ') : fallbackHeader;
 
                                       return (
                                         <div key={day.day} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
@@ -1931,9 +1848,11 @@ export default function MainPortal({
                                             <span className="text-xs font-extrabold text-indigo-800 uppercase tracking-wider">
                                               📅 Hari {day.day}
                                             </span>
-                                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-150 flex items-center gap-1">
-                                              <MapPin className="w-3 h-3 text-indigo-600 shrink-0" /> {headerPoolLabel}
-                                            </span>
+                                            {headerPoolLabel && (
+                                              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-150 flex items-center gap-1">
+                                                <MapPin className="w-3 h-3 text-indigo-600 shrink-0" /> {headerPoolLabel}
+                                              </span>
+                                            )}
                                           </div>
                                           <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                                             {day.timeSlots.map((slot) => {
@@ -1967,10 +1886,12 @@ export default function MainPortal({
                                                     <span className="text-xs font-mono font-extrabold">{slot.time} WIB</span>
                                                     {isSelected && <span className="text-xs">✓</span>}
                                                   </div>
-                                                  <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 mt-1 truncate ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-800 border border-indigo-150'}`}>
-                                                    <MapPin className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
-                                                    <span className="truncate">{slotPoolName}</span>
-                                                  </span>
+                                                  {slotPoolName && (
+                                                    <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 mt-1 truncate ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-800 border border-indigo-150'}`}>
+                                                      <MapPin className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                                                      <span className="truncate">{slotPoolName}</span>
+                                                    </span>
+                                                  )}
                                                   {slot.packageCategory === 'REGULER' && (
                                                     <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded mt-0.5 inline-block ${isSelected ? 'bg-white/20 text-white' : 'bg-cyan-100 text-cyan-800'}`}>👥 Reguler</span>
                                                   )}
@@ -2004,11 +1925,11 @@ export default function MainPortal({
                                   </span>
                                   <div className="pt-1 text-xs font-bold text-slate-800 space-y-1">
                                     <p className="text-emerald-900">
-                                      📌 Sesi 1: <span className="underline">Hari {selectedScheduleDay}</span> (📍 {pool1Name}) Pukul <span className="font-mono">{selectedScheduleTime} WIB</span>
+                                      📌 Sesi 1: <span className="underline">Hari {selectedScheduleDay}</span> {pool1Name ? `(📍 ${pool1Name}) ` : ''}Pukul <span className="font-mono">{selectedScheduleTime} WIB</span>
                                     </p>
                                     {scheduleFrequency === '2x Seminggu' && selectedScheduleDay2 && selectedScheduleTime2 && (
                                       <p className="text-indigo-900">
-                                        📌 Sesi 2: <span className="underline">Hari {selectedScheduleDay2}</span> (📍 {pool2Name}) Pukul <span className="font-mono">{selectedScheduleTime2} WIB</span>
+                                        📌 Sesi 2: <span className="underline">Hari {selectedScheduleDay2}</span> {pool2Name ? `(📍 ${pool2Name}) ` : ''}Pukul <span className="font-mono">{selectedScheduleTime2} WIB</span>
                                       </p>
                                     )}
                                   </div>
@@ -2149,12 +2070,12 @@ export default function MainPortal({
                             </div>
                             <div className="flex justify-between border-b border-slate-200 pb-2">
                               <span className="text-slate-500">Jadwal Sesi 1:</span>
-                              <span className="font-bold text-slate-800">Hari {selectedScheduleDay} (📍 {pool1Name}) @ Pukul {selectedScheduleTime} WIB</span>
+                              <span className="font-bold text-slate-800">Hari {selectedScheduleDay} {pool1Name ? `(📍 ${pool1Name}) ` : ''}@ Pukul {selectedScheduleTime} WIB</span>
                             </div>
                             {scheduleFrequency === '2x Seminggu' && (
                               <div className="flex justify-between border-b border-slate-200 pb-2">
                                 <span className="text-slate-500">Jadwal Sesi 2:</span>
-                                <span className="font-bold text-slate-800">Hari {selectedScheduleDay2} (📍 {pool2Name}) @ Pukul {selectedScheduleTime2} WIB</span>
+                                <span className="font-bold text-slate-800">Hari {selectedScheduleDay2} {pool2Name ? `(📍 ${pool2Name}) ` : ''}@ Pukul {selectedScheduleTime2} WIB</span>
                               </div>
                             )}
                             <div className="flex justify-between text-sm pt-2">

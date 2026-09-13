@@ -33,24 +33,6 @@ export default function ParentDashboard({ coaches, members, onUpdateMembers }: P
   // Receipt popup state
   const [activeReceiptMember, setActiveReceiptMember] = useState<Member | null>(null);
 
-  // Demo shortcut login helper
-  const handleDemoLogin = async (phone: string) => {
-    setPhoneNumber(phone);
-    try {
-      setLoginError(null);
-      const res = await api.parentLogin(phone);
-      if (res.status === 'success' && res.members) {
-        setLocalMembers(res.members);
-        setIsLoggedIn(true);
-        setLoginError(null);
-      } else {
-        setLoginError('Gagal masuk demo.');
-      }
-    } catch (err) {
-      setLoginError('Gagal masuk demo.');
-    }
-  };
-
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPhone = phoneNumber.trim();
@@ -153,27 +135,6 @@ export default function ParentDashboard({ coaches, members, onUpdateMembers }: P
               Masuk Portal
             </button>
           </form>
-
-          {/* Shortcuts for evaluation */}
-          <div className="border-t border-slate-100 pt-5 space-y-3">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Akun Demo Orang Tua (Klik Instan)</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => handleDemoLogin('081234567890')}
-                className="bg-slate-50 border border-slate-200 hover:border-cyan-300 hover:bg-cyan-50/20 p-2.5 rounded-xl text-left text-xs transition"
-              >
-                <span className="font-bold text-slate-700 block">Bapak Rudi</span>
-                <span className="text-[9px] text-slate-400 font-mono">081234567890 (Ortu Aldi)</span>
-              </button>
-              <button
-                onClick={() => handleDemoLogin('082198765432')}
-                className="bg-slate-50 border border-slate-200 hover:border-cyan-300 hover:bg-cyan-50/20 p-2.5 rounded-xl text-left text-xs transition"
-              >
-                <span className="font-bold text-slate-700 block">Ibu Maya</span>
-                <span className="text-[9px] text-slate-400 font-mono">082198765432 (Ortu Bima)</span>
-              </button>
-            </div>
-          </div>
         </div>
       ) : (
         /* 2. AUTHENTICATED PARENT VIEW */
