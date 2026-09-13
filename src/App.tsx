@@ -865,13 +865,13 @@ export default function App() {
         confirmButtonColor: '#0891b2'
       });
       return res.id || null;
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to register member via API", e);
       Swal.fire({
         title: 'Pendaftaran Gagal',
-        text: 'Terjadi kesalahan saat mendaftar. Silakan coba lagi.',
+        text: e?.message || 'Terjadi kesalahan saat mendaftar. Silakan coba lagi.',
         icon: 'error',
-        confirmButtonText: 'Coba Lagi',
+        confirmButtonText: 'Tutup',
         confirmButtonColor: '#e11d48'
       });
       return null;

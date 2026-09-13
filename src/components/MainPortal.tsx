@@ -401,10 +401,8 @@ export default function MainPortal({
 
       if (generatedId) {
         setCreatedMemberId(generatedId);
-      } else {
-        setCreatedMemberId(`TB-${Math.floor(100000 + Math.random() * 900000)}`);
+        setStep(6);
       }
-      setStep(6);
     } catch (err) {
       console.error("Gagal melakukan pendaftaran:", err);
     }

@@ -67,8 +67,7 @@ CREATE TABLE IF NOT EXISTS members (
     referral_code_used VARCHAR(50) DEFAULT NULL,
     referral_count INT DEFAULT 0,
     referral_bonus INT DEFAULT 0,
-    is_active TINYINT(1) DEFAULT 1,
-    FOREIGN KEY (package_id) REFERENCES packages(id)
+    is_active TINYINT(1) DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 6. Table: member_schedules
