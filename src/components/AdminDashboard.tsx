@@ -2794,16 +2794,12 @@ export default function AdminDashboard({
             {/* 4 Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
               {!isOperator ? (
-                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-150 shadow-xs flex items-center gap-3 sm:gap-4 hover:shadow-md transition duration-200 min-w-0">
-                  <div className="p-2.5 sm:p-3.5 bg-cyan-50 rounded-2xl text-cyan-600 shrink-0">
-                    <DollarSign className="w-5 h-5 sm:w-6 sm:h-6" />
-                  </div>
-                  <div className="min-w-0 flex-1 overflow-hidden">
-                    <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-tight truncate">Total Pendapatan</p>
-                    <h4 className="text-sm sm:text-base xl:text-lg font-black text-slate-800 whitespace-nowrap tracking-tight" title={`Rp ${totalRevenueFiltered.toLocaleString('id-ID')}`}>
-                      Rp {totalRevenueFiltered.toLocaleString('id-ID')}
-                    </h4>
-                  </div>
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-150 shadow-xs flex flex-col justify-center hover:shadow-md transition duration-200 min-w-0">
+                  <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-tight">Total Pendapatan</p>
+                  <h4 className="text-sm sm:text-base xl:text-lg font-black text-slate-800 tracking-tight flex items-baseline gap-1 mt-0.5" title={`Rp ${totalRevenueFiltered.toLocaleString('id-ID')}`}>
+                    <span className="text-[11px] sm:text-xs font-extrabold text-cyan-700">Rp</span>
+                    <span className="font-mono sm:font-sans font-black">{totalRevenueFiltered.toLocaleString('id-ID')}</span>
+                  </h4>
                 </div>
               ) : (
                 <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-150 shadow-xs flex items-center gap-3 sm:gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer min-w-0" onClick={() => setActiveTab('events')}>
