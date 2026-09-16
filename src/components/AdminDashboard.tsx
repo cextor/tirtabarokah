@@ -2792,64 +2792,64 @@ export default function AdminDashboard({
             )}
 
             {/* 4 Stats Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
               {!isOperator ? (
-                <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 min-w-0">
-                  <div className="p-2 sm:p-3 bg-cyan-50 rounded-xl text-cyan-600 shrink-0">
-                    <DollarSign className="w-4 h-4 sm:w-6 sm:h-6" />
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-150 shadow-xs flex items-center gap-3 sm:gap-4 hover:shadow-md transition duration-200 min-w-0">
+                  <div className="p-2.5 sm:p-3.5 bg-cyan-50 rounded-2xl text-cyan-600 shrink-0">
+                    <DollarSign className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Total Pendapatan</p>
-                    <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate" title={`Rp ${totalRevenueFiltered.toLocaleString('id-ID')}`}>
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-tight truncate">Total Pendapatan</p>
+                    <h4 className="text-sm sm:text-base xl:text-lg font-black text-slate-800 whitespace-nowrap tracking-tight" title={`Rp ${totalRevenueFiltered.toLocaleString('id-ID')}`}>
                       Rp {totalRevenueFiltered.toLocaleString('id-ID')}
                     </h4>
                   </div>
                 </div>
               ) : (
-                <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer min-w-0" onClick={() => setActiveTab('events')}>
-                  <div className="p-2 sm:p-3 bg-indigo-50 rounded-xl text-indigo-600 shrink-0">
-                    <Calendar className="w-4 h-4 sm:w-6 sm:h-6" />
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-150 shadow-xs flex items-center gap-3 sm:gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer min-w-0" onClick={() => setActiveTab('events')}>
+                  <div className="p-2.5 sm:p-3.5 bg-indigo-50 rounded-2xl text-indigo-600 shrink-0">
+                    <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Total Agenda Event</p>
-                    <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-tight truncate">Total Agenda Event</p>
+                    <h4 className="text-sm sm:text-base xl:text-lg font-black text-slate-800 whitespace-nowrap tracking-tight">
                       {events.length} Event
                     </h4>
                   </div>
                 </div>
               )}
 
-              <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 min-w-0">
-                <div className="p-2 sm:p-3 bg-emerald-50 rounded-xl text-emerald-600 shrink-0">
-                  <Users className="w-4 h-4 sm:w-6 sm:h-6" />
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-150 shadow-xs flex items-center gap-3 sm:gap-4 hover:shadow-md transition duration-200 min-w-0">
+                <div className="p-2.5 sm:p-3.5 bg-emerald-50 rounded-2xl text-emerald-600 shrink-0">
+                  <Users className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Member Aktif</p>
-                  <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate">
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-tight truncate">Member Aktif</p>
+                  <h4 className="text-sm sm:text-base xl:text-lg font-black text-slate-800 whitespace-nowrap tracking-tight">
                     {activeMembersFiltered.length} Anak
                   </h4>
                 </div>
               </div>
 
-              <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer min-w-0" onClick={() => setActiveTab('verifikasi')}>
-                <div className="p-2 sm:p-3 bg-amber-50 rounded-xl text-amber-600 shrink-0">
-                  <ShieldCheck className="w-4 h-4 sm:w-6 sm:h-6" />
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-150 shadow-xs flex items-center gap-3 sm:gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer min-w-0" onClick={() => setActiveTab('verifikasi')}>
+                <div className="p-2.5 sm:p-3.5 bg-amber-50 rounded-2xl text-amber-600 shrink-0">
+                  <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Butuh Verifikasi</p>
-                  <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate">
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-tight truncate">Butuh Verifikasi</p>
+                  <h4 className="text-sm sm:text-base xl:text-lg font-black text-slate-800 whitespace-nowrap tracking-tight">
                     {pendingPaymentsFiltered.length} Akun
                   </h4>
                 </div>
               </div>
 
-              <div className="bg-white p-3 sm:p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-2.5 sm:gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer min-w-0" onClick={() => { setActiveTab('peserta'); setPesertaFilter('hampir-habis'); }}>
-                <div className="p-2 sm:p-3 bg-rose-50 rounded-xl text-rose-600 shrink-0">
-                  <AlertTriangle className="w-4 h-4 sm:w-6 sm:h-6" />
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-150 shadow-xs flex items-center gap-3 sm:gap-4 hover:shadow-md transition duration-200 text-left cursor-pointer min-w-0" onClick={() => { setActiveTab('peserta'); setPesertaFilter('hampir-habis'); }}>
+                <div className="p-2.5 sm:p-3.5 bg-rose-50 rounded-2xl text-rose-600 shrink-0">
+                  <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[9px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-tight truncate">Paket Habis / Kurang</p>
-                  <h4 className="text-xs sm:text-lg font-black text-slate-800 truncate">
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-tight truncate">Paket Habis / Kurang</p>
+                  <h4 className="text-sm sm:text-base xl:text-lg font-black text-slate-800 whitespace-nowrap tracking-tight">
                     {expiringMembersFiltered.length} Siswa
                   </h4>
                 </div>
