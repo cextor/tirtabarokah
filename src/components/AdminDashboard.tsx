@@ -269,6 +269,7 @@ export default function AdminDashboard({
 
   const [selectedReplacementCoachId, setSelectedReplacementCoachId] = useState<Record<string, string>>({});
   const [selectedScheduleDayFilter, setSelectedScheduleDayFilter] = useState<string>('');
+  const [scheduleSearchQuery, setScheduleSearchQuery] = useState<string>('');
   const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
   const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState<boolean>(false);
   const [registrationMode, setRegistrationMode] = useState<'baru' | 'lama'>('baru');
@@ -2878,6 +2879,30 @@ export default function AdminDashboard({
                 </div>
               </div>
 
+              {/* Search Bar Presensi */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={scheduleSearchQuery}
+                    onChange={(e) => setScheduleSearchQuery(e.target.value)}
+                    placeholder="Cari nama siswa, ID, nama orang tua, pelatih, atau jam..."
+                    className="w-full bg-slate-50 border border-slate-200 pl-9 pr-8 py-2 rounded-xl text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                  />
+                  {scheduleSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setScheduleSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-md cursor-pointer"
+                      title="Hapus pencarian"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Schedule List Table */}
               {(() => {
                 const targetDay = selectedScheduleDayFilter || getIndonesianDayName(new Date());
@@ -2901,7 +2926,45 @@ export default function AdminDashboard({
                   );
                 }
 
-                const sortedScheduled = scheduledToday.sort((a, b) => {
+                const searchLower = scheduleSearchQuery.trim().toLowerCase();
+                const filteredScheduled = searchLower
+                  ? scheduledToday.filter(m => {
+                      const mSchedules = m.schedules && m.schedules.length > 0
+                        ? m.schedules
+                        : [{ coachId: m.coachId, day: m.scheduleDay, time: m.scheduleTime }];
+                      const currentSched = mSchedules.find(s => s.day === targetDay);
+                      const coach = coaches.find(c => c.id === currentSched?.coachId);
+                      const timeStr = currentSched?.time || m.scheduleTime || '';
+                      return (
+                        (m.student?.fullName || '').toLowerCase().includes(searchLower) ||
+                        (m.id || '').toLowerCase().includes(searchLower) ||
+                        (m.parent?.fatherMotherName || '').toLowerCase().includes(searchLower) ||
+                        (m.parent?.whatsapp || '').toLowerCase().includes(searchLower) ||
+                        (coach?.name || '').toLowerCase().includes(searchLower) ||
+                        timeStr.toLowerCase().includes(searchLower)
+                      );
+                    })
+                  : scheduledToday;
+
+                if (filteredScheduled.length === 0) {
+                  return (
+                    <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <Search className="w-8 h-8 text-slate-300 mx-auto" />
+                      <p className="text-xs text-slate-500 mt-2 font-semibold">
+                        Tidak ditemukan siswa dengan kata kunci "{scheduleSearchQuery}" pada hari {targetDay}.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setScheduleSearchQuery('')}
+                        className="mt-2 text-[11px] font-bold text-cyan-600 hover:underline cursor-pointer"
+                      >
+                        Reset Pencarian
+                      </button>
+                    </div>
+                  );
+                }
+
+                const sortedScheduled = filteredScheduled.sort((a, b) => {
                   const getFirstTime = (m: Member) => {
                     const mSchedules = m.schedules && m.schedules.length > 0 ? m.schedules : [{ time: m.scheduleTime }];
                     const sched = mSchedules.find(s => s.day === targetDay);
@@ -5062,6 +5125,30 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
+                {/* Search Bar Presensi */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={scheduleSearchQuery}
+                      onChange={(e) => setScheduleSearchQuery(e.target.value)}
+                      placeholder="Cari nama siswa, ID, nama orang tua, pelatih, atau jam..."
+                      className="w-full bg-white border border-slate-200 pl-9 pr-8 py-2 rounded-xl text-xs font-medium text-slate-800 placeholder:text-slate-400 shadow-xs focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                    />
+                    {scheduleSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setScheduleSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-md cursor-pointer"
+                        title="Hapus pencarian"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Schedule List Table */}
                 {(() => {
                   const targetDay = selectedScheduleDayFilter || getIndonesianDayName(new Date());
@@ -5085,7 +5172,45 @@ export default function AdminDashboard({
                     );
                   }
 
-                  const sortedScheduled = scheduledToday.sort((a, b) => {
+                  const searchLower = scheduleSearchQuery.trim().toLowerCase();
+                  const filteredScheduled = searchLower
+                    ? scheduledToday.filter(m => {
+                        const mSchedules = m.schedules && m.schedules.length > 0
+                          ? m.schedules
+                          : [{ coachId: m.coachId, day: m.scheduleDay, time: m.scheduleTime }];
+                        const currentSched = mSchedules.find(s => s.day === targetDay);
+                        const coach = coaches.find(c => c.id === currentSched?.coachId);
+                        const timeStr = currentSched?.time || m.scheduleTime || '';
+                        return (
+                          (m.student?.fullName || '').toLowerCase().includes(searchLower) ||
+                          (m.id || '').toLowerCase().includes(searchLower) ||
+                          (m.parent?.fatherMotherName || '').toLowerCase().includes(searchLower) ||
+                          (m.parent?.whatsapp || '').toLowerCase().includes(searchLower) ||
+                          (coach?.name || '').toLowerCase().includes(searchLower) ||
+                          timeStr.toLowerCase().includes(searchLower)
+                        );
+                      })
+                    : scheduledToday;
+
+                  if (filteredScheduled.length === 0) {
+                    return (
+                      <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <Search className="w-10 h-10 text-slate-300 mx-auto" />
+                        <p className="text-xs text-slate-500 mt-2 font-semibold">
+                          Tidak ditemukan siswa dengan kata kunci "{scheduleSearchQuery}" pada hari {targetDay}.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleSearchQuery('')}
+                          className="mt-2 text-[11px] font-bold text-cyan-600 hover:underline cursor-pointer"
+                        >
+                          Reset Pencarian
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  const sortedScheduled = filteredScheduled.sort((a, b) => {
                     const getFirstTime = (m: Member) => {
                       const mSchedules = m.schedules && m.schedules.length > 0 ? m.schedules : [{ time: m.scheduleTime }];
                       const sched = mSchedules.find(s => s.day === targetDay);
