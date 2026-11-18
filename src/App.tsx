@@ -698,15 +698,17 @@ export default function App() {
   };
 
   // Sync to database on updates (Members)
-  const updateMembersState = async (newMembers: Member[]) => {
+  const updateMembersState = async (newMembers: Member[]): Promise<boolean> => {
     console.log("DEBUG: updateMembersState called with", newMembers.length, "members");
     setMembers(newMembers);
+    let isSuccess = true;
     try {
       if (newMembers.length > members.length) {
         console.log("DEBUG: Member added");
         const added = newMembers.find(nm => !members.some(m => m.id === nm.id));
         if (added) {
           await api.registerMember({
+            id: added.id,
             parent: added.parent,
             student: added.student,
             coachId: added.coachId,
@@ -718,6 +720,8 @@ export default function App() {
             scheduleTime2: added.scheduleTime2,
             schedules: added.schedules,
             coachType: added.coachType,
+            status: added.status,
+            isActive: added.isActive,
             sessionsLeft: added.sessionsLeft,
             sessionsTotal: added.sessionsTotal,
             payment: {
@@ -769,7 +773,7 @@ export default function App() {
               await api.debugLog(`DEBUG: api.addProgress error: ${err.message || err}`);
               throw err;
             }
-          } else if (updated.scheduleDay !== old.scheduleDay || updated.scheduleTime !== old.scheduleTime) {
+          } else if ((updated.rescheduleRequests?.length || 0) > (old.rescheduleRequests?.length || 0)) {
             const lastReq = updated.rescheduleRequests?.[updated.rescheduleRequests.length - 1];
             await api.requestReschedule({
               memberId: updated.id,
@@ -777,8 +781,6 @@ export default function App() {
               requestedTime: updated.scheduleTime,
               reason: lastReq ? lastReq.reason : 'Reschedule kelas'
             });
-          } else if (updated.payment?.status === 'Pembayaran Berhasil' && old.payment?.status !== 'Pembayaran Berhasil') {
-            await api.verifyPayment(updated.id);
           } else {
             console.log("DEBUG: Calling api.updateMember for generic changes");
             await api.debugLog("DEBUG: Calling api.updateMember for generic changes");
@@ -790,11 +792,19 @@ export default function App() {
         }
       }
     } catch (e: any) {
+      isSuccess = false;
       console.error("DEBUG: Failed to update member:", e);
       await api.debugLog(`DEBUG: Failed to update member: ${e.message || e}`);
+      Swal.fire({
+        title: 'Gagal Menyimpan Data!',
+        text: e.message || 'Terjadi kesalahan saat menyimpan data siswa ke server.',
+        icon: 'error',
+        confirmButtonColor: '#e11d48'
+      });
     }
     lastFetchRef.current = null;
-    loadTabData('peserta');
+    await loadTabData('peserta');
+    return isSuccess;
   };
 
   // Sync to database on updates (Events)

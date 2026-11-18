@@ -122,7 +122,7 @@ interface AdminDashboardProps {
   onAddCoach?: (coachData: any) => Promise<{ success: boolean; message?: string; id?: string }>;
   onUpdateCoach?: (coachData: any) => Promise<{ success: boolean; message?: string }>;
   onDeleteCoach?: (id: string) => Promise<{ success: boolean; message?: string }>;
-  onUpdateMembers: (members: Member[]) => void;
+  onUpdateMembers: (members: Member[]) => Promise<boolean> | void;
   onUpdateEvents: (events: EventItem[]) => void;
   onUpdateSchedules?: (schedules: PackageSchedule[]) => void;
 }
@@ -797,6 +797,21 @@ export default function AdminDashboard({
     });
   };
 
+  const getDefaultCoachDayAndTime = (coach?: Coach) => {
+    if (!coach || !coach.schedule || coach.schedule.length === 0) {
+      return { day: 'Senin', time: '15:00 - 16:15' };
+    }
+    for (const d of coach.schedule) {
+      const availSlot = (d.timeSlots || []).find(ts => (ts.currentSlots || 0) < (ts.maxSlots || coach.maxQuota || 6));
+      if (availSlot) {
+        return { day: d.day, time: availSlot.time };
+      }
+    }
+    const firstDay = coach.schedule[0];
+    const firstTime = firstDay.timeSlots?.[0]?.time || '15:00 - 16:15';
+    return { day: firstDay.day, time: firstTime };
+  };
+
   const resetStudentForm = () => {
     setStudentName('');
     setStudentGender('Laki-laki');
@@ -809,25 +824,33 @@ export default function AdminDashboard({
     setSelectedExistingMemberId('');
     setRegistrationMode('baru');
     setStudentSearchQuery('');
-    if (coaches.length > 0) {
-      setSelectedCoachId(coaches[0].id);
-      setSelectedPackageId(coaches[0].packages[0]?.id || '');
-      setPayAmount(coaches[0].packages[0]?.price || 250000);
-      setSessLeft(coaches[0].packages[0]?.sessions || 4);
-      setSessTotal(coaches[0].packages[0]?.sessions || 4);
-      if (coaches[0].schedule.length > 0) {
-        setSchDay1(coaches[0].schedule[0].day);
-        if (coaches[0].schedule[0].timeSlots.length > 0) {
-          setSchTime1(coaches[0].schedule[0].timeSlots[0].time);
-        }
-      }
-    }
     setSelectedCoachType('Reguler');
     setScheduleFreq('1x Seminggu');
-    setSchDay1('Senin');
-    setSchTime1('16.00');
-    setSchDay2('Rabu');
-    setSchTime2('16.00');
+    if (coaches.length > 0) {
+      const firstCoach = coaches[0];
+      setSelectedCoachId(firstCoach.id);
+      setSelectedPackageId(firstCoach.packages[0]?.id || '');
+      setPayAmount(firstCoach.packages[0]?.price || 250000);
+      setSessLeft(firstCoach.packages[0]?.sessions || 4);
+      setSessTotal(firstCoach.packages[0]?.sessions || 4);
+      const def1 = getDefaultCoachDayAndTime(firstCoach);
+      setSchDay1(def1.day);
+      setSchTime1(def1.time);
+      const secondDayObj = firstCoach.schedule[1] || firstCoach.schedule[0];
+      if (secondDayObj) {
+        setSchDay2(secondDayObj.day);
+        const avail2 = (secondDayObj.timeSlots || []).find(ts => (ts.currentSlots || 0) < (ts.maxSlots || firstCoach.maxQuota || 6));
+        setSchTime2(avail2?.time || secondDayObj.timeSlots?.[0]?.time || def1.time);
+      } else {
+        setSchDay2(def1.day);
+        setSchTime2(def1.time);
+      }
+    } else {
+      setSchDay1('Senin');
+      setSchTime1('15:00 - 16:15');
+      setSchDay2('Rabu');
+      setSchTime2('15:00 - 16:15');
+    }
     setStudentStatus('Aktif');
     setPayMethod('Tunai di Kasir');
     setPayStatus('Pembayaran Berhasil');
@@ -862,8 +885,18 @@ export default function AdminDashboard({
     setShowStudentModal(true);
   };
 
-  const handleSaveStudent = (e: React.FormEvent) => {
+  const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editingStudent && registrationMode === 'lama' && !selectedExistingMemberId) {
+      Swal.fire({
+        title: 'Perhatian!',
+        text: 'Silakan pilih siswa lama yang akan didaftarkan ulang terlebih dahulu!',
+        icon: 'warning',
+        confirmButtonColor: '#06b6d4'
+      });
+      return;
+    }
+
     if (!studentName || !parentName || !parentWhatsapp) {
       Swal.fire({
         title: 'Perhatian!',
@@ -885,6 +918,8 @@ export default function AdminDashboard({
       return;
     }
 
+    const targetMemberId = editingStudent?.id;
+
     // Validate category conflict (Reguler vs Privat) for Sesi 1
     const conflict1 = checkScheduleSlotConflict(
       members,
@@ -892,7 +927,7 @@ export default function AdminDashboard({
       schDay1,
       schTime1,
       selectedCoachType,
-      editingStudent?.id
+      targetMemberId
     );
     if (conflict1.isConflict) {
       Swal.fire({
@@ -912,7 +947,7 @@ export default function AdminDashboard({
         schDay2,
         schTime2,
         selectedCoachType,
-        editingStudent?.id
+        targetMemberId
       );
       if (conflict2.isConflict) {
         Swal.fire({
@@ -924,6 +959,26 @@ export default function AdminDashboard({
         return;
       }
     }
+
+    const builtSchedules: NonNullable<Member['schedules']> = [
+      {
+        coachId: selectedCoachId,
+        day: schDay1,
+        time: schTime1
+      },
+      ...(scheduleFreq === '2x Seminggu' && schDay2 && schTime2
+        ? [{
+            coachId: selectedCoachId,
+            day: schDay2,
+            time: schTime2
+          }]
+        : [])
+    ];
+
+    const effectiveStatus: Member['status'] =
+      payStatus === 'Menunggu Verifikasi' && studentStatus === 'Aktif'
+        ? 'Menunggu Verifikasi'
+        : studentStatus;
 
     if (editingStudent) {
       const updatedMember: Member = {
@@ -948,9 +1003,10 @@ export default function AdminDashboard({
         scheduleTime: schTime1,
         scheduleDay2: scheduleFreq === '2x Seminggu' ? schDay2 : undefined,
         scheduleTime2: scheduleFreq === '2x Seminggu' ? schTime2 : undefined,
+        schedules: builtSchedules,
         sessionsLeft: Number(sessLeft),
         sessionsTotal: Number(sessTotal),
-        status: studentStatus,
+        status: effectiveStatus,
         isActive: memberIsActive,
         payment: {
           ...editingStudent.payment,
@@ -963,7 +1019,8 @@ export default function AdminDashboard({
       const updatedMembers = members.map(m => m.id === editingStudent.id ? updatedMember : m);
       const syncedCoaches = syncCoachesSchedules(coaches, updatedMembers);
 
-      onUpdateMembers(updatedMembers);
+      const ok = await onUpdateMembers(updatedMembers);
+      if (ok === false) return;
       onUpdateCoaches(syncedCoaches);
       Swal.fire({
         title: 'Berhasil!',
@@ -973,9 +1030,7 @@ export default function AdminDashboard({
       });
     } else {
       const isLama = registrationMode === 'lama';
-      const newId = isLama ? selectedExistingMemberId : `member-${Date.now().toString().slice(-6)}`;
-      const oldProgress = isLama ? (members.find(m => m.id === selectedExistingMemberId)?.progress || []) : [];
-      const oldReschedules = isLama ? (members.find(m => m.id === selectedExistingMemberId)?.rescheduleRequests || []) : [];
+      const newId = `TB-${Math.floor(100000 + Math.random() * 900000)}`;
 
       const newMember: Member = {
         id: newId,
@@ -999,9 +1054,10 @@ export default function AdminDashboard({
         scheduleTime: schTime1,
         scheduleDay2: scheduleFreq === '2x Seminggu' ? schDay2 : undefined,
         scheduleTime2: scheduleFreq === '2x Seminggu' ? schTime2 : undefined,
+        schedules: builtSchedules,
         sessionsLeft: Number(sessLeft),
         sessionsTotal: Number(sessTotal),
-        status: studentStatus,
+        status: effectiveStatus,
         isActive: memberIsActive,
         payment: {
           amount: Number(payAmount),
@@ -1010,25 +1066,20 @@ export default function AdminDashboard({
           status: payStatus,
           date: new Date().toISOString().split('T')[0]
         },
-        progress: oldProgress,
+        progress: [],
         registeredAt: new Date().toISOString(),
-        rescheduleRequests: oldReschedules
+        rescheduleRequests: []
       };
 
-      let updatedMembers;
-      if (isLama) {
-        updatedMembers = members.map(m => m.id === selectedExistingMemberId ? newMember : m);
-      } else {
-        updatedMembers = [...members, newMember];
-      }
-
+      const updatedMembers = [...members, newMember];
       const syncedCoaches = syncCoachesSchedules(coaches, updatedMembers);
 
-      onUpdateMembers(updatedMembers);
+      const ok = await onUpdateMembers(updatedMembers);
+      if (ok === false) return;
       onUpdateCoaches(syncedCoaches);
       Swal.fire({
         title: 'Berhasil!',
-        text: isLama ? 'Daftar ulang siswa lama berhasil diproses!' : 'Siswa baru berhasil ditambahkan!',
+        text: isLama ? 'Jadwal baru untuk siswa lama berhasil ditambahkan!' : 'Siswa baru berhasil ditambahkan!',
         icon: 'success',
         confirmButtonColor: '#06b6d4'
       });
@@ -2138,12 +2189,13 @@ export default function AdminDashboard({
                           coachName.toLowerCase().includes(searchPeserta.toLowerCase());
     
     const isVerified = m.status === 'Aktif' || m.status === 'Paket Hampir Habis' || m.status === 'Selesai';
+    const isPendingVerification = m.status === 'Menunggu Verifikasi' || m.status === 'Menunggu Pembayaran' || m.payment?.status === 'Menunggu Verifikasi';
     
-    if (pesertaFilter === 'semua') return matchesSearch && isVerified && m.isActive !== false;
+    if (pesertaFilter === 'semua') return matchesSearch && (isVerified || isPendingVerification) && m.isActive !== false;
     if (pesertaFilter === 'aktif') return matchesSearch && isVerified && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis') && m.isActive !== false;
-    if (pesertaFilter === 'hampir-habis') return matchesSearch && isVerified && m.sessionsLeft <= 2 && m.isActive !== false;
-    if (pesertaFilter === 'menunggu-verifikasi') return matchesSearch && (m.status === 'Menunggu Verifikasi' || m.status === 'Menunggu Pembayaran' || m.status === 'Ditolak');
-    return matchesSearch && isVerified && m.isActive !== false;
+    if (pesertaFilter === 'hampir-habis') return matchesSearch && isVerified && m.sessionsLeft > 0 && m.sessionsLeft <= 2 && m.status !== 'Selesai' && m.isActive !== false;
+    if (pesertaFilter === 'menunggu-verifikasi') return matchesSearch && (isPendingVerification || m.status === 'Ditolak');
+    return matchesSearch && (isVerified || isPendingVerification) && m.isActive !== false;
   });
 
   // CHART DATA COMPILATION
@@ -3525,7 +3577,8 @@ export default function AdminDashboard({
                         ) : (
                           paginatedPeserta.map((member) => {
                             const coach = coaches.find(c => c.id === member.coachId);
-                            const isExpiring = member.sessionsLeft <= 2;
+                            const isFinished = member.status === 'Selesai' || member.sessionsLeft <= 0;
+                            const isExpiring = !isFinished && member.sessionsLeft <= 2;
                             return (
                               <tr key={member.id} className="hover:bg-slate-50/50 transition">
                                 <td className="p-3.5">
@@ -3563,7 +3616,7 @@ export default function AdminDashboard({
                                 </td>
                                 <td className="p-3.5">
                                   <div className="flex items-center gap-1">
-                                    <span className={`font-black text-sm ${isExpiring ? 'text-rose-600' : 'text-slate-800'}`}>
+                                    <span className={`font-black text-sm ${isFinished ? 'text-slate-400' : isExpiring ? 'text-rose-600' : 'text-slate-800'}`}>
                                       {member.sessionsLeft}
                                     </span>
                                     <span className="text-slate-400">/ {member.sessionsTotal}</span>
@@ -3576,13 +3629,15 @@ export default function AdminDashboard({
                                 </td>
                                 <td className="p-3.5">
                                   <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                                    member.status === 'Aktif'
+                                    isFinished
+                                      ? 'bg-slate-100 text-slate-600 border-slate-200'
+                                      : member.status === 'Aktif'
                                       ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
-                                      : member.status === 'Paket Hampir Habis' || member.sessionsLeft <= 2
+                                      : member.status === 'Paket Hampir Habis' || isExpiring
                                       ? 'bg-rose-50 text-rose-800 border-rose-100'
                                       : 'bg-amber-50 text-amber-800 border-amber-100'
                                   }`}>
-                                    {member.sessionsLeft <= 2 && member.status !== 'Menunggu Verifikasi' ? 'Sesi Hampir Habis' : member.status}
+                                    {isFinished ? 'Selesai' : (isExpiring && member.status !== 'Menunggu Verifikasi' ? 'Sesi Hampir Habis' : member.status)}
                                   </span>
                                 </td>
                                 <td className="p-3.5 text-right space-y-1">
@@ -4066,12 +4121,9 @@ export default function AdminDashboard({
                                 setSessLeft(chosenCoach.packages[0]?.sessions || 4);
                                 setSessTotal(chosenCoach.packages[0]?.sessions || 4);
                                 setPayAmount(chosenCoach.packages[0]?.price || 250000);
-                                if (chosenCoach.schedule.length > 0) {
-                                  setSchDay1(chosenCoach.schedule[0].day);
-                                  if (chosenCoach.schedule[0].timeSlots.length > 0) {
-                                    setSchTime1(chosenCoach.schedule[0].timeSlots[0].time);
-                                  }
-                                }
+                                const def1 = getDefaultCoachDayAndTime(chosenCoach);
+                                setSchDay1(def1.day);
+                                setSchTime1(def1.time);
                               }
                             }}
                             className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs focus:outline-hidden"
@@ -4164,7 +4216,8 @@ export default function AdminDashboard({
                               const currentCoach = coaches.find(c => c.id === selectedCoachId) || coaches[0];
                               const daySched = currentCoach?.schedule.find(d => d.day === day);
                               if (daySched && daySched.timeSlots.length > 0) {
-                                setSchTime1(daySched.timeSlots[0].time);
+                                const avail = daySched.timeSlots.find(ts => (ts.currentSlots || 0) < (ts.maxSlots || currentCoach?.maxQuota || 6));
+                                setSchTime1(avail ? avail.time : daySched.timeSlots[0].time);
                               }
                             }}
                             className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs focus:outline-hidden"
@@ -4184,9 +4237,10 @@ export default function AdminDashboard({
                           >
                             {((coaches.find(c => c.id === selectedCoachId) || coaches[0])?.schedule.find(d => d.day === schDay1)?.timeSlots || []).map(ts => {
                               const conf = checkScheduleSlotConflict(members, selectedCoachId, schDay1, ts.time, selectedCoachType, editingStudent?.id);
+                              const isSlotFull = !editingStudent && (ts.currentSlots || 0) >= (ts.maxSlots || 6);
                               return (
-                                <option key={ts.time} value={ts.time} disabled={conf.isConflict}>
-                                  {ts.time} WIB ({ts.currentSlots}/{ts.maxSlots} terisi){conf.isConflict ? ` 🚫 Bentrok Paket ${conf.existingType}` : ''}
+                                <option key={ts.time} value={ts.time} disabled={conf.isConflict || isSlotFull}>
+                                  {ts.time} WIB ({ts.currentSlots}/{ts.maxSlots} terisi){isSlotFull ? ' 🚫 Penuh' : conf.isConflict ? ` 🚫 Bentrok Paket ${conf.existingType}` : ''}
                                 </option>
                               );
                             })}
@@ -4197,7 +4251,15 @@ export default function AdminDashboard({
                           <label className="font-bold text-slate-600 font-bold text-slate-800">Status Keaktifan Siswa</label>
                           <select
                             value={studentStatus}
-                            onChange={(e) => setStudentStatus(e.target.value as any)}
+                            onChange={(e) => {
+                              const val = e.target.value as Member['status'];
+                              setStudentStatus(val);
+                              if (val === 'Menunggu Verifikasi' || val === 'Menunggu Pembayaran') {
+                                setPayStatus('Menunggu Verifikasi');
+                              } else if (val === 'Aktif' && payStatus === 'Menunggu Verifikasi') {
+                                setPayStatus('Pembayaran Berhasil');
+                              }
+                            }}
                             className="w-full bg-amber-50 border border-amber-200 px-3 py-2.5 rounded-xl text-xs focus:outline-hidden font-bold text-amber-900"
                           >
                             <option value="Aktif">Aktif</option>
@@ -4237,7 +4299,8 @@ export default function AdminDashboard({
                                   const currentCoach = coaches.find(c => c.id === selectedCoachId) || coaches[0];
                                   const daySched = currentCoach?.schedule.find(d => d.day === day);
                                   if (daySched && daySched.timeSlots.length > 0) {
-                                    setSchTime2(daySched.timeSlots[0].time);
+                                    const avail = daySched.timeSlots.find(ts => (ts.currentSlots || 0) < (ts.maxSlots || currentCoach?.maxQuota || 6));
+                                    setSchTime2(avail ? avail.time : daySched.timeSlots[0].time);
                                   }
                                 }}
                                 className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs focus:outline-hidden"
@@ -4257,9 +4320,10 @@ export default function AdminDashboard({
                               >
                                 {((coaches.find(c => c.id === selectedCoachId) || coaches[0])?.schedule.find(d => d.day === schDay2)?.timeSlots || []).map(ts => {
                                   const conf = checkScheduleSlotConflict(members, selectedCoachId, schDay2, ts.time, selectedCoachType, editingStudent?.id);
+                                  const isSlotFull = !editingStudent && (ts.currentSlots || 0) >= (ts.maxSlots || 6);
                                   return (
-                                    <option key={ts.time} value={ts.time} disabled={conf.isConflict}>
-                                      {ts.time} WIB ({ts.currentSlots}/{ts.maxSlots} terisi){conf.isConflict ? ` 🚫 Bentrok Paket ${conf.existingType}` : ''}
+                                    <option key={ts.time} value={ts.time} disabled={conf.isConflict || isSlotFull}>
+                                      {ts.time} WIB ({ts.currentSlots}/{ts.maxSlots} terisi){isSlotFull ? ' 🚫 Penuh' : conf.isConflict ? ` 🚫 Bentrok Paket ${conf.existingType}` : ''}
                                     </option>
                                   );
                                 })}
@@ -4304,7 +4368,15 @@ export default function AdminDashboard({
                           <label className="font-bold text-slate-600">Status Pembayaran</label>
                           <select
                             value={payStatus}
-                            onChange={(e) => setPayStatus(e.target.value as any)}
+                            onChange={(e) => {
+                              const val = e.target.value as Member['payment']['status'];
+                              setPayStatus(val);
+                              if (val === 'Menunggu Verifikasi') {
+                                setStudentStatus('Menunggu Verifikasi');
+                              } else if (val === 'Pembayaran Berhasil' && (studentStatus === 'Menunggu Verifikasi' || studentStatus === 'Menunggu Pembayaran')) {
+                                setStudentStatus('Aktif');
+                              }
+                            }}
                             className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs focus:outline-hidden"
                           >
                             <option value="Pembayaran Berhasil">Pembayaran Berhasil / Lunas</option>

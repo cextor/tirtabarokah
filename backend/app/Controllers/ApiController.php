@@ -550,6 +550,7 @@ class ApiController extends BaseController
                     ->where('member_schedules.day', $ns['day'])
                     ->where('member_schedules.time', $ns['time'])
                     ->whereNotIn('members.status', ['Selesai', 'Menunggu Verifikasi', 'Menunggu Pembayaran', 'Ditolak'])
+                    ->where('members.sessions_left >', 0)
                     ->where('members.is_active !=', 0)
                     ->where('members.coach_type !=', $targetType);
 
@@ -569,7 +570,9 @@ class ApiController extends BaseController
         if (!empty($studentName)) {
             $query = $this->db->table('members')
                 ->where('LOWER(TRIM(student_name))', strtolower($studentName))
-                ->where('status !=', 'Selesai');
+                ->whereNotIn('status', ['Selesai', 'Ditolak'])
+                ->where('sessions_left >', 0)
+                ->where('is_active !=', 0);
 
             if ($id) {
                 $query->where('id !=', $id);
@@ -631,6 +634,7 @@ class ApiController extends BaseController
                 ->where('member_schedules.day', $day)
                 ->where('member_schedules.time', $time)
                 ->whereNotIn('members.status', ['Selesai', 'Ditolak'])
+                ->where('members.sessions_left >', 0)
                 ->where('members.is_active !=', 0);
 
             if ($id) {
@@ -811,7 +815,9 @@ class ApiController extends BaseController
             return $this->fail($conflictError);
         }
 
-        $id = 'TB-' . rand(100000, 999999);
+        $id = (!empty($json->id) && strpos((string)$json->id, 'TB-') === 0)
+            ? (string)$json->id
+            : ('TB-' . rand(100000, 999999));
         $this->db->transStart();
 
         $referralBonus = 0;
@@ -848,6 +854,10 @@ class ApiController extends BaseController
         }
 
         // Insert Member
+        $memberStatus = !empty($json->status) ? $json->status : 'Menunggu Verifikasi';
+        $isActiveVal = isset($json->isActive) ? ($json->isActive ? 1 : 0) : 1;
+        $paymentStatus = !empty($json->payment->status) ? $json->payment->status : 'Menunggu Verifikasi';
+
         $memberData = [
             'id' => $id,
             'parent_name' => $json->parent->fatherMotherName,
@@ -860,11 +870,12 @@ class ApiController extends BaseController
             'student_has_swum' => $json->student->hasSwumBefore ? 1 : 0,
             'package_id' => $json->packageId,
             'coach_type' => $json->coachType,
-            'status' => 'Menunggu Verifikasi',
+            'status' => $memberStatus,
             'sessions_left' => (int)$json->sessionsLeft,
             'sessions_total' => (int)$json->sessionsTotal,
             'registered_at' => date('Y-m-d H:i:s'),
-            'referral_code_used' => $referralCode
+            'referral_code_used' => $referralCode,
+            'is_active' => $isActiveVal
         ];
 
         $this->db->table('members')->insert($memberData);
@@ -902,7 +913,7 @@ class ApiController extends BaseController
             'amount' => (int)$json->payment->amount,
             'method' => $json->payment->method,
             'proof_url' => $json->payment->proofUrl ?? null,
-            'status' => 'Menunggu Verifikasi',
+            'status' => $paymentStatus,
             'date' => date('Y-m-d H:i:s')
         ];
 
