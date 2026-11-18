@@ -670,7 +670,7 @@ export default function AdminDashboard({
   };
 
   // FILTERS & PAGINATION FOR PARTICIPANTS
-  const [pesertaFilter, setPesertaFilter] = useState<'semua' | 'aktif' | 'hampir-habis' | 'menunggu-verifikasi'>('semua');
+  const [pesertaFilter, setPesertaFilter] = useState<'semua' | 'selesai' | 'hampir-habis' | 'menunggu-verifikasi'>('semua');
   const [searchPeserta, setSearchPeserta] = useState<string>('');
   const [studentCurrentPage, setStudentCurrentPage] = useState<number>(1);
   const [studentItemsPerPage, setStudentItemsPerPage] = useState<number>(10);
@@ -979,6 +979,39 @@ export default function AdminDashboard({
       payStatus === 'Menunggu Verifikasi' && studentStatus === 'Aktif'
         ? 'Menunggu Verifikasi'
         : studentStatus;
+
+    const chosenCoachName = coaches.find(c => c.id === selectedCoachId)?.name || 'Pelatih';
+    const scheduleSummary = scheduleFreq === '2x Seminggu'
+      ? `${schDay1} (${schTime1} WIB) & ${schDay2} (${schTime2} WIB)`
+      : `${schDay1} (${schTime1} WIB)`;
+
+    const confirmResult = await Swal.fire({
+      title: editingStudent
+        ? 'Simpan Perubahan Data Siswa?'
+        : registrationMode === 'lama'
+        ? 'Konfirmasi Daftar Ulang Siswa Lama'
+        : 'Konfirmasi Pendaftaran Siswa Baru',
+      html: `
+        <div style="text-align:left; font-size:13px; line-height:1.6; color:#334155; background:#f8fafc; padding:12px 14px; border-radius:12px; border:1px solid #e2e8f0; margin-top:6px;">
+          <div><strong>Nama Siswa:</strong> ${studentName}</div>
+          <div><strong>Orang Tua / Wali:</strong> ${parentName} (${parentWhatsapp})</div>
+          <div><strong>Pelatih:</strong> ${chosenCoachName} (${selectedCoachType})</div>
+          <div><strong>Jadwal:</strong> ${scheduleSummary}</div>
+          <div><strong>Kuota Sesi:</strong> ${sessLeft} / ${sessTotal} Sesi</div>
+          <div><strong>Pembayaran:</strong> Rp ${Number(payAmount).toLocaleString('id-ID')} (${payStatus})</div>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#0891b2',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: editingStudent ? 'Ya, Simpan Perubahan' : 'Ya, Daftarkan Siswa',
+      cancelButtonText: 'Periksa Kembali'
+    });
+
+    if (!confirmResult.isConfirmed) {
+      return;
+    }
 
     if (editingStudent) {
       const updatedMember: Member = {
@@ -2189,11 +2222,12 @@ export default function AdminDashboard({
                           coachName.toLowerCase().includes(searchPeserta.toLowerCase());
     
     const isVerified = m.status === 'Aktif' || m.status === 'Paket Hampir Habis' || m.status === 'Selesai';
+    const isFinished = m.status === 'Selesai' || (isVerified && m.sessionsLeft <= 0);
     const isPendingVerification = m.status === 'Menunggu Verifikasi' || m.status === 'Menunggu Pembayaran' || m.payment?.status === 'Menunggu Verifikasi';
     
     if (pesertaFilter === 'semua') return matchesSearch && (isVerified || isPendingVerification) && m.isActive !== false;
-    if (pesertaFilter === 'aktif') return matchesSearch && isVerified && (m.status === 'Aktif' || m.status === 'Paket Hampir Habis') && m.isActive !== false;
-    if (pesertaFilter === 'hampir-habis') return matchesSearch && isVerified && m.sessionsLeft > 0 && m.sessionsLeft <= 2 && m.status !== 'Selesai' && m.isActive !== false;
+    if (pesertaFilter === 'selesai') return matchesSearch && isFinished && m.isActive !== false;
+    if (pesertaFilter === 'hampir-habis') return matchesSearch && isVerified && !isFinished && m.sessionsLeft > 0 && m.sessionsLeft <= 2 && m.isActive !== false;
     if (pesertaFilter === 'menunggu-verifikasi') return matchesSearch && (isPendingVerification || m.status === 'Ditolak');
     return matchesSearch && (isVerified || isPendingVerification) && m.isActive !== false;
   });
@@ -3514,20 +3548,20 @@ export default function AdminDashboard({
                 </button>
 
                 <div className="flex flex-wrap gap-1.5">
-                  {(['semua', 'aktif', 'hampir-habis', 'menunggu-verifikasi'] as const).map((filter) => (
+                  {(['semua', 'selesai', 'hampir-habis', 'menunggu-verifikasi'] as const).map((filter) => (
                     <button
                       key={filter}
                       onClick={() => {
                         setPesertaFilter(filter);
                         setStudentCurrentPage(1);
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition cursor-pointer ${
                         pesertaFilter === filter
                           ? 'bg-cyan-600 text-white shadow-sm'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
-                      {filter === 'semua' ? 'Semua' : filter === 'aktif' ? 'Aktif' : filter === 'hampir-habis' ? 'Sesi Hampir Habis' : 'Butuh Verifikasi'}
+                      {filter === 'semua' ? 'Semua' : filter === 'selesai' ? 'Selesai' : filter === 'hampir-habis' ? 'Hampir Habis' : 'Verifikasi'}
                     </button>
                   ))}
                 </div>
