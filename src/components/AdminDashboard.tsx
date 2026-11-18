@@ -698,6 +698,8 @@ export default function AdminDashboard({
   const [auditActionFilter, setAuditActionFilter] = useState<'semua' | 'input' | 'edit' | 'hapus' | 'verifikasi'>('semua');
   const [auditStartDate, setAuditStartDate] = useState<string>('');
   const [auditEndDate, setAuditEndDate] = useState<string>('');
+  const [auditCurrentPage, setAuditCurrentPage] = useState<number>(1);
+  const [auditItemsPerPage, setAuditItemsPerPage] = useState<number>(10);
   const [financeEndDate, setFinanceEndDate] = useState<string>('');
 
   // FILTER FOR COACHES
@@ -706,6 +708,9 @@ export default function AdminDashboard({
   // FILTERS FOR PAYMENT HISTORY TABLE
   const [historyStartDate, setHistoryStartDate] = useState<string>('');
   const [historyEndDate, setHistoryEndDate] = useState<string>('');
+  const [historySearch, setHistorySearch] = useState<string>('');
+  const [historyCurrentPage, setHistoryCurrentPage] = useState<number>(1);
+  const [historyItemsPerPage, setHistoryItemsPerPage] = useState<number>(10);
 
   // STATE FOR ADD / EDIT STUDENT MODAL (CRUD)
   const [showStudentModal, setShowStudentModal] = useState<boolean>(false);
@@ -7558,13 +7563,50 @@ export default function AdminDashboard({
                 };
               });
 
-              const filteredMembersForHistory = members.filter(m => {
-                if (!m.payment || !m.payment.date) return false;
-                const payDate = m.payment.date.substring(0, 10);
-                if (historyStartDate && payDate < historyStartDate) return false;
-                if (historyEndDate && payDate > historyEndDate) return false;
-                return true;
-              });
+              const searchHistLower = historySearch.trim().toLowerCase();
+              const filteredMembersForHistory = members
+                .filter(m => {
+                  if (!m || !m.student || !m.payment || !m.payment.date) return false;
+                  const payDate = m.payment.date.substring(0, 10);
+                  if (historyStartDate && payDate < historyStartDate) return false;
+                  if (historyEndDate && payDate > historyEndDate) return false;
+                  if (searchHistLower) {
+                    const coach = coaches.find(c => c.id === m.coachId);
+                    const pkgName = getPackageName(m.packageId);
+                    const matches =
+                      (m.student?.fullName || '').toLowerCase().includes(searchHistLower) ||
+                      (m.id || '').toLowerCase().includes(searchHistLower) ||
+                      (m.parent?.fatherMotherName || '').toLowerCase().includes(searchHistLower) ||
+                      (m.parent?.whatsapp || '').toLowerCase().includes(searchHistLower) ||
+                      (coach?.name || '').toLowerCase().includes(searchHistLower) ||
+                      pkgName.toLowerCase().includes(searchHistLower) ||
+                      (m.payment?.method || '').toLowerCase().includes(searchHistLower) ||
+                      (m.payment?.status || '').toLowerCase().includes(searchHistLower);
+                    if (!matches) return false;
+                  }
+                  return true;
+                })
+                .map(m => {
+                  const coach = coaches.find(c => c.id === m.coachId);
+                  return {
+                    memberId: m.id,
+                    studentName: m.student?.fullName || m.id,
+                    parentName: m.parent?.fatherMotherName || '-',
+                    parentWhatsapp: m.parent?.whatsapp || '',
+                    coachName: coach?.name || '-',
+                    packageName: getPackageName(m.packageId),
+                    amount: m.payment?.amount || 0,
+                    method: m.payment?.method || '-',
+                    status: m.payment?.status || 'Pembayaran Berhasil',
+                    date: m.payment?.date || ''
+                  };
+                })
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+              const totalHistoryPages = Math.ceil(filteredMembersForHistory.length / historyItemsPerPage) || 1;
+              const validHistoryPage = Math.min(Math.max(1, historyCurrentPage), totalHistoryPages);
+              const historyStartIndex = (validHistoryPage - 1) * historyItemsPerPage;
+              const paginatedHistory = filteredMembersForHistory.slice(historyStartIndex, historyStartIndex + historyItemsPerPage);
 
               return (
                 <>
@@ -7620,7 +7662,7 @@ export default function AdminDashboard({
                     </div>
                   </div>
 
-                  {/* Riwayat Pembayaran Table */}
+                  {/* Riwayat Pembayaran DataTable */}
                   <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-xs space-y-4">
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                       <div>
@@ -7640,7 +7682,10 @@ export default function AdminDashboard({
                           <input
                             type="date"
                             value={historyStartDate}
-                            onChange={(e) => setHistoryStartDate(e.target.value)}
+                            onChange={(e) => {
+                              setHistoryStartDate(e.target.value);
+                              setHistoryCurrentPage(1);
+                            }}
                             className="bg-white border border-slate-200 px-2 py-1 rounded-lg text-[10px] font-medium"
                           />
                         </div>
@@ -7649,7 +7694,10 @@ export default function AdminDashboard({
                           <input
                             type="date"
                             value={historyEndDate}
-                            onChange={(e) => setHistoryEndDate(e.target.value)}
+                            onChange={(e) => {
+                              setHistoryEndDate(e.target.value);
+                              setHistoryCurrentPage(1);
+                            }}
                             className="bg-white border border-slate-200 px-2 py-1 rounded-lg text-[10px] font-medium"
                           />
                         </div>
@@ -7659,6 +7707,7 @@ export default function AdminDashboard({
                             onClick={() => {
                               setHistoryStartDate('');
                               setHistoryEndDate('');
+                              setHistoryCurrentPage(1);
                             }}
                             className="bg-slate-200 hover:bg-slate-300 text-slate-750 font-bold px-2 py-1.5 rounded-lg text-[9px] transition cursor-pointer"
                           >
@@ -7668,64 +7717,172 @@ export default function AdminDashboard({
                       </div>
                     </div>
 
+                    {/* Search Bar DataTable */}
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={historySearch}
+                        onChange={(e) => {
+                          setHistorySearch(e.target.value);
+                          setHistoryCurrentPage(1);
+                        }}
+                        placeholder="Cari nama siswa, ID, orang tua, pelatih, metode, atau status pembayaran..."
+                        className="w-full bg-slate-50 border border-slate-200 pl-10 pr-9 py-2.5 rounded-xl text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+                      />
+                      {historySearch && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHistorySearch('');
+                            setHistoryCurrentPage(1);
+                          }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-md cursor-pointer"
+                          title="Hapus pencarian"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
                     <div className="overflow-x-auto border border-slate-100 rounded-xl">
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                            <th className="p-3 w-12 text-center">No</th>
                             <th className="p-3">Tanggal</th>
                             <th className="p-3">Siswa (ID)</th>
+                            <th className="p-3">Orang Tua / Wali</th>
+                            <th className="p-3">Pelatih & Paket</th>
                             <th className="p-3">Metode</th>
                             <th className="p-3">Nominal</th>
                             <th className="p-3">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium">
-                          {filteredMembersForHistory.length === 0 ? (
+                          {paginatedHistory.length === 0 ? (
                             <tr>
-                              <td colSpan={5} className="p-4 text-center text-slate-400 italic">Tidak ada transaksi pembayaran pada rentang tanggal ini.</td>
+                              <td colSpan={8} className="p-8 text-center text-slate-400 italic">Tidak ada data transaksi pembayaran yang sesuai filter/pencarian.</td>
                             </tr>
                           ) : (
-                            filteredMembersForHistory
-                              .filter(m => m && m.student && m.payment)
-                              .map(m => ({
-                                memberId: m.id,
-                                studentName: m.student?.fullName || m.id,
-                                amount: m.payment?.amount || 0,
-                                method: m.payment?.method || '-',
-                                status: m.payment?.status || 'Pembayaran Berhasil',
-                                date: m.payment?.date || ''
-                              }))
-                              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                              .map((p, idx) => (
-                                <tr key={idx} className="hover:bg-slate-50/50 transition">
-                                  <td className="p-3 font-mono text-[10px] text-slate-500">
-                                    {p.date ? p.date.substring(0, 16).replace('T', ' ') : '-'}
-                                  </td>
-                                  <td className="p-3">
-                                    <span className="font-bold text-slate-700 block">{p.studentName}</span>
-                                    <span className="text-[9px] font-mono text-slate-400">ID: {p.memberId}</span>
-                                  </td>
-                                  <td className="p-3 text-slate-650">{p.method}</td>
-                                  <td className="p-3 font-bold font-mono text-cyan-900">
-                                    Rp {p.amount.toLocaleString('id-ID')}
-                                  </td>
-                                  <td className="p-3">
-                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                      p.status === 'Pembayaran Berhasil' 
-                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                                        : p.status === 'Pembayaran Gagal'
-                                        ? 'bg-rose-50 text-rose-700 border border-rose-100'
-                                        : 'bg-amber-50 text-amber-700 border border-amber-100'
-                                    }`}>
-                                      {p.status}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))
+                            paginatedHistory.map((p, idx) => (
+                              <tr key={`${p.memberId}-${idx}`} className="hover:bg-slate-50/50 transition">
+                                <td className="p-3 text-center font-mono text-[11px] text-slate-400">
+                                  {historyStartIndex + idx + 1}
+                                </td>
+                                <td className="p-3 font-mono text-[10px] text-slate-500 whitespace-nowrap">
+                                  {p.date ? p.date.substring(0, 16).replace('T', ' ') : '-'}
+                                </td>
+                                <td className="p-3">
+                                  <span className="font-bold text-slate-800 block">{p.studentName}</span>
+                                  <span className="text-[9px] font-mono text-slate-400">ID: {p.memberId}</span>
+                                </td>
+                                <td className="p-3">
+                                  <span className="font-semibold text-slate-700 block">{p.parentName}</span>
+                                  {p.parentWhatsapp && (
+                                    <span className="text-[10px] font-mono text-slate-400">{p.parentWhatsapp}</span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  <span className="font-bold text-cyan-800 block">{p.coachName}</span>
+                                  <span className="text-[10px] text-slate-500">{p.packageName}</span>
+                                </td>
+                                <td className="p-3 text-slate-650">{p.method}</td>
+                                <td className="p-3 font-bold font-mono text-cyan-900 whitespace-nowrap">
+                                  Rp {p.amount.toLocaleString('id-ID')}
+                                </td>
+                                <td className="p-3">
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap ${
+                                    p.status === 'Pembayaran Berhasil' 
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                      : p.status === 'Pembayaran Gagal'
+                                      ? 'bg-rose-50 text-rose-700 border border-rose-100'
+                                      : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                  }`}>
+                                    {p.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
                           )}
                         </tbody>
                       </table>
                     </div>
+
+                    {/* Pagination Controls */}
+                    {filteredMembersForHistory.length > 0 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-slate-100 text-xs text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <span>Tampilkan:</span>
+                          <select
+                            value={historyItemsPerPage}
+                            onChange={(e) => {
+                              setHistoryItemsPerPage(Number(e.target.value));
+                              setHistoryCurrentPage(1);
+                            }}
+                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 cursor-pointer"
+                          >
+                            <option value={10}>10 per halaman</option>
+                            <option value={25}>25 per halaman</option>
+                            <option value={50}>50 per halaman</option>
+                            <option value={100}>100 per halaman</option>
+                          </select>
+                          <span className="text-slate-400">|</span>
+                          <span>
+                            Menampilkan <strong>{historyStartIndex + 1}</strong> - <strong>{Math.min(historyStartIndex + historyItemsPerPage, filteredMembersForHistory.length)}</strong> dari <strong>{filteredMembersForHistory.length}</strong> transaksi
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={validHistoryPage <= 1}
+                            onClick={() => setHistoryCurrentPage(prev => Math.max(1, prev - 1))}
+                            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1 cursor-pointer"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" /> Sebelumnya
+                          </button>
+
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: totalHistoryPages }, (_, i) => i + 1)
+                              .filter(page => {
+                                if (totalHistoryPages <= 7) return true;
+                                if (page === 1 || page === totalHistoryPages) return true;
+                                return Math.abs(page - validHistoryPage) <= 1;
+                              })
+                              .map((page, idx, arr) => {
+                                const prevPage = arr[idx - 1];
+                                const showEllipsis = prevPage && page - prevPage > 1;
+                                return (
+                                  <React.Fragment key={page}>
+                                    {showEllipsis && <span className="px-1 text-slate-400">...</span>}
+                                    <button
+                                      type="button"
+                                      onClick={() => setHistoryCurrentPage(page)}
+                                      className={`w-8 h-8 rounded-lg font-bold text-xs transition cursor-pointer ${
+                                        validHistoryPage === page
+                                          ? 'bg-cyan-600 text-white shadow-xs font-black'
+                                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      {page}
+                                    </button>
+                                  </React.Fragment>
+                                );
+                              })}
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={validHistoryPage >= totalHistoryPages}
+                            onClick={() => setHistoryCurrentPage(prev => Math.min(totalHistoryPages, prev + 1))}
+                            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1 cursor-pointer"
+                          >
+                            Selanjutnya <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               );
@@ -8034,6 +8191,7 @@ export default function AdminDashboard({
                       onClick={() => {
                         setAuditStartDate('');
                         setAuditEndDate('');
+                        setAuditCurrentPage(1);
                       }}
                       className="text-[10px] font-bold text-rose-600 hover:text-rose-500 underline cursor-pointer"
                     >
@@ -8048,7 +8206,10 @@ export default function AdminDashboard({
                     <input
                       type="date"
                       value={auditStartDate}
-                      onChange={(e) => setAuditStartDate(e.target.value)}
+                      onChange={(e) => {
+                        setAuditStartDate(e.target.value);
+                        setAuditCurrentPage(1);
+                      }}
                       className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition text-slate-700 cursor-pointer"
                     />
                   </div>
@@ -8060,7 +8221,10 @@ export default function AdminDashboard({
                     <input
                       type="date"
                       value={auditEndDate}
-                      onChange={(e) => setAuditEndDate(e.target.value)}
+                      onChange={(e) => {
+                        setAuditEndDate(e.target.value);
+                        setAuditCurrentPage(1);
+                      }}
                       className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition text-slate-700 cursor-pointer"
                     />
                   </div>
@@ -8069,18 +8233,40 @@ export default function AdminDashboard({
 
               {/* Search & Filter Aksi */}
               <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                <input
-                  type="text"
-                  placeholder="Cari pelaku, deskripsi, atau tabel..."
-                  value={auditSearch}
-                  onChange={(e) => setAuditSearch(e.target.value)}
-                  className="w-full md:max-w-md bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition font-medium"
-                />
+                <div className="relative w-full md:max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Cari pelaku, deskripsi, atau tabel..."
+                    value={auditSearch}
+                    onChange={(e) => {
+                      setAuditSearch(e.target.value);
+                      setAuditCurrentPage(1);
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 pl-10 pr-8 py-2.5 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition font-medium"
+                  />
+                  {auditSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuditSearch('');
+                        setAuditCurrentPage(1);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-md cursor-pointer"
+                      title="Hapus pencarian"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
                 
                 <div className="flex gap-2 w-full md:w-auto">
                   <select
                     value={auditActionFilter}
-                    onChange={(e) => setAuditActionFilter(e.target.value as any)}
+                    onChange={(e) => {
+                      setAuditActionFilter(e.target.value as any);
+                      setAuditCurrentPage(1);
+                    }}
                     className="w-full md:w-48 bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs focus:outline-hidden focus:ring-2 focus:ring-cyan-500/20 text-slate-700 font-bold"
                   >
                     <option value="semua">Semua Tipe Aksi</option>
@@ -8092,111 +8278,200 @@ export default function AdminDashboard({
                 </div>
               </div>
 
-              {/* Table Container */}
-              <div className="overflow-x-auto border border-slate-150 rounded-xl">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 font-extrabold border-b border-slate-150">
-                      <th className="px-4 py-3.5">Waktu</th>
-                      <th className="px-4 py-3.5">Pengguna</th>
-                      <th className="px-4 py-3.5">Aksi</th>
-                      <th className="px-4 py-3.5">Kategori Data</th>
-                      <th className="px-4 py-3.5">Keterangan Aktivitas</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-semibold">
-                    {(() => {
-                      const filteredLogs = auditLogs.filter(log => {
-                        const matchesSearch = 
-                          log.username.toLowerCase().includes(auditSearch.toLowerCase()) ||
-                          (log.user_name || '').toLowerCase().includes(auditSearch.toLowerCase()) ||
-                          log.description.toLowerCase().includes(auditSearch.toLowerCase()) ||
-                          log.table_name.toLowerCase().includes(auditSearch.toLowerCase());
-                        
-                        const matchesAction = 
-                          auditActionFilter === 'semua' || 
-                          log.action_type === auditActionFilter;
+              {/* Table & Pagination Container */}
+              {(() => {
+                const friendlyTable: Record<string, string> = {
+                  'coaches': 'Profil Pelatih',
+                  'members': 'Pendaftaran/Data Siswa',
+                  'events': 'Event & Berita',
+                  'site_settings': 'Pengaturan Website',
+                  'program_levels': 'Tingkatan Level',
+                  'pricing_packages': 'Paket Harga Global',
+                  'swimming_pools': 'Kolam Renang',
+                  'package_schedules': 'Penjadwalan Paket'
+                };
 
-                        const logDateStr = log.created_at ? log.created_at.substring(0, 10) : '';
-                        const matchesStartDate = !auditStartDate || logDateStr >= auditStartDate;
-                        const matchesEndDate = !auditEndDate || logDateStr <= auditEndDate;
+                const filteredLogs = auditLogs.filter(log => {
+                  const friendlyCat = (friendlyTable[log.table_name] || log.table_name || '').toLowerCase();
+                  const matchesSearch = 
+                    (log.username || '').toLowerCase().includes(auditSearch.toLowerCase()) ||
+                    (log.user_name || '').toLowerCase().includes(auditSearch.toLowerCase()) ||
+                    (log.description || '').toLowerCase().includes(auditSearch.toLowerCase()) ||
+                    (log.table_name || '').toLowerCase().includes(auditSearch.toLowerCase()) ||
+                    friendlyCat.includes(auditSearch.toLowerCase());
+                  
+                  const matchesAction = 
+                    auditActionFilter === 'semua' || 
+                    log.action_type === auditActionFilter;
 
-                        return matchesSearch && matchesAction && matchesStartDate && matchesEndDate;
-                      });
+                  const logDateStr = log.created_at ? log.created_at.substring(0, 10) : '';
+                  const matchesStartDate = !auditStartDate || logDateStr >= auditStartDate;
+                  const matchesEndDate = !auditEndDate || logDateStr <= auditEndDate;
 
-                      if (filteredLogs.length === 0) {
-                        return (
-                          <tr>
-                            <td colSpan={5} className="px-4 py-8 text-center text-slate-400 italic">
-                              Tidak ada log aktivitas yang sesuai filter.
-                            </td>
+                  return matchesSearch && matchesAction && matchesStartDate && matchesEndDate;
+                });
+
+                const totalAuditPages = Math.ceil(filteredLogs.length / auditItemsPerPage) || 1;
+                const validAuditPage = Math.min(Math.max(1, auditCurrentPage), totalAuditPages);
+                const auditStartIndex = (validAuditPage - 1) * auditItemsPerPage;
+                const paginatedLogs = filteredLogs.slice(auditStartIndex, auditStartIndex + auditItemsPerPage);
+
+                return (
+                  <div className="space-y-4">
+                    <div className="overflow-x-auto border border-slate-150 rounded-xl">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 font-extrabold border-b border-slate-150">
+                            <th className="px-4 py-3.5 w-12 text-center">No</th>
+                            <th className="px-4 py-3.5">Waktu</th>
+                            <th className="px-4 py-3.5">Pengguna</th>
+                            <th className="px-4 py-3.5">Aksi</th>
+                            <th className="px-4 py-3.5">Kategori Data</th>
+                            <th className="px-4 py-3.5">Keterangan Aktivitas</th>
                           </tr>
-                        );
-                      }
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-semibold">
+                          {paginatedLogs.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic">
+                                Tidak ada log aktivitas yang sesuai filter.
+                              </td>
+                            </tr>
+                          ) : (
+                            paginatedLogs.map((log, idx) => {
+                              let actionBadge = '';
+                              switch (log.action_type) {
+                                case 'input':
+                                  actionBadge = 'bg-blue-50 border border-blue-200 text-blue-600';
+                                  break;
+                                case 'edit':
+                                  actionBadge = 'bg-violet-50 border border-violet-200 text-violet-600';
+                                  break;
+                                case 'hapus':
+                                  actionBadge = 'bg-rose-50 border border-rose-200 text-rose-600';
+                                  break;
+                                case 'verifikasi':
+                                  actionBadge = 'bg-emerald-50 border border-emerald-200 text-emerald-600';
+                                  break;
+                              }
 
-                      return filteredLogs.map((log) => {
-                        let actionBadge = '';
-                        switch (log.action_type) {
-                          case 'input':
-                            actionBadge = 'bg-blue-50 border border-blue-200 text-blue-600';
-                            break;
-                          case 'edit':
-                            actionBadge = 'bg-violet-50 border border-violet-200 text-violet-600';
-                            break;
-                          case 'hapus':
-                            actionBadge = 'bg-rose-50 border border-rose-200 text-rose-600';
-                            break;
-                          case 'verifikasi':
-                            actionBadge = 'bg-emerald-50 border border-emerald-200 text-emerald-600';
-                            break;
-                        }
+                              return (
+                                <tr key={log.id} className="hover:bg-slate-50/50 transition">
+                                  <td className="px-4 py-3.5 text-center font-mono text-[11px] text-slate-400">
+                                    {auditStartIndex + idx + 1}
+                                  </td>
+                                  <td className="px-4 py-3.5 text-[11px] text-slate-500 font-mono whitespace-nowrap">
+                                    {new Date(log.created_at).toLocaleString('id-ID')}
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <div>
+                                      <p className="font-bold text-slate-800">{log.user_name || log.username}</p>
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        <span className="text-[9px] text-slate-400 font-mono">@{log.username}</span>
+                                        <span className={`text-[8px] px-1 rounded-sm font-bold uppercase ${
+                                          log.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-655'
+                                        }`}>
+                                          {log.role}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${actionBadge}`}>
+                                      {log.action_type === 'input' ? 'tambah' : log.action_type}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3.5 font-bold text-slate-600 text-[11px]">
+                                    {friendlyTable[log.table_name] || log.table_name}
+                                  </td>
+                                  <td className="px-4 py-3.5 text-slate-700 text-xs">
+                                    {log.description}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
 
-                        // Map technical table names to friendly descriptions
-                        const friendlyTable: Record<string, string> = {
-                          'coaches': 'Profil Pelatih',
-                          'members': 'Pendaftaran/Data Siswa',
-                          'events': 'Event & Berita',
-                          'site_settings': 'Pengaturan Website',
-                          'program_levels': 'Tingkatan Level',
-                          'pricing_packages': 'Paket Harga Global'
-                        };
+                    {/* Pagination Controls */}
+                    {filteredLogs.length > 0 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-slate-100 text-xs text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <span>Tampilkan:</span>
+                          <select
+                            value={auditItemsPerPage}
+                            onChange={(e) => {
+                              setAuditItemsPerPage(Number(e.target.value));
+                              setAuditCurrentPage(1);
+                            }}
+                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 cursor-pointer"
+                          >
+                            <option value={10}>10 per halaman</option>
+                            <option value={25}>25 per halaman</option>
+                            <option value={50}>50 per halaman</option>
+                            <option value={100}>100 per halaman</option>
+                          </select>
+                          <span className="text-slate-400">|</span>
+                          <span>
+                            Menampilkan <strong>{auditStartIndex + 1}</strong> - <strong>{Math.min(auditStartIndex + auditItemsPerPage, filteredLogs.length)}</strong> dari <strong>{filteredLogs.length}</strong> log aktivitas
+                          </span>
+                        </div>
 
-                        return (
-                          <tr key={log.id} className="hover:bg-slate-50/50 transition">
-                            <td className="px-4 py-3.5 text-[11px] text-slate-500 font-mono">
-                              {new Date(log.created_at).toLocaleString('id-ID')}
-                            </td>
-                            <td className="px-4 py-3.5">
-                              <div>
-                                <p className="font-bold text-slate-800">{log.user_name || log.username}</p>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-[9px] text-slate-400 font-mono">@{log.username}</span>
-                                  <span className={`text-[8px] px-1 rounded-sm font-bold uppercase ${
-                                    log.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-655'
-                                  }`}>
-                                    {log.role}
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3.5">
-                              <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${actionBadge}`}>
-                                {log.action_type === 'input' ? 'tambah' : log.action_type}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3.5 font-bold text-slate-600 text-[11px]">
-                              {friendlyTable[log.table_name] || log.table_name}
-                            </td>
-                            <td className="px-4 py-3.5 text-slate-700 text-xs">
-                              {log.description}
-                            </td>
-                          </tr>
-                        );
-                      });
-                    })()}
-                  </tbody>
-                </table>
-              </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={validAuditPage <= 1}
+                            onClick={() => setAuditCurrentPage(prev => Math.max(1, prev - 1))}
+                            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1 cursor-pointer"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" /> Sebelumnya
+                          </button>
+
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: totalAuditPages }, (_, i) => i + 1)
+                              .filter(page => {
+                                if (totalAuditPages <= 7) return true;
+                                if (page === 1 || page === totalAuditPages) return true;
+                                return Math.abs(page - validAuditPage) <= 1;
+                              })
+                              .map((page, idx, arr) => {
+                                const prevPage = arr[idx - 1];
+                                const showEllipsis = prevPage && page - prevPage > 1;
+                                return (
+                                  <React.Fragment key={page}>
+                                    {showEllipsis && <span className="px-1 text-slate-400">...</span>}
+                                    <button
+                                      type="button"
+                                      onClick={() => setAuditCurrentPage(page)}
+                                      className={`w-8 h-8 rounded-lg font-bold text-xs transition cursor-pointer ${
+                                        validAuditPage === page
+                                          ? 'bg-cyan-600 text-white shadow-xs font-black'
+                                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      {page}
+                                    </button>
+                                  </React.Fragment>
+                                );
+                              })}
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={validAuditPage >= totalAuditPages}
+                            onClick={() => setAuditCurrentPage(prev => Math.min(totalAuditPages, prev + 1))}
+                            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1 cursor-pointer"
+                          >
+                            Selanjutnya <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
